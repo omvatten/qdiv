@@ -1,0 +1,13 @@
+Sample,Reactor,Location,Feed
+Ex_S1,R1,Anode,Acetate
+Ex_S2,R1,Filter,Acetate
+Ex_S3,R2,Anode,Acetate
+Ex_S4,R2,Filter,Acetate
+Ex_S5,R3,Anode,Acetate
+Ex_S6,R3,Filter,Acetate
+Ex_S7,R4,Anode,Glucose
+Ex_S8,R4,Filter,Glucose
+Ex_S9,R5,Anode,Glucose
+Ex_S10,R5,Filter,Glucose
+Ex_S11,R6,Anode,Glucose
+Ex_S12,R6,Filter,Glucose
