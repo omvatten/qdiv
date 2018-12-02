@@ -8,7 +8,7 @@ def Subsetting(obj, path):
 
     # Create GUI window
     master = tk.Toplevel()
-    master.title('Beta diversity')
+    master.title('Subsetting')
     master.geometry('500x600')
 
     # Create scrollbar, root is the frame the all widgets are later placed on
@@ -206,20 +206,21 @@ def Heatmap(obj, path):
     tk.Label(root, text='Various input options for heatmap').grid(row=0, columnspan=3, sticky=tk.W)
     tk.Label(root, text='-'*120).grid(row=1, columnspan=3, sticky=tk.W)
 
-    # xAxis
-    var = tk.StringVar(root, 'None')
-    tk.Label(root, text='Enter metadata column for x-axis labels').grid(row=2, columnspan=3, sticky=tk.W)
-    tk.Entry(root, textvariable=var).grid(row=3, sticky=tk.W)
-
     # Input taxonomic levels
     options = ['Kingdom', 'Phylum', 'Class', 'Order', 'Family', 'Genus', 'Species']
     v = []
     for i in range(len(options)):
         v.append(tk.IntVar())
-    tk.Label(root, text='Choose one or two taxonomic levels to include on the y-axis').grid(row=10, columnspan=3, sticky=tk.W)
-    tk.Label(root, text='Sequences are grouped based on the lowest taxonomic level').grid(row=11, columnspan=3, sticky=tk.W)
+    tk.Label(root, text='Choose one or two taxonomic levels to include on the y-axis').grid(row=5, columnspan=3, sticky=tk.W)
+    tk.Label(root, text='Sequences are grouped based on the lowest taxonomic level').grid(row=6, columnspan=3, sticky=tk.W)
     for val, opt in enumerate(options):
-        tk.Checkbutton(root, text=opt, variable=v[val]).grid(row=12+val, sticky=tk.W)
+        tk.Checkbutton(root, text=opt, variable=v[val]).grid(row=7+val, sticky=tk.W)
+    tk.Label(root, text='-'*120).grid(row=14, columnspan=3, sticky=tk.W)
+
+    # xAxis
+    var = tk.StringVar(root, 'None')
+    tk.Label(root, text='Enter metadata column for x-axis labels').grid(row=15, columnspan=3, sticky=tk.W)
+    tk.Entry(root, textvariable=var).grid(row=16, sticky=tk.W)
 
     #Order
     order = tk.StringVar(root, 'None')
@@ -401,7 +402,7 @@ def Alpha_div(obj, path):
         tk.Radiobutton(root, text=opt, variable=y_v, value=opt).pack(anchor=tk.W)
 
     # Buttons to plot
-    tk.Button(root, text='Plot alpha diversity figures', command=run_plot).pack(anchor=tk.W)
+    tk.Button(root, text='Plot alpha diversity', command=run_plot).pack(anchor=tk.W)
 
     ## Printing
     def run_print():
@@ -447,7 +448,7 @@ def Beta_div(obj, path):
     # Create GUI window
     master = tk.Toplevel()
     master.title('Beta diversity')
-    master.geometry('500x700')
+    master.geometry('500x500')
 
     # Create scrollbar, root is the frame the all widgets are later placed on
     def onFrameConfigure(canvas):
@@ -554,11 +555,11 @@ def Plot_PCoA(obj, path):
     tk.Label(root, text='-'*100).grid(row=1, columnspan=3, sticky=tk.W)
 
     # Get dist
-    tk.Label(root, text='Select distance matrix file (comma separated)').grid(row=31, columnspan=3, sticky=tk.W)
+    tk.Label(root, text='Select dissimilarity matrix file (comma separated)').grid(row=31, columnspan=3, sticky=tk.W)
     dis_mat_name = tk.StringVar(root, 'None')
     def openDisMat():
         dis_mat_name.set(askopenfilename())
-    tk.Button(root, text='Distance matrix file', command=openDisMat).grid(row=35, sticky=tk.W)
+    tk.Button(root, text='Dissimilarity matrix', command=openDisMat).grid(row=35, sticky=tk.W)
     tk.Label(root, textvariable=dis_mat_name).grid(row=35, column=1, sticky=tk.W)
 
     # Get var1 and var2
@@ -681,11 +682,11 @@ def Null_model(obj, path):
     # iterations
     var_iter = tk.IntVar()
     var_iter.set(99)
-    tk.Label(root, text='Number of randomization (mandatory)').grid(row=15, columnspan=3, sticky=tk.W)
+    tk.Label(root, text='Number of randomization').grid(row=15, columnspan=3, sticky=tk.W)
     tk.Entry(root, textvariable=var_iter, width=10).grid(row=16, sticky=tk.W)
 
     # dis index
-    tk.Label(root, text='Choose dissimilarity index (mandatory)').grid(row=20, columnspan=3, sticky=tk.W)
+    tk.Label(root, text='Choose dissimilarity index').grid(row=20, columnspan=3, sticky=tk.W)
     dis_index = tk.StringVar()
     dis_options = ['Hill', 'Bray-Curtis', 'Jaccard']
     for val, opt in enumerate(dis_options):
@@ -693,66 +694,88 @@ def Null_model(obj, path):
     qval = tk.DoubleVar()
     qval.set(1)
     tk.Label(root, text='Diversity order (q)').grid(row=22, column=1, sticky=tk.W)
-    tk.Entry(root, textvariable=qval).grid(row=22, column=2, sticky=tk.W)
+    tk.Entry(root, textvariable=qval, width=10).grid(row=22, column=2, sticky=tk.W)
 
     tk.Label(root, text='-'*100).grid(row=25, columnspan=3, sticky=tk.W)
 
-    # constraining variable
-    var_con = tk.StringVar()
-    var_con.set('None')
-    tk.Label(root, text='Constraining variable (optional)').grid(row=30, columnspan=3, sticky=tk.W)
-    tk.Entry(root, textvariable=var_con).grid(row=31, sticky=tk.W)
+    # randomization procedure
+    tk.Label(root, text='Randomization procedure').grid(row=29, columnspan=3, sticky=tk.W)
+    rand_proc = tk.StringVar()
+    rand_options = ['abundance', 'frequency', 'weighting']
+    for val, opt in enumerate(rand_options):
+        tk.Radiobutton(root, text=opt, variable=rand_proc, value=opt).grid(row=30+val, column=0, sticky=tk.W)
 
     # weighting variable
     var_wt = tk.StringVar()
     var_wt.set('None')
-    tk.Label(root, text='Weighting variable (optional)').grid(row=35, columnspan=3, sticky=tk.W)
-    tk.Entry(root, textvariable=var_wt).grid(row=36, sticky=tk.W)
+    tk.Label(root, text='Weighting variable').grid(row=32, column=1, sticky=tk.W)
+    tk.Entry(root, textvariable=var_wt).grid(row=33, column=1, sticky=tk.W)
 
-    # weighting variable
+    # weight
     wt = tk.DoubleVar()
     wt.set(1)
-    tk.Label(root, text='Weight given to low diversity samples (optional)').grid(row=40, columnspan=3, sticky=tk.W)
-    tk.Entry(root, textvariable=wt, width=10).grid(row=41, sticky=tk.W)
+    tk.Label(root, text='Weight').grid(row=32, column=2, sticky=tk.W)
+    tk.Entry(root, textvariable=wt, width=10).grid(row=33, column=2, sticky=tk.W)
 
-    # return var
+    # constraining variable
+    tk.Label(root, text='-'*100).grid(row=35, columnspan=3, sticky=tk.W)
+    var_con = tk.StringVar()
+    var_con.set('None')
+    tk.Label(root, text='Constraining variable (optional)').grid(row=36, columnspan=3, sticky=tk.W)
+    tk.Entry(root, textvariable=var_con).grid(row=37, columnspan=2, sticky=tk.W)
+
+    # return variable
     var_ret = tk.StringVar()
     var_ret.set('None')
-    tk.Label(root, text='Variable specifying how to group samples in returned matrix (optional)').grid(row=45, columnspan=3, sticky=tk.W)
-    tk.Entry(root, textvariable=var_ret).grid(row=46, sticky=tk.W)
+    tk.Label(root, text='Variable specifying how to group samples (optional)').grid(row=40, columnspan=3, sticky=tk.W)
+    tk.Entry(root, textvariable=var_ret).grid(row=41, columnspan=2, sticky=tk.W)
 
+    # range
+    tk.Label(root, text='Choose range for RC index').grid(row=50, columnspan=3, sticky=tk.W)
+    RC_range = tk.StringVar(root, '0 to 1')
+    range_options = ['0 to 1', '-1 to 1']
+    for val, opt in enumerate(range_options):
+        tk.Radiobutton(root, text=opt, variable=RC_range, value=opt).grid(row=51+val, sticky=tk.W)
 
-    tk.Label(root, text='-'*100).grid(row=49, columnspan=3, sticky=tk.W)
+    tk.Label(root, text='-'*100).grid(row=55, columnspan=3, sticky=tk.W)
     def run_null():
         #Input for randomizeTabs
-        randomtabs = randomizeTabs(obj, rarefy='None', constrainingVar=var_con.get(), weightingVar=var_wt.get(),
-                                   weight=wt.get(), iterations=var_iter.get())
+        randomtabs = randomizeTabs(obj, rarefy='None', constrainingVar=var_con.get(), randomization=rand_proc.get(),
+                                   weightingVar=var_wt.get(), weight=wt.get(), iterations=var_iter.get())
+
         if distmat.get() == 'Select':
             dm = 'None'
         else:
             dm = distmat.get()
+
         if dis_index.get() == 'Hill':
             oix = 'None'
             namn = 'Hill'+str(qval.get())
         else:
             oix = dis_index.get()
             namn = oix
-        rcq = RCq(obj, randomtabs, distmat=dm, q=qval.get(), otherIndex=oix, compareVar=var_ret.get())
+
+        if RC_range.get() == '0 to 1':
+            RCrange = 'Raup'
+        else:
+            RCrange = 'Chase'
+
+        rcq = RCq(obj, randomtabs, distmat=dm, q=qval.get(), otherIndex=oix, compareVar=var_ret.get(), RCrange=RCrange)
 
         rcq['Nullmean'].to_csv(path + 'Null_mean_' + namn + '.csv')
         rcq['Nullstd'].to_csv(path + 'Null_std_' + namn + '.csv')
         if var_ret.get() == 'None':
-            rcq['RCmean'].to_csv(path + 'RC_' + namn + '.csv')
+            rcq['RC'].to_csv(path + 'RC_' + namn + '.csv')
         else:
             rcq['RCmean'].to_csv(path + 'RC_mean_' + namn + '.csv')
             rcq['RCstd'].to_csv(path + 'RC_std_' + namn + '.csv')
 
     # Buttons to run model or quit
-    tk.Button(root, text='Run null model', command=run_null).grid(row=50, sticky=tk.W)
+    tk.Button(root, text='Run null model', command=run_null).grid(row=60, sticky=tk.W)
 
     def quit():
         master.destroy()
-    tk.Button(root, text='Quit', command=quit).grid(row=50, column=1, sticky=tk.W)
+    tk.Button(root, text='Quit', command=quit).grid(row=60, column=1, sticky=tk.W)
 
 def startwindow():
 
@@ -809,7 +832,7 @@ def startwindow():
     root.bind("<Configure>", lambda event, canvas=canvas: onFrameConfigure(canvas))
 
     ##########
-    tk.Label(root, text='Select input files (mandatory)').grid(row=1, sticky=tk.W)
+    tk.Label(root, text='Select input files').grid(row=1, sticky=tk.W)
 
     table_name = tk.StringVar(root, 'None')
     def openTable():
@@ -885,7 +908,7 @@ def startwindow():
 
     # Choices of analysis
     tk.Label(root, text='-'*100).grid(row=30, columnspan=2, sticky=tk.W)
-    tk.Label(root, text='Choose a task (mandatory)').grid(row=31, columnspan=2, sticky=tk.W)
+    tk.Label(root, text='Choose a task').grid(row=31, columnspan=2, sticky=tk.W)
 
     v = tk.StringVar()
     options = ['Subset_data', 'Calculate_phyl_dist', 'Heatmap', 'Alpha_div', 'Beta_div', 'PCoA', 'Null_model']
