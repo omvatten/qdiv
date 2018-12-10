@@ -739,28 +739,24 @@ def Null_model(obj, path):
 
     tk.Label(root, text='-'*100).grid(row=55, columnspan=3, sticky=tk.W)
     def run_null():
-        #Input for randomizeTabs
-        randomtabs = randomizeTabs(obj, rarefy='None', constrainingVar=var_con.get(), randomization=rand_proc.get(),
-                                   weightingVar=var_wt.get(), weight=wt.get(), iterations=var_iter.get())
-
         if distmat.get() == 'Select':
             dm = 'None'
         else:
             dm = distmat.get()
-
-        if dis_index.get() == 'Hill':
-            oix = 'None'
-            namn = 'Hill'+str(qval.get())
-        else:
-            oix = dis_index.get()
-            namn = oix
 
         if RC_range.get() == '0 to 1':
             RCrange = 'Raup'
         else:
             RCrange = 'Chase'
 
-        rcq = RCq(obj, randomtabs, distmat=dm, q=qval.get(), otherIndex=oix, compareVar=var_ret.get(), RCrange=RCrange)
+        if dis_index.get() == 'Bray-Curtis':
+            namn = 'Bray'
+        else:
+            namn = dis_index.get()
+
+        rcq = RCq(obj, constrainingVar=var_con.get(), randomization=rand_proc.get(), weightingVar=var_wt.get(), weight=wt.get(),
+            iterations=var_iter.get(), disIndex=namn, distmat=dm, q=qval.get(), compareVar=var_ret.get(),
+            RCrange=RCrange)
 
         rcq['Nullmean'].to_csv(path + 'Null_mean_' + namn + '.csv')
         rcq['Nullstd'].to_csv(path + 'Null_std_' + namn + '.csv')
@@ -769,6 +765,7 @@ def Null_model(obj, path):
         else:
             rcq['RCmean'].to_csv(path + 'RC_mean_' + namn + '.csv')
             rcq['RCstd'].to_csv(path + 'RC_std_' + namn + '.csv')
+        return 0
 
     # Buttons to run model or quit
     tk.Button(root, text='Run null model', command=run_null).grid(row=60, sticky=tk.W)

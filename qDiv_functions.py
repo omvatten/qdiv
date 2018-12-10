@@ -1372,237 +1372,194 @@ def plotPCoA(dist, meta, biplot=[], var1='None', var2='None', var1_title='', var
         plt.savefig(savename)
     plt.show()
 
-# -- Null model analysis -- #
+# -- Null model analysis - Raup-Crick -- #
 
-# Returns a list with 'iterations' number of randomized tabs (as pandas dataframes)
-# The richness of each sample is maintained constant.
+# Randomizes the frequency table and compares the actual beta diversity with the null expectation
+# Returns a dictionary with several items:
+#    'Nullmean' is the mean values of the null dissimilarities (i.e. the dissimilarities of the randomized tables)
+#    'Nullstd' is the standard devation
+#    'RC' is the Raup-Crick measure (i.e. the number of times the actual dissimilarities are higher than the null expectation)
+# If RCrange = 'Raup' the range for the index will be 0 to 1, if it is 'Chase' it will -1 to 1.
+# If compareVar is not None, 'RCmean' and 'RCstd' are returned and represents the mean and standard deviation of all pairwise comparison
+#    within the metadata category specified by compareVar
+# During randomization, the richness and read count of each sample is maintained constant.
 # The randomization can be constrained based on a column heading (constrainingVar) in meta data so that counts are only
 # randomized within a category.
 # randomization specifies the procedure:
-# 'abundance' means that SVs are drawn to each sample based on the total read counts in the table.
-# 'frequency' means that SVs are drawn based on the number of samples in which they are detected.
-# 'weighting' uses the abundance method but a meta data column (weightingVar) can be used to categorize samples and the
-# weight parameters decide the importance of the category of samples with the lowest richness. 0 means the low-richness samples
-# are not considered in the meta community while a weight of 1 means all samples have equal weighting.
-def randomizeTabs(obj, rarefy='None', constrainingVar='None', randomization='abundance', weightingVar='None', weight=1, iterations=9):
-    # Make tkinter object that keeps track of calculation progress
-    rootRT = tk.Tk()
-    rootRT.title('randomizeTabs')
-    calc_progress = tk.DoubleVar(rootRT, 0)
-    calc_counter = 0
-    tk.Label(rootRT, text='Progress in calculation (%)', width=30).pack()
-    tk.Label(rootRT, textvariable=calc_progress, width=20).pack()
+#    'abundance' means that SVs are drawn to each sample based on the total read counts in the table.
+#    'frequency' means that SVs are drawn based on the number of samples in which they are detected (i.e. Chase 2011, Stegen 2013).
+#    'weighting' uses the abundance method but a meta data column (weightingVar) can be used to categorize samples and the
+#      weight parameters decide the importance of the category of samples with the lowest richness. 0 means the low-richness samples
+#      are not considered in the meta community while a weight of 1 means all samples have equal weighting.
+# iterations specifies the number of randomizations, 999 is normal but can take several hours for large frequency tables
+# disIndex specifies the dissimilarity index to calculate: 'Jaccard', 'Bray', and 'Hill' are available choices.
+#    'Hill' refers to naive or phylogenetic dissimilarities of order q. If distmat is specified, phylogenetic are calculated.
+def RCq(obj, constrainingVar='None', randomization='abundance', weightingVar='None', weight=1, iterations=9,
+         disIndex='Hill', distmat='None', q=1, compareVar='None', RCrange='Raup'):
 
-    tab = obj['tab'].copy()
-    meta = obj['meta']
+    # Returns a list of randomized tables
+    def randomizeTabs():
+        # Make tkinter object that keeps track of calculation progress
+        rootRT = tk.Tk()
+        rootRT.title('Step 1/2: randomizeTabs')
+        calc_progress = tk.DoubleVar(rootRT, 0)
+        calc_counter = 0
+        tk.Label(rootRT, text='Progress in calculation (%)', width=30).pack()
+        tk.Label(rootRT, textvariable=calc_progress, width=20).pack()
 
-    if rarefy != 'None':
-        tab = rarefy1(tab, depth=rarefy)
-
-    if constrainingVar != 'None':
-        catlist1 = []
-        [catlist1.append(x) for x in meta[constrainingVar].tolist() if x not in catlist1]
-
-    # Function to put less emphasis on less richsamples within a specific category, return a subtab
-    def weighting_subtab(subtab, submeta):
-        catlist2 = []
-        [catlist2.append(x) for x in submeta[weightingVar].tolist() if x not in catlist2]
-        listofcounts = []
-        listofcats = []
-        for cat2 in catlist2:
-            samples_group = submeta[submeta[weightingVar] == cat2].index.tolist()
-            if len(samples_group) > 1:
-                summed_column = subtab[samples_group].sum(axis=1)
-            else:
-                summed_column = subtab[samples_group[0]]
-            summed_column[summed_column > 0] = 1
-            summed_column = summed_column.tolist()
-            listofcounts.append(np.sum(summed_column))
-            listofcats.append(cat2)
-        if len(listofcats) > 1:  # Find category with lowest richness
-            min_richness = min(listofcounts)
-            max_richness = max(listofcounts)
-            if min_richness < max_richness:
-                min_pos = listofcounts.index(min_richness)
-                min_cat = listofcats[min_pos]
-                min_samples = submeta[submeta[weightingVar] == min_cat].index.tolist()
-                subtab[min_samples] = subtab[min_samples] * weight
-        return subtab
-
-    def randomizeit(raw_tab, subsamplelist, SV_series, count_series, randomized_tab):
-        if len(subsamplelist) > 1:
-            for c in subsamplelist:
-                totalreads = raw_tab[c].sum()  # Total reads
-                totalSVs = raw_tab[c][raw_tab[c] > 0].count()  # Richness
-                rows = randomized_tab[c].sample(n=totalSVs, weights=SV_series).index.tolist()  # Randomly sample certain SVs
-                randomized_tab.loc[rows, c] = 1  # Give each of these SVs a count of 1
-                probabilities = count_series[rows] / count_series[rows].sum()
-                randomchoice = np.random.choice(rows, size=totalreads - totalSVs, p=probabilities)
-                uniquechoices = np.unique(randomchoice, return_counts=True)
-                randomized_tab.loc[uniquechoices[0], c] = randomized_tab.loc[uniquechoices[0], c] + uniquechoices[1]
-        else:
-            randomized_tab[subsamplelist] = raw_tab[subsamplelist]
-        return randomized_tab[subsamplelist]
-
-    #Generate a list with #iterations# random tabs
-    random_tabs = []
-    for i in range(iterations):
-
-        # For showing progress
-        calc_counter += 1
-        calc_progress.set(round(100 * calc_counter / iterations, 2))
-        rootRT.update()
-
-        #Dataframe holding randomized tab
-        RCtab = pd.DataFrame(0, index=tab.index, columns=tab.columns)
-
-        if constrainingVar != 'None': #Checks if we separate the randomization for different sets of samples
-            for cat1 in catlist1: #Randomize each category of samples at the time
-                submeta = meta[meta[constrainingVar] == cat1] #Subset meta to cat1
-                subsamplelist = submeta.index.tolist()
-                subtab = tab[subsamplelist] #Subset table to cat1 samples
-
-                if randomization == 'frequency':
-                    count_series = subtab.sum(axis=1)
-                    subtab[subtab > 0] = 1
-                    SV_series = subtab.sum(axis=1)
-                elif randomization == 'weighting' and weightingVar != 'None':
-                    subtab = weighting_subtab(subtab, submeta)
-                    SV_series = subtab.sum(axis=1)
-                    count_series = SV_series.copy()
+        # Function to put less emphasis on less richsamples within a specific category, return a subtab
+        def weighting_subtab(wtab, wmeta):
+            catlist2 = []
+            [catlist2.append(x) for x in wmeta[weightingVar].tolist() if x not in catlist2]
+            listofcounts = []
+            listofcats = []
+            for cat2 in catlist2:
+                samples_group = wmeta[wmeta[weightingVar] == cat2].index.tolist()
+                if len(samples_group) > 1:
+                    summed_column = wtab[samples_group].sum(axis=1)
                 else:
-                    SV_series = subtab.sum(axis=1)
-                    count_series = SV_series.copy()
+                    summed_column = subtab[samples_group[0]]
+                summed_column[summed_column > 0] = 1
+                summed_column = summed_column.tolist()
+                listofcounts.append(np.sum(summed_column))
+                listofcats.append(cat2)
+            if len(listofcats) > 1:  # Find category with lowest richness
+                min_richness = min(listofcounts)
+                max_richness = max(listofcounts)
+                if min_richness < max_richness:
+                    min_pos = listofcounts.index(min_richness)
+                    min_cat = listofcats[min_pos]
+                    min_samples = wmeta[wmeta[weightingVar] == min_cat].index.tolist()
+                    wtab[min_samples] = wtab[min_samples] * weight
+            return wtab.sum(axis=1)
 
-                RCtab[subsamplelist] = randomizeit(tab, subsamplelist, SV_series, count_series, RCtab)
+        # Get tab from object
+        tab = obj['tab'].copy()
+        SVlist = tab.index.tolist()
+        if 'meta' in obj.keys():
+            meta = obj['meta']
 
-                # if len(subtab.columns) > 1:
-                #     tabsum = subtab.sum(axis=1)
-                #     for c in subtab.columns:
-                #         totalreads = tab[c].sum() #Total reads
-                #         totalSVs = tab[c][tab[c] > 0].count() #Richness
-                #         rows = RCtab[c].sample(n=totalSVs, weights=tabsum).index.tolist() #Randomly sample certain SVs
-                #         RCtab.loc[rows, c] = 1 #Give each of these SVs a count of 1
-                #         probabilities = tabsum[rows] / tabsum[rows].sum()
-                #         randomchoice = np.random.choice(rows, size=totalreads - totalSVs, p=probabilities)
-                #         uniquechoices = np.unique(randomchoice, return_counts=True)
-                #         RCtab.loc[uniquechoices[0], c] = RCtab.loc[uniquechoices[0], c] + uniquechoices[1]
-                # else:
-                #     RCtab[submeta.index] = subtab #In case there is only one sample in the category
+        # Divide into subtabs
+        if constrainingVar == 'None':
+            subtablist = [tab.copy()]
+        else:
+            subtablist = []
+            constrainCats = []
+            [constrainCats.append(x) for x in meta[constrainingVar].tolist() if x not in constrainCats]
+            for cat in constrainCats:
+                subsamples = meta[meta[constrainingVar] == cat].index
+                subtablist.append(tab[subsamples])
 
-        else:  # If there is no constraining variable
-            submeta = meta.copy()
-            subsamplelist = submeta.index.tolist()
-            subtab = tab.copy()
+        # Make a list of empty tabs
+        random_tabs = []
+        for i in range(iterations):
+            random_tabs.append(pd.DataFrame(0, index=tab.index, columns=tab.columns))
 
-            if randomization == 'frequency':
-                count_series = subtab.sum(axis=1)
-                subtab[subtab > 0] = 1
-                SV_series = subtab.sum(axis=1)
-            elif randomization == 'weighting' and weightingVar != 'None':
-                subtab = weighting_subtab(subtab, submeta)
-                SV_series = subtab.sum(axis=1)
-                count_series = SV_series.copy()
+        # Go through the subtablist, for each subtab calculate abundance, frequency etc.
+        for subtab in subtablist:
+            # Get abundances as p for all subtabs
+            if randomization == 'weighting':
+                weightingtab = subtab.copy()
+                abundseries = weighting_subtab(wtab=weightingtab, wmeta=meta)
             else:
-                SV_series = subtab.sum(axis=1)
-                count_series = SV_series.copy()
+                abundseries = subtab.sum(axis=1)
+            abund_all_p = abundseries / abundseries.sum()
 
-            RCtab[subsamplelist] = randomizeit(tab, subsamplelist, SV_series, count_series, RCtab)
+            # Get frequencies as p for all subtabs
+            subtab_bin = subtab.copy()
+            subtab_bin[subtab_bin > 0] = 1
+            freqlist = subtab_bin.sum(axis=1).tolist()
+            freqlist = freqlist / np.sum(freqlist)
 
-            # if weightingVar != 'None':  # Checks if we should put less emphasis on the samples with less richness
-            #     subtab = weighting_subtab(subtab, submeta)
-            #
-            # # Make sure there are more than one sample in subtab
-            # if len(subtab.columns) > 1:
-            #     tabsum = subtab.sum(axis=1)
-            #     for c in subtab.columns:
-            #         totalreads = tab[c].sum()  # Total reads
-            #         totalSVs = tab[c][tab[c] > 0].count()  # Richness
-            #         rows = RCtab[c].sample(n=totalSVs, weights=tabsum).index.tolist()  # Randomly sample certain SVs
-            #         RCtab.loc[rows, c] = 1  # Give each of these SVs a count of 1
-            #         probabilities = tabsum[rows] / tabsum[rows].sum()
-            #         randomchoice = np.random.choice(rows, size=totalreads - totalSVs, p=probabilities)
-            #         uniquechoices = np.unique(randomchoice, return_counts=True)
-            #         RCtab.loc[uniquechoices[0], c] = RCtab.loc[uniquechoices[0], c] + uniquechoices[1]
-            # else:
-            #     RCtab[submeta.index] = subtab  # In case there is only one sample in the category
-        # Append randomized tab to list
-        random_tabs.append(RCtab)
-    rootRT.destroy() #Close "show progress" window
-    return random_tabs
+            # List of samples
+            smplist = subtab.columns.tolist()
 
-# Returns a dictionary with several items:
-# 'Nullmean' is the mean values of the null dissimilarities
-# 'Nullstd' is the standard devation
-# 'RC' is the Raup-Crick measure
-# If compareVar is not None, 'RCmean' and 'RCstd' are returned and represents the mean and standard deviation of all pairwise comparison
-# randomTabs is the output from randomizeTabs
-# If otherIndex is "Bray" or "Jaccard", these indices are calculated
-# If distmat is a dataframe with distances between SVs, phylogenetic dissimilarities of order q are calculated
-# Else, naive dissimilarities of order q are calculated
-# compareVar is a heading in metadata specifying categories to compare to each other
-# If RCrange = 'Raup' the range for the index will be 0 to 1, if it is 'Chase' it will -1 to 1.
-def RCq(obj, randomTabs, distmat='None', q=1, otherIndex='None', compareVar='None', RCrange='Raup'):
+            # List of richness
+            richnesslist = subtab_bin.sum(axis=0).tolist()
+
+            # List of read counts
+            readslist = subtab.sum(axis=0).tolist()
+
+            # Do iterations
+            for i in range(iterations):
+                # For showing progress
+                calc_counter += 1
+                calc_progress.set(round(100 * calc_counter / (len(subtablist) * iterations), 1))
+                rootRT.update()
+
+                # Go through each sample in subtab
+                for cnr in range(len(smplist)):
+                    smp = smplist[cnr]
+                    richness = richnesslist[cnr]
+                    reads = readslist[cnr]
+
+                    if randomization in ['abundance', 'weighting']:
+                        rows = np.random.choice(SVlist, size=richness, replace=False, p=abund_all_p)
+                    elif randomization == 'frequency':
+                        rows = np.random.choice(SVlist, size=richness, replace=False, p=freqlist)
+                    random_tabs[i].loc[rows, smp] = 1
+
+                    abund_sub_p = abundseries[rows] / abundseries[rows].sum()
+
+                    randomchoice = np.random.choice(rows, size=reads - richness, replace=True, p=abund_sub_p)
+                    uniquechoices = np.unique(randomchoice, return_counts=True)
+                    random_tabs[i].loc[uniquechoices[0], smp] = random_tabs[i].loc[uniquechoices[0], smp] + \
+                                                                uniquechoices[1]
+
+        rootRT.destroy()  # Close "show progress" window
+        return random_tabs
+
+    #Get frequency table
+    tab = obj['tab'].copy()
+
+    #Generate random tabs
+    randomtabs = randomizeTabs()
+
     # Make tkinter object that keeps track of calculationsprogress
     rootRCq = tk.Tk()
-    rootRCq.title('RCq')
+    rootRCq.title('Step 2/2: Compare beta diversity')
     calc_progress = tk.DoubleVar(rootRCq, 0)
     calc_counter = 0
     tk.Label(rootRCq, text='Progress in calculation (%)', width=30).pack()
     tk.Label(rootRCq, textvariable=calc_progress, width=20).pack()
 
-    # Get tab and meta
-    tab = obj['tab'].copy()
-    meta = obj['meta']
-
-    #Check samples in randomTabs
-    stokeep = randomTabs[0].columns
-    tab = tab[stokeep] #Make sure samples in tab are ordered in the same way
-
-    if otherIndex == 'Bray':
+    # Calculate betadiv for the subtab
+    if disIndex == 'Bray':
         betadiv = bray(tab)
-    elif otherIndex == 'Jaccard':
+    elif disIndex == 'Jaccard':
         betadiv = jaccard(tab)
-    elif isinstance(distmat, str):
+    elif disIndex == 'Hill' and isinstance(distmat, str):
         betadiv = naiveDivBeta(tab, q=q)
-    else:
+    elif disIndex == 'Hill':
         betadiv = phylDivBeta(tab, distmat=distmat, q=q)
 
-    orderedsampleslist = betadiv.columns #Order of samples in calculated betadiv
+    # The output is saved in these dataframes
+    RC_tab = pd.DataFrame(0, index=tab.columns, columns=tab.columns)
+    random_beta_all = np.zeros((len(tab.columns), len(tab.columns), iterations))
 
-    RC_tab = pd.DataFrame(0, index=betadiv.index, columns=betadiv.columns)
-    random_beta_all = np.zeros((len(betadiv.index), len(betadiv.columns), len(randomTabs)))
-
-    # Start iterations through randomTabs
-    for i in range(len(randomTabs)):
-
+    for i in range(iterations):
         # For showing progress
         calc_counter += 1
-        calc_progress.set(round(100 * calc_counter / len(randomTabs), 2))
+        calc_progress.set(round(100 * calc_counter / iterations, 1))
         rootRCq.update()
 
-        # Check which beta div to calculate
-        if otherIndex == 'Bray':
-            randombeta = bray(tab)
-        elif otherIndex == 'Jaccard':
-            randombeta = jaccard(tab)
-        elif isinstance(distmat, str):
-            randombeta = naiveDivBeta(randomTabs[i], q=q)
-        else:
-            randombeta = phylDivBeta(randomTabs[i], distmat=distmat, q=q)
+        rtab = randomtabs[i]
+        if disIndex == 'Bray':
+            randombeta = bray(rtab)
+        elif disIndex == 'Jaccard':
+            randombeta = jaccard(rtab)
+        elif disIndex == 'Hill' and isinstance(distmat, str):
+            randombeta = naiveDivBeta(rtab, q=q)
+        elif disIndex == 'Hill':
+            randombeta = phylDivBeta(rtab, distmat=distmat, q=q)
 
-        # Just to make sure samples are ordered in the correct way
-        randombeta = randombeta.loc[orderedsampleslist, orderedsampleslist]
-
-        # Do RC calculation
         mask = betadiv > randombeta
         RC_tab[mask] = RC_tab[mask] + 1
         mask = betadiv == randombeta
         RC_tab[mask] = RC_tab[mask] + 0.5
-
         random_beta_all[:, :, i] = randombeta
 
-    RC_tab = RC_tab / len(randomTabs) #Calculate RC values
+    RC_tab = RC_tab / iterations #Calculate RC values
     if RCrange == 'Chase':
         RC_tab = (RC_tab - 0.5) * 2
 
@@ -1655,4 +1612,9 @@ def RCq(obj, randomTabs, distmat='None', q=1, otherIndex='None', compareVar='Non
         out['Nullmean'] = out_nullavg
         out['Nullstd'] = out_nullstd
     return out
+
+
+
+
+
 
