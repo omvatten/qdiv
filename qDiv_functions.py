@@ -1511,6 +1511,8 @@ def RCq(obj, constrainingVar='None', randomization='abundance', weightingVar='No
 
     #Get frequency table
     tab = obj['tab'].copy()
+    if 'meta' in obj.keys():
+        meta = obj['meta']
 
     #Generate random tabs
     randomtabs = randomizeTabs()
