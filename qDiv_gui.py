@@ -758,13 +758,19 @@ def Null_model(obj, path):
             iterations=var_iter.get(), disIndex=namn, distmat=dm, q=qval.get(), compareVar=var_ret.get(),
             RCrange=RCrange)
 
-        rcq['Nullmean'].to_csv(path + 'Null_mean_' + namn + '.csv')
-        rcq['Nullstd'].to_csv(path + 'Null_std_' + namn + '.csv')
-        if var_ret.get() == 'None':
-            rcq['RC'].to_csv(path + 'RC_' + namn + '.csv')
+        if namn == 'Hill':
+            namn2 = namn + str(qval.get())
         else:
-            rcq['RCmean'].to_csv(path + 'RC_mean_' + namn + '.csv')
-            rcq['RCstd'].to_csv(path + 'RC_std_' + namn + '.csv')
+            namn2 = namn
+
+        rcq['Nullmean'].to_csv(path + 'Null_mean_' + namn2 + '.csv')
+        rcq['Nullstd'].to_csv(path + 'Null_std_' + namn2 + '.csv')
+        rcq['Obs'].to_csv(path + 'Obs_' + namn2 + '.csv')
+        if var_ret.get() == 'None':
+            rcq['RC'].to_csv(path + 'RC_' + namn2 + '.csv')
+        else:
+            rcq['RCmean'].to_csv(path + 'RC_mean_' + namn2 + '.csv')
+            rcq['RCstd'].to_csv(path + 'RC_std_' + namn2 + '.csv')
         return 0
 
     # Buttons to run model or quit
@@ -773,6 +779,152 @@ def Null_model(obj, path):
     def quit():
         master.destroy()
     tk.Button(root, text='Quit', command=quit).grid(row=60, column=1, sticky=tk.W)
+
+def Consensus_object(path):
+    # Start GUI window
+    master = tk.Toplevel()
+    master.title('Make consensus')
+    master.geometry('500x700')
+
+    # Create scrollbar, root is the frame the all widgets are later placed on
+    def onFrameConfigure(canvas):
+        ###Reset the scroll region to encompass the inner frame
+        canvas.configure(scrollregion=canvas.bbox("all"))
+    canvas = tk.Canvas(master, borderwidth=0, background="#bebebe")
+    root = tk.Frame(canvas, background="#bebebe")
+    vsb = tk.Scrollbar(master, orient="vertical", command=canvas.yview)
+    hsb = tk.Scrollbar(master, orient="horizontal", command=canvas.xview)
+
+    canvas.configure(yscrollcommand=vsb.set)
+    canvas.configure(xscrollcommand=hsb.set)
+
+    vsb.pack(side="right", fill="y")
+    hsb.pack(side="bottom", fill="x")
+
+    canvas.pack(side="left", fill="both", expand=True)
+    canvas.create_window((8, 20), window=root, anchor="nw")
+
+    root.bind("<Configure>", lambda event, canvas=canvas: onFrameConfigure(canvas))
+
+    ##########
+    tk.Label(root, text='Select input files').grid(row=1, sticky=tk.W)
+
+    meta_name = tk.StringVar(root, 'None')
+    def openMeta():
+        meta_name.set(askopenfilename())
+    tk.Button(root, text='Meta data', command=openMeta).grid(row=4, sticky=tk.W)
+    tk.Label(root, textvariable=meta_name).grid(row=5, column=0, columnspan=2, sticky=tk.W)
+
+    tk.Label(root, text='-'*100).grid(row=6, columnspan=2)
+
+    table_name1 = tk.StringVar(root, 'None')
+    def openTable1():
+        table_name1.set(askopenfilename())
+    tk.Button(root, text='Frequency table 1', command=openTable1).grid(row=10, column=0, sticky=tk.W)
+    tk.Label(root, textvariable=table_name1).grid(row=11, column=0, columnspan=2, sticky=tk.W)
+
+    fasta_name1 = tk.StringVar(root, 'None')
+    def openFasta1():
+        fasta_name1.set(askopenfilename())
+    tk.Button(root, text='Fasta file 1', command=openFasta1).grid(row=10, column=1, sticky=tk.W)
+    tk.Label(root, textvariable=fasta_name1).grid(row=12, column=1, columnspan=2, sticky=tk.W)
+
+    tk.Label(root, text='-'*100).grid(row=13, columnspan=2)
+
+    table_name2 = tk.StringVar(root, 'None')
+    def openTable2():
+        table_name2.set(askopenfilename())
+    tk.Button(root, text='Frequency table 2', command=openTable2).grid(row=15, column=0, sticky=tk.W)
+    tk.Label(root, textvariable=table_name2).grid(row=16, column=0, columnspan=2, sticky=tk.W)
+
+    fasta_name2 = tk.StringVar(root, 'None')
+    def openFasta2():
+        fasta_name2.set(askopenfilename())
+    tk.Button(root, text='Fasta file 2', command=openFasta2).grid(row=15, column=1, sticky=tk.W)
+    tk.Label(root, textvariable=fasta_name2).grid(row=17, column=1, columnspan=2, sticky=tk.W)
+
+    tk.Label(root, text='-'*100).grid(row=19, columnspan=2)
+
+    table_name3 = tk.StringVar(root, 'None')
+    def openTable3():
+        table_name3.set(askopenfilename())
+    tk.Button(root, text='Frequency table 3', command=openTable3).grid(row=20, column=0, sticky=tk.W)
+    tk.Label(root, textvariable=table_name3).grid(row=21, column=0, columnspan=2, sticky=tk.W)
+
+    fasta_name3 = tk.StringVar(root, 'None')
+    def openFasta3():
+        fasta_name3.set(askopenfilename())
+    tk.Button(root, text='Fasta file 3', command=openFasta3).grid(row=20, column=1, sticky=tk.W)
+    tk.Label(root, textvariable=fasta_name3).grid(row=22, column=1, columnspan=2, sticky=tk.W)
+
+    tk.Label(root, text='-'*100).grid(row=23, columnspan=2)
+
+    table_name4 = tk.StringVar(root, 'None')
+    def openTable4():
+        table_name4.set(askopenfilename())
+    tk.Button(root, text='Frequency table 4', command=openTable4).grid(row=25, column=0, sticky=tk.W)
+    tk.Label(root, textvariable=table_name4).grid(row=26, column=0, columnspan=2, sticky=tk.W)
+
+    fasta_name4 = tk.StringVar(root, 'None')
+    def openFasta4():
+        fasta_name4.set(askopenfilename())
+    tk.Button(root, text='Fasta file 4', command=openFasta4).grid(row=25, column=1, sticky=tk.W)
+    tk.Label(root, textvariable=fasta_name4).grid(row=27, column=1, columnspan=2, sticky=tk.W)
+
+    tk.Label(root, text='-'*100).grid(row=28, columnspan=2)
+
+    table_name5 = tk.StringVar(root, 'None')
+    def openTable5():
+        table_name5.set(askopenfilename())
+    tk.Button(root, text='Frequency table 5', command=openTable5).grid(row=30, column=0, sticky=tk.W)
+    tk.Label(root, textvariable=table_name5).grid(row=31, column=0, columnspan=2, sticky=tk.W)
+
+    fasta_name5 = tk.StringVar(root, 'None')
+    def openFasta5():
+        fasta_name5.set(askopenfilename())
+    tk.Button(root, text='Fasta file 5', command=openFasta5).grid(row=30, column=1, sticky=tk.W)
+    tk.Label(root, textvariable=fasta_name5).grid(row=32, column=1, columnspan=2, sticky=tk.W)
+
+    tk.Label(root, text='-'*100).grid(row=33, columnspan=2)
+
+    tk.Label(root, text='Which type of separator was used in the table and meta files?').grid(row=35, columnspan=2, sticky=tk.W)
+    sep_name = tk.StringVar(root, ',')
+    optionsSep = [',', ';', 'tab']
+    for val, opt in enumerate(optionsSep):
+        tk.Radiobutton(root, text=opt, variable=sep_name, value=opt).grid(row=36+val, sticky=tk.W)
+
+    #Specify path for output files
+    path_name_out = tk.StringVar(root, path)
+    def openFolder():
+        path_name_out.set(askdirectory())
+    tk.Button(root, text='Folder for output files', command=openFolder).grid(row=40, column=0, sticky=tk.W)
+    tk.Label(root, textvariable=path_name_out).grid(row=41, column=0, sticky=tk.W)
+
+    tk.Label(root, text='-'*100).grid(row=48, columnspan=2)
+
+    # Make consensus object
+    def consensusObj():
+        tablist = [table_name1.get(), table_name2.get(), table_name3.get(), table_name4.get(), table_name5.get()]
+        fastalist = [fasta_name1.get(), fasta_name2.get(), fasta_name3.get(), fasta_name4.get(), fasta_name5.get()]
+        if sep_name.get() == 'tab':
+            sep = '\t'
+        else:
+            sep = sep_name.get()
+
+        objlist = []
+        for nr in range(len(tablist)):
+            t = tablist[nr]
+            f = fastalist[nr]
+            if t != 'None' and f != 'None':
+                objlist.append(loadFiles(tab=t, fasta=f, meta=meta_name.get(), sep=sep))
+        cons = makeConsensusObject(objlist)
+        returnFiles(cons, path=path_name_out.get() + '/', savename='Consensus', sep=sep)
+
+    tk.Button(root, text='Make consensus', command=consensusObj).grid(row=50, column=0, sticky=tk.W)
+
+    def quit():
+        master.destroy()
+    tk.Button(root, text='Quit', command=quit).grid(row=50, column=1, sticky=tk.W)
 
 def startwindow():
 
@@ -799,6 +951,9 @@ def startwindow():
             Plot_PCoA(obj, path_name.get() + '/')
         elif v.get() == 'Null_model':
             Null_model(obj, path_name.get() + '/')
+        elif v.get() == 'Make_consensus':
+            Consensus_object(path_name.get() + '/')
+
 
     def quit():
         master.destroy()
@@ -908,7 +1063,7 @@ def startwindow():
     tk.Label(root, text='Choose a task').grid(row=31, columnspan=2, sticky=tk.W)
 
     v = tk.StringVar()
-    options = ['Subset_data', 'Calculate_phyl_dist', 'Heatmap', 'Alpha_div', 'Beta_div', 'PCoA', 'Null_model']
+    options = ['Subset_data', 'Calculate_phyl_dist', 'Heatmap', 'Alpha_div', 'Beta_div', 'PCoA', 'Null_model', 'Make_consensus']
     for val, opt in enumerate(options):
         tk.Radiobutton(root, text=opt, variable=v, value=opt).grid(row=40+val, sticky=tk.W)
 

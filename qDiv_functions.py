@@ -5,6 +5,7 @@ import math
 import matplotlib.pyplot as plt
 from matplotlib import colors as mcolors
 import tkinter as tk
+import copy
 
 pd.options.mode.chained_assignment = None  # default='warn'
 
@@ -166,27 +167,24 @@ def loadFiles(path='', tab='None', fasta='None', meta='None', sep=','):  # Impor
 
 # Outputs frequency table, fasta file and meta data from an object
 # obj is object to be returned, path is path to folder where files are to be saved
-def returnFiles(obj, path, sep=',', savename='output'):  # Saves files in the same format as they were loaded
-    # Check if there is any taxa
-    tax_is = 0
-    if 'tax' in obj:
-        tax = obj['tax']
-        if tax['Phylum'].isnull().sum() < len(tax.index):
-            tax_is = 1
-
+# savename is optional, sep is separator used in data tables
+def returnFiles(obj, path, savename='', sep=','):  # Saves files in the same format as they were loaded
     # Return taxa-count table
-    if 'tab' in obj and tax_is == 1:
-        tab = obj['tab']
-        tax = obj['tax']
+    if 'tab' in obj and 'tax' in obj:
+        tab = obj['tab']; tax = obj['tax']
         tab_tax = pd.concat([tab, tax], axis=1)
         tab_tax.to_csv(path + savename + '_table.csv', sep=sep)
     elif 'tab' in obj:
         tab = obj['tab']
         tab.to_csv(path + savename + '_table.csv', sep=sep)
+    else:
+        print('No tab and tax')
 
     if 'meta' in obj:
         meta = obj['meta']
         meta.to_csv(path + savename + '_meta.csv', sep=sep)
+    else:
+        print('No meta')
 
     if 'seq' in obj:
         seq = obj['seq']
@@ -197,6 +195,10 @@ def returnFiles(obj, path, sep=',', savename='output'):  # Saves files in the sa
         with open(path + savename + '_seqs.fa', 'w') as f:
             for i in fasta:
                 f.write(i)
+    else:
+        print('No seq')
+    print('Files saved')
+
 
 # Returns some information about an object, e.g. number of samples, reads, headings in meta data etc.
 def getStats(obj):
@@ -1376,6 +1378,7 @@ def plotPCoA(dist, meta, biplot=[], var1='None', var2='None', var1_title='', var
 
 # Randomizes the frequency table and compares the actual beta diversity with the null expectation
 # Returns a dictionary with several items:
+#    'Obs' is the actually observed dissimilarity values
 #    'Nullmean' is the mean values of the null dissimilarities (i.e. the dissimilarities of the randomized tables)
 #    'Nullstd' is the standard devation
 #    'RC' is the Raup-Crick measure (i.e. the number of times the actual dissimilarities are higher than the null expectation)
@@ -1569,6 +1572,7 @@ def RCq(obj, constrainingVar='None', randomization='abundance', weightingVar='No
 
     out = {}
     if compareVar == 'None': #Straight forward comparison of all samples to each other
+        out['Obs'] = betadiv
         out['RC'] = RC_tab
         medel = np.mean(random_beta_all, axis=2)
         stdav = np.std(random_beta_all, axis=2)
@@ -1609,13 +1613,150 @@ def RCq(obj, constrainingVar='None', randomization='abundance', weightingVar='No
                 out_nullavg.loc[c2, c1] = out_nullavg.loc[c1, c2]
                 out_RCstd.loc[c2, c1] = out_RCstd.loc[c1, c2]
                 out_nullstd.loc[c2, c1] = out_nullstd.loc[c1, c2]
+        out['Obs'] = betadiv
         out['RCmean'] = out_RCavg
         out['RCstd'] = out_RCstd
         out['Nullmean'] = out_nullavg
         out['Nullstd'] = out_nullstd
     return out
 
+# ------------------------------------------
+# ANALYSING AND COMBINING OBJECTS
 
+# Function that makes sure different objects with the same SV have the same SV names
+# The input is a list with the objects to align
+# If two SVs being compared have unequal length, they are considered identical if the shorter sequence can be found within the longer
+def alignSVsInObjects(objectlist):
+    objlist = copy.deepcopy(objectlist)
+
+    # Keep track of progress
+    rootAlign = tk.Tk()
+    rootAlign.title('Aligning SVs')
+    SV_progress = tk.StringVar(rootAlign, 'Comparing SVs')
+    obj_progress = tk.StringVar(rootAlign, 'Aligning object nr: ')
+    tk.Label(rootAlign, textvariable=SV_progress, width=30).pack()
+    tk.Label(rootAlign, textvariable=obj_progress, width=30).pack()
+
+    # Find all unique SVs in all objects
+    svlist = []
+    for i in range(len(objlist)):
+        svlist = svlist + objlist[i]['seq']['seq'].tolist()
+    svlist = list(set(svlist))
+
+    SV_progress.set('Comparing SVs: ' + str(len(svlist)) + ' found')
+    rootAlign.update()
+
+    # Check if the shorter SVs are actually part of a longer, if so give them the same name
+    # Store names in svdict
+    svdict = {}
+    counter = 0
+    for sv_nr1 in range(len(svlist)):
+        sv1 = svlist[sv_nr1]
+        if sv1 not in svdict.keys():
+            counter += 1
+            svdict[sv1] = 'SV' + str(counter)
+            for sv_nr2 in range(sv_nr1 + 1, len(svlist)):
+                sv2 = svlist[sv_nr2]
+                if (sv1 in sv2 or sv2 in sv1) and (sv2 not in svdict.keys()):
+                    svdict[sv2] = svdict[sv1]
+    SV_progress.set(str(counter) + ' SVs aligned')  # Update progress window
+    rootAlign.update()
+
+    # Change the name of all SVs
+    for i in range(len(objlist)):
+        obj_progress.set('Aligning object nr: ' + str(i+1) + ' out of ' + str(len(objlist)))
+        rootAlign.update()
+
+        seq = objlist[i]['seq']
+        seq['newSV'] = np.nan
+        if 'tab' in objlist[i].keys():
+            tab = objlist[i]['tab']
+            ra = objlist[i]['ra']
+            tab['newSV'] = np.nan
+            ra['newSV'] = np.nan
+        if 'tax' in objlist[i].keys():
+            tax = objlist[i]['tax']
+            tax['newSV'] = np.nan
+
+        for n in seq.index:
+            newSVname = svdict[seq.loc[n, 'seq']]
+            seq.loc[n, 'newSV'] = newSVname
+            if 'tab' in objlist[i].keys():
+                tab.loc[n, 'newSV'] = newSVname
+                ra.loc[n, 'newSV'] = newSVname
+            if 'tax' in objlist[i].keys():
+                tax.loc[n, 'newSV'] = newSVname
+
+        seq = seq.set_index('newSV')
+        if 'tab' in objlist[i].keys():
+            tab = tab.groupby('newSV').sum()
+            ra = ra.groupby('newSV').sum()
+        if 'tax' in objlist[i].keys():
+            tax = tax.groupby('newSV').first()
+
+        objlist[i]['seq'] = seq
+        if 'tab' in objlist[i].keys():
+            objlist[i]['tab'] = tab
+            objlist[i]['ra'] = ra
+        if 'tax' in objlist[i].keys():
+            objlist[i]['tax'] = tax
+    rootAlign.destroy()
+    return objlist
+
+# Takes a list of object and generates an consensus object containing only SVs in common
+def makeConsensusObject(objlist):
+    aligned_objects = alignSVsInObjects(objlist)
+
+    #Make a list with SVs in common. Subset all tables to these SVs
+    incommonSVs = aligned_objects[0]['tab'].index.tolist()
+    for i in range(1, len(aligned_objects)):
+        obj = aligned_objects[i]
+        incommonSVs = set(incommonSVs).intersection(obj['tab'].index.tolist())
+    ra_list = []
+    totcountlist = []
+    for i in range(len(aligned_objects)):
+        tab = aligned_objects[i]['tab'].loc[incommonSVs, :]
+        ra_list.append(tab / tab.sum())
+        totcountlist.append(sum(tab.sum()))
+
+    # Get consensus ra
+    cons_ra = pd.DataFrame(0, index=incommonSVs, columns=aligned_objects[0]['tab'].columns)
+    for i in range(len(ra_list)):
+        cons_ra = cons_ra + ra_list[i]
+    cons_ra = cons_ra / cons_ra.sum()
+
+    # Get tab with highest counts and calculate consensus counts based on that
+    maxindex = totcountlist.index(max(totcountlist))
+    maxtab = aligned_objects[maxindex]['tab']
+    cons_tab = cons_ra.copy()
+    for c in cons_ra.columns:
+        cons_tab[c] = cons_ra[c] * maxtab[c].sum()
+    cons_tab = cons_tab.applymap(round)
+    cons_tab = cons_tab.applymap(int)
+
+    #Put the longest sequences and associated taxonomy in the consensus object
+    istax = 0
+    if 'tax' in aligned_objects[0].keys():
+        tax = aligned_objects[0]['tax'].loc[incommonSVs, :]
+        istax = 1
+    seq = aligned_objects[0]['seq'].loc[incommonSVs, :]
+    for i in range(1, len(aligned_objects)):
+        compseq = aligned_objects[i]['seq']
+        for s in incommonSVs:
+            if len(compseq.loc[s, 'seq']) > len(seq.loc[s, 'seq']):
+                seq.loc[s, 'seq'] = compseq.loc[s, 'seq']
+                if istax == 1:
+                    tax.loc[s, :] = aligned_objects[i]['tax'].loc[s, :]
+
+    cons_obj = {}
+    cons_obj['tab'] = cons_tab
+    cons_obj['ra'] = cons_ra
+    cons_obj['seq'] = seq
+    cons_obj['meta'] = aligned_objects[0]['meta']
+    if istax == 1:
+        cons_obj['tax'] = tax
+
+    return cons_obj
 
 
 
