@@ -1,12 +1,6 @@
-# qDiv
-Python modules for diversity calculations.
+# qdiv
+A Python package for analyzing data from high-throughput amplicon sequencing of microbial communities.
 
 A compiled Windows-version of the program is available at omvatten.se/software
 
-qDiv_functions.py contains functions for manipulating frequency tables, visualizing and analyzing data.
-
-qDiv_gui.py contains code for a graphical user interface implementing the functions.
-
-Further details of how to use qDiv is provided in the manual. 
-
-Oskar Modin, 2018-12-01
+Oskar Modin, 2019-09-15
