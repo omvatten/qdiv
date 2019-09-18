@@ -1,0 +1,54 @@
+Load and print files
+********************
+
+Loading files
+#############
+
+.. code-block:: python
+
+   files.load(path='', tab='None', fasta='None', meta='None', sep=',')
+
+Loads files into an object, which is used for further analysis.
+
+*path* is the path to the directory holding the input files, *tab* is the name of the frequency table file, 
+
+*fasta* is the name of the fasta file, *meta* is the name of meta data file, *sep* is the separator used in the frequency table and meta data files (, or ; or \t).
+
+Example
+
+.. code-block:: python
+
+   import qdiv as qd
+
+   obj = qd.files.load(path='', tab='example_tab.csv', fasta='example_fasta.fa', meta='example_meta.csv', sep=',')
+
+obj is now a python dictionary containing five pandas dataframes ‘tab’, ‘ra’, ‘tax’, ‘seq’, and ‘meta’.
+
+- 'tab' holds the counts associated with each OTU/SV (rows) and sample (columns).
+- 'ra' holds the percentage relative abundance of reads per sample associated with each OTU/SV (rows) and sample (columns).
+- 'tax' holds the taxonomic classification for each OTU/SV. The row indices are OTU/SV names, the column names are 'Kingdom', 'Phylum', 'Class', 'Order', 'Family', 'Genus', 'Species'.
+- 'seq' holds the sequences. The row indices are the OTU/SV names, the column 'seq' holds the sequences.
+- 'meta' holds the meta data. The row indices are the samples names (the same as the column headings in 'tab'). The columns are variables that define each sample as determined by the user in the meta data input file.
+
+Printing files
+##############
+
+.. code-block:: python
+
+   files.printout(obj, path='', savename='', sep=',')
+
+Prints the python object as files or the same type as the input files.
+
+*obj* is the object to be printed.
+
+*path* is the path to the directory holding the printed files.
+ 
+*savename* is the name used for the printed files, *sep* is the separator to be used in the printed frequency table and meta data files (, or ; or \t).
+
+Example
+
+.. code-block:: python
+
+   import qdiv as qd
+
+   qd.files.printout(obj, path='', savename='output', sep=',')
