@@ -190,7 +190,7 @@ def heatmap(obj, xAxis='None', levels=['Phylum', 'Genus'], levelsShown='None', s
 
     #Merge samples based on xAxis
     if xAxis != 'None':
-        merged_obj = subset.samples(obj, var=xAxis)
+        merged_obj = subset.merge_samples(obj, var=xAxis)
     else:
         merged_obj = obj.copy()
 
@@ -419,11 +419,12 @@ def alpha_diversity(obj, distmat='None', var='None', slist='All', order='None', 
 # tag is heading in meta used to add labels to each point in figure
 # order is heading in meta used to order samples
 # title is title of the entire figure
+# if connectPoints is a metadata column header, it will use that data to connect the points
 # colorlist specifies colorlist to use for var1; same for markerlist and var2
 # savename is path and name to save png figure output
 def pcoa(dist, meta, biplot=[], var1='None', var2='None', var1_title='', var2_title='',
-             whitePad=1.1, rightSpace=0.15, var2pos=0.4, tag='None', order='None', title='',
-             figSize=(10, 14), fontSize=18, markerSize=100,
+             whitePad=1.1, var2pos=0.4, tag='None', order='None', title='', connectPoints='None',
+             figSize=(10, 14), fontSize=18, markerSize=100, markerscale=1.1,
              hideAxisValues=False, showLegend=True,
              colorlist='None', markerlist='None', savename='None'):
     def get_eig(d): #Function for centering and eigen-decomposition of distance matrix
@@ -545,6 +546,11 @@ def pcoa(dist, meta, biplot=[], var1='None', var2='None', var1_title='', var2_ti
     for i in range(len(smpcats1)):
         metaPlot_i = metaPlot[metaPlot[var1] == smpcats1[i]] #Subset metaPlot based on var1 in smpcats1
 
+        if connectPoints != 'None':
+            metaPlot_i[connectPoints] = metaPlot_i[connectPoints].apply(int)
+            metaPlot_i = metaPlot_i.sort_values(connectPoints)
+            ax.plot(metaPlot_i[xn], metaPlot_i[yn], color=colorlist[i])
+
         if var2 != 'None':
             linesColor[0].append(ax.scatter([], [], label=str(smpcats1[i]), color=colorlist[i]))
             linesColor[1].append(smpcats1[i])
@@ -565,9 +571,9 @@ def pcoa(dist, meta, biplot=[], var1='None', var2='None', var1_title='', var2_ti
 
             # Here set both legends for color and marker
             if showLegend:
-                ax.legend(linesColor[0], linesColor[1], ncol=1, bbox_to_anchor=(1, 1), title=var1_title, frameon=False, markerscale=1.1, fontsize=fontSize, loc=2)
+                ax.legend(linesColor[0], linesColor[1], ncol=1, bbox_to_anchor=(1, 1), title=var1_title, frameon=False, markerscale=markerscale, fontsize=fontSize, loc=2)
                 from matplotlib.legend import Legend
-                leg = Legend(ax, linesShape[0], linesShape[1], ncol=1, bbox_to_anchor=(1, var2pos), title=var2_title, frameon=False, markerscale=1.1, fontsize=fontSize, loc=2)
+                leg = Legend(ax, linesShape[0], linesShape[1], ncol=1, bbox_to_anchor=(1, var2pos), title=var2_title, frameon=False, markerscale=markerscale, fontsize=fontSize, loc=2)
                 ax.add_artist(leg)
 
         else: #If there is no var2, change both color and marker with each category in var1
@@ -578,11 +584,11 @@ def pcoa(dist, meta, biplot=[], var1='None', var2='None', var1_title='', var2_ti
             ylist = metaPlot_i[yn]
             ax.scatter(xlist, ylist, label=None, color=colorlist[i], marker=markerlist[i], s=markerSize)
             if showLegend:
-                ax.legend(linesColor[0], linesColor[1], bbox_to_anchor=(1, 1), title=var1_title, frameon=False, markerscale=1.1, fontsize=fontSize, loc='upper left')
+                ax.legend(linesColor[0], linesColor[1], bbox_to_anchor=(1, 1), title=var1_title, frameon=False, markerscale=markerscale, fontsize=fontSize, loc='upper left')
 
     ##Put tags at each point
     if tag != 'None':
-        for ix in metaPlot.index:
+        for ix in metaPlot.index.tolist():
             tagtext = metaPlot.loc[ix, tag]
             tagx = metaPlot.loc[ix, xn]
             tagy = metaPlot.loc[ix, yn]
@@ -604,7 +610,8 @@ def pcoa(dist, meta, biplot=[], var1='None', var2='None', var1_title='', var2_ti
         ax.set_xticklabels([])
         ax.set_yticklabels([])
     plt.title(title)
-    plt.tight_layout(rect=[0, 0, 1-rightSpace, 1])
+    plt.tight_layout()
+    #plt.tight_layout(rect=[0, 0, 1-rightSpace, 1])
     if savename != 'None':
         plt.savefig(savename+'.pdf', format='pdf')
         plt.savefig(savename)
@@ -880,3 +887,110 @@ def pairwise_beta(obj, distmat='None', compareVar='None', spairs=[],
             plot_withoutNull(output, colorlist, savename)
         else:
             plot_withoutNull(output, colorlist, savename)
+
+# Calculate and plot rarefaction curve
+# step is the step size used during subsampling, if 'flexible' the total reads are divided by 20
+# figsize is with ahd height of figure in inches
+# fontSize is size of text in figure
+# var is column in meta data used to color code lines in plot
+# order is column in meta data used to order sample
+# tag is column in meta data used to name lines in plot, if 'index', sample names are used
+# colorlist is colors to be used in plot, if 'None' qdiv default is used
+# if onlyReturnData=True, function will return a dictionary with data
+# if onlyPlotData is a dictionary with data, it will be plotted and no calculations will be carried out
+# is savename is specified, plots will be saved and data will be saved as pickle file
+def rarefactioncurve(obj, step='flexible', figSize=(14, 10), fontSize=18, 
+                     var='None', order='None', tag='None', colorlist='None',
+                     onlyReturnData=False, onlyPlotData='None', savename='None'):
+    # Function for plotting
+    def plot_rarefactioncurve(meta, rd):
+        if order != 'None':
+            meta = meta.sort_values(by=[order])
+        nonlocal colorlist
+        if colorlist == 'None':
+            colorlist = get_colors_markers('colors')
+        if var != 'None': #List of names used for different colors in legend
+            smpcats = []
+            [smpcats.append(item) for item in meta[var] if item not in smpcats]
+
+        # Create figure
+        plt.rcParams.update({'font.size': fontSize})
+        fig, ax = plt.subplots(figsize=figSize)
+
+        # If special colorcoding (var) plot like this
+        if var != 'None':
+            for cat_nr in range(len(smpcats)):
+                cat = smpcats[cat_nr]
+                ax.plot([], [], label=cat, color=colorlist[cat_nr])
+                smplist = meta[meta[var] == cat].index.tolist()
+                for smp in smplist:
+                    ax.plot(rd[smp][0], rd[smp][1], label='_nolegend_', color=colorlist[cat_nr])
+        else: #Else plot like this
+            for smp_nr in range(len(meta.index)):
+                smp = meta.index.tolist()[smp_nr]
+                ax.plot(rd[smp][0], rd[smp][1], label='_nolegend_', color=colorlist[smp_nr])
+        
+        #Adding tags if not 'None'
+        if tag == 'index':
+            for smp in rd.keys():
+                ax.annotate(smp, (rd[smp][0][-1], rd[smp][1][-1]), color='black')
+        elif tag != 'None':
+            for smp in rd.keys():
+                antext = meta.loc[smp, tag]
+                ax.annotate(antext, (rd[smp][0][-1], rd[smp][1][-1]), color='black')
+        
+        #Legend added if we have color coding
+        if var != 'None':
+            ax.legend(bbox_to_anchor=(1, 1), loc='upper left', frameon=False)
+        ax.set_xlabel('Reads')
+        ax.set_ylabel('Richness')
+        plt.tight_layout()
+        if savename != 'None':
+            plt.savefig(savename)
+            plt.savefig(savename + '.pdf', format='pdf')
+        plt.show()
+
+    # Function for getting the data
+    def get_dictionary(tab):
+        res_di = {} #Dictionary holding x and y for each samples   
+        for smp in tab.columns:
+            smp_series = tab[smp][tab[smp] > 0]
+            totalreads = smp_series.sum()
+            
+            #Make shuffled list of sv names
+            name_arr = smp_series.index.tolist()
+            counts_arr = smp_series.to_numpy()
+            cumreads2 = np.cumsum(counts_arr)
+            cumreads1 = cumreads2 - counts_arr
+            ind_reads_arr = np.empty(totalreads, dtype=object)
+            for i, (v1, v2) in enumerate(zip(cumreads1, cumreads2)):
+                ind_reads_arr[v1:v2] = name_arr[i]
+            np.random.shuffle(ind_reads_arr) #Shuffle the SVs
+    
+            #Make x- and y values for rarefaction curve    
+            nonlocal step
+            if step == 'flexible':
+                step = int(totalreads/20)
+            xvals = np.arange(step, totalreads, step)
+            yvals = np.zeros(len(xvals))
+            for i, depth in enumerate(xvals):
+                bins_counts = np.unique(ind_reads_arr[:depth], return_counts=True)[1]
+                yvals[i] = len(bins_counts[bins_counts > 0])
+            xvals = np.append(xvals, totalreads)
+            yvals = np.append(yvals, len(smp_series))
+            xvals = np.insert(xvals, 0, [0, 1])        
+            yvals = np.insert(yvals, 0, [0, 1])        
+            res_di[smp] = [xvals, yvals]
+
+        if savename != 'None':
+            with open(savename + '.pickle', 'wb') as f:
+                pickle.dump(res_di, f)
+        return res_di
+
+    if onlyReturnData:
+        return get_dictionary(obj['tab'])
+    elif onlyPlotData != 'None':
+        plot_rarefactioncurve(obj['meta'], onlyPlotData)
+    else:
+        rd = get_dictionary(obj['tab'])
+        plot_rarefactioncurve(obj['meta'], rd)

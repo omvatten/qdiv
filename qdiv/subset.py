@@ -1,6 +1,5 @@
 import pandas as pd
 import numpy as np
-import math
 import copy
 import tkinter as tk
 
@@ -112,7 +111,7 @@ def abundant_sequences(obj, number=25, method='sum'):
     if 'ra' in obj:
         ra2 = obj['ra']
         ra2 = ra2.loc[svlist, :]
-        out['ra'] = ra
+        out['ra'] = ra2
     if 'tax' in obj:
         tax = obj['tax']
         tax = tax.loc[svlist, :]
@@ -210,7 +209,6 @@ def merge_samples(obj, var='None', slist='None', keep0=False):
 # Rarefies frequency table to a specific number of reads per sample
 # if depth = 'min', the minimum number of reads in a sample is used
 # seed sets a random state for reproducible results
-# The function is  similar to rarefaction without replacement
 def rarefy_table(tab, depth='min', seed='None', replacement=False):
     #Make sure table elements are all integers
     tab = tab.fillna(0)
@@ -241,32 +239,32 @@ def rarefy_table(tab, depth='min', seed='None', replacement=False):
                     choice = np.random.choice(nvar, depth, p=p)
                 rtab[s] = np.bincount(choice, minlength=nvar)
 
-    #Method similar to rarefy without replacment
+    #Rarefy without replacment
     else:
-        samples = tab.columns.tolist()
-        rtab = tab.copy()
-        for smp in samples:
-            smpsum = sum(tab[smp])
-            if smpsum < depth:  # Remove sample if sum of reads less than read depth
+        rtab = pd.DataFrame(0, index=tab.index, columns=tab.columns)
+        for smp in tab.columns:
+            totalreads = tab[smp].sum()
+            # Remove sample if sum of reads less than read depth
+            if totalreads < depth:
                 rtab = rtab.drop(smp, axis=1)
                 continue
-    
-            frac = tab.loc[:, smp] * depth / smpsum #Calculate rel abund
-            avrundad = frac.apply(math.floor) #Round down
-            addNR = int(depth - sum(avrundad)) #This many reads must be added
-    
-            if addNR >= 1:
-                diffs = frac - avrundad
-                if seed == 'None':
-                    addSV = tab[smp].sample(n=addNR, replace=False, weights=diffs).index.tolist()
-                else:
-                    addSV = tab[smp].sample(n=addNR, replace=False, weights=diffs, random_state=seed).index.tolist()
-                avrundad[addSV] = avrundad[addSV] + 1
-            rtab[smp] = avrundad
 
+            smp_series = tab[smp][tab[smp] > 0]
+            name_arr = smp_series.index.tolist()
+            counts_arr = smp_series.to_numpy()
+            cumreads2 = np.cumsum(counts_arr)
+            cumreads1 = cumreads2 - counts_arr
+
+            ind_reads_arr = np.empty(totalreads, dtype=object)
+            for i, (v1, v2) in enumerate(zip(cumreads1, cumreads2)):
+                ind_reads_arr[v1:v2] = name_arr[i]
+            if seed != 'None':
+                random.seed(seed)
+            np.random.shuffle(ind_reads_arr)
+            bins_counts = np.unique(ind_reads_arr[:depth], return_counts=True)
+            rtab.loc[bins_counts[0], smp] = bins_counts[1]
     #Return rarefied table
     return rtab
-
 
 # Rarefies the tab in an object, then all SVs with 0 count are removed from the object
 def rarefy_object(obj, depth='min', seed='None', replacement=False):
