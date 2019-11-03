@@ -99,3 +99,47 @@ def mantel(dis1, dis2, method='spearman', getOnlyStat=False, permutations=99):
         p_val = (1 + len(null_stats[null_stats < real_stat] + 0.5 * len(null_stats[null_stats == real_stat]))) / (1 + len(null_stats))
         return [real_stat, p_val]
 
+# dis is dissimilarity matrix
+# categories is pandas data series with index names identical to index- and column names in dis
+# the values in categories group the objects in the dis matrix into different categories
+# returns list [F_stat, p_value]
+def permanova(dis, meta, var, permutations=99):
+
+    def get_F(dis, cats_list):
+        # Get SStotal
+        help_df = np.tril(np.ones(dis.shape), k=-1).astype(np.bool)
+        vectDis = dis.where(help_df).stack().values
+        SStotal = sum(vectDis**2) / len(dis.index)
+        # Get SSwithin
+        SSw = 0
+        for cat in cats_list:
+            subsmplist = meta[var][meta[var] == cat].index #Take all samples within the same group
+            disw = dis.loc[subsmplist, subsmplist]
+            help_df = np.tril(np.ones(disw.shape), k=-1).astype(np.bool)
+            vectDisw = disw.where(help_df).stack().values
+            SSw = SSw + sum(vectDisw**2) / len(subsmplist)
+
+        # Calculate Fstat
+        SSa = SStotal - SSw
+        Fstat = (SSa / (len(cats_list) - 1)) / (SSw / (len(dis.index) - len(cats_list)))
+        return Fstat
+
+    # Get unique categories in meta[var]
+    cats_list = np.unique(meta[var])
+    real_F = get_F(dis, cats_list)
+
+    null_F = []
+    smplist = dis.index.tolist()
+    for i in range(permutations):
+        random_smplist = smplist.copy()
+        random.shuffle(random_smplist)
+        random_dis = pd.DataFrame(dis.values, index=random_smplist, columns=random_smplist)
+        null_F.append(get_F(random_dis, cats_list))
+
+    p_val = 0
+    for nF in null_F:
+        if nF >= real_F:
+            p_val += 1
+    p_val = (p_val + 1) / (len(null_F) + 1)
+    return [real_F, p_val]
+
