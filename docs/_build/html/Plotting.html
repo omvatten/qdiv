@@ -1,11 +1,9 @@
 
-<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
-  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<!DOCTYPE html>
 
 <html xmlns="http://www.w3.org/1999/xhtml">
   <head>
-    <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
-    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta charset="utf-8" />
     <title>Plotting &#8212; qdiv  documentation</title>
     <link rel="stylesheet" href="_static/alabaster.css" type="text/css" />
     <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
@@ -51,8 +49,8 @@ The sample with the smallest number will be placed to the left in the heatmap.</
 <p><em>numberToPlot</em> refers to the number of taxa with highest abundance to include in the heatmap.</p>
 <p><em>method</em> refers to the method used to define the taxa with highest abundance:</p>
 <ul class="simple">
-<li>‘max_sample’ uses the maximum relative abundance in a sample</li>
-<li>‘mean_all’ uses the mean relative abundance across all samples to rank the taxa</li>
+<li><p>‘max_sample’ uses the maximum relative abundance in a sample</p></li>
+<li><p>‘mean_all’ uses the mean relative abundance across all samples to rank the taxa</p></li>
 </ul>
 <p><em>nameType</em> is the label used for unclassified sequences (e.g. SV or OTU)</p>
 <p><em>figSize</em> is the width and height of the figure in inches</p>
@@ -82,7 +80,7 @@ The sample with the smallest number will be placed to the left in the heatmap.</
 </div>
 <div class="section" id="pcoa">
 <h2>PCoA<a class="headerlink" href="#pcoa" title="Permalink to this headline">¶</a></h2>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">plot</span><span class="o">.</span><span class="n">pcoa</span><span class="p">(</span><span class="n">dist</span><span class="p">,</span> <span class="n">meta</span><span class="p">,</span> <span class="n">biplot</span><span class="o">=</span><span class="p">[],</span> <span class="n">var1</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">var2</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">var1_title</span><span class="o">=</span><span class="s1">&#39;&#39;</span><span class="p">,</span> <span class="n">var2_title</span><span class="o">=</span><span class="s1">&#39;&#39;</span><span class="p">,</span> <span class="n">whitePad</span><span class="o">=</span><span class="mf">1.1</span><span class="p">,</span> <span class="n">rightSpace</span><span class="o">=</span><span class="mf">0.15</span><span class="p">,</span> <span class="n">var2pos</span><span class="o">=</span><span class="mf">0.4</span><span class="p">,</span> <span class="n">tag</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">title</span><span class="o">=</span><span class="s1">&#39;&#39;</span><span class="p">,</span> <span class="n">figSize</span><span class="o">=</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span> <span class="mi">14</span><span class="p">),</span> <span class="n">fontSize</span><span class="o">=</span><span class="mi">18</span><span class="p">,</span> <span class="n">markerSize</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span> <span class="n">hideAxisValues</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span> <span class="n">showLegend</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span> <span class="n">colorlist</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">markerlist</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">savename</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">)</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">pcoa</span><span class="p">(</span><span class="n">dist</span><span class="p">,</span> <span class="n">meta</span><span class="p">,</span> <span class="n">biplot</span><span class="o">=</span><span class="p">[],</span> <span class="n">var1</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">var2</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">var1_title</span><span class="o">=</span><span class="s1">&#39;&#39;</span><span class="p">,</span> <span class="n">var2_title</span><span class="o">=</span><span class="s1">&#39;&#39;</span><span class="p">,</span> <span class="n">whitePad</span><span class="o">=</span><span class="mf">1.1</span><span class="p">,</span> <span class="n">var2pos</span><span class="o">=</span><span class="mf">0.4</span><span class="p">,</span> <span class="n">tag</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">title</span><span class="o">=</span><span class="s1">&#39;&#39;</span><span class="p">,</span> <span class="n">connectPoints</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">figSize</span><span class="o">=</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span> <span class="mi">14</span><span class="p">),</span> <span class="n">fontSize</span><span class="o">=</span><span class="mi">18</span><span class="p">,</span> <span class="n">markerSize</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span> <span class="n">markerscale</span><span class="o">=</span><span class="mf">1.1</span><span class="p">,</span> <span class="n">hideAxisValues</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span> <span class="n">showLegend</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span> <span class="n">colorlist</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">markerlist</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">savename</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">)</span>
 </pre></div>
 </div>
 <p>Visualizes dissimilarities between samples in principal coordinate analysis plot.</p>
@@ -95,6 +93,7 @@ The sample with the smallest number will be placed to the left in the heatmap.</
 <p><em>whitePad</em> sets the space between the outermost points and the plot limits (1.0=no space).</p>
 <p><em>rightSpace</em> is the space for the legend on the right.</p>
 <p><em>var2pos</em> is the vertical position of the var2 legend.</p>
+<p><em>connectPoints</em> is a meta data column with numbers. If specified, the sample points in the PCoA will be connected by lines in the order determined by the numbers in the column.</p>
 <p><em>tag</em> is a heading in the meta used to add labels to each point in figure.</p>
 <p><em>order</em> is heading in meta used to order samples.</p>
 <p><em>title</em> is the title of the entire figure.</p>
@@ -120,6 +119,24 @@ between the meta data categories specified present under compareVar.</p>
 <p>If <em>skipJB</em> =True, Jaccard and Bray-Curtis dissimilarities will not be calculated.</p>
 <p>If <em>onlyReturnData</em> =True, no plots will be done and only a python dictionary containing the output data will be generated. This dictionary can later be used as input to the onlyPlotData argument.</p>
 <p><em>savename</em> is path and name to the generated output. The data in the python dictionary is saved as a pickle file.</p>
+</div>
+<div class="section" id="rarefaction-curve">
+<h2>Rarefaction curve<a class="headerlink" href="#rarefaction-curve" title="Permalink to this headline">¶</a></h2>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">rarefactioncurve</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">step</span><span class="o">=</span><span class="s1">&#39;flexible&#39;</span><span class="p">,</span> <span class="n">figSize</span><span class="o">=</span><span class="p">(</span><span class="mi">14</span><span class="p">,</span> <span class="mi">10</span><span class="p">),</span> <span class="n">fontSize</span><span class="o">=</span><span class="mi">18</span><span class="p">,</span> <span class="n">var</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">tag</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">colorlist</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">onlyReturnData</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span> <span class="n">onlyPlotData</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">savename</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Calculates a rarefaction curve based on subsampling without replacement.</p>
+<p><em>obj</em> is the object.</p>
+<p><em>step</em> is the step size used during subsampling, if ‘flexible’ the total reads are divided by 20.</p>
+<p><em>figsize</em> is width and height of the figure in inches.</p>
+<p><em>fontSize</em> is size of text in figure.</p>
+<p><em>var</em> is the column in the meta data used to color code lines in plot.</p>
+<p><em>order</em> is the column in the meta data used to order the samples.</p>
+<p><em>tag</em> is the column in the meta data used to name lines in plot, if tag=’index’, the sample names are used.</p>
+<p><em>colorlist</em> is list of colors to be used in the plot, if ‘None’ qdiv default is used.</p>
+<p>if <em>onlyReturnData</em> =True, function will return a python dictionary with data.</p>
+<p>if <em>onlyPlotData</em> is a dictionary with data (generated in a previous step by running the function with onlyReturnData=True), it will be plotted and no calculations will be carried out.</p>
+<p>is <em>savename</em> is specified, plots will be saved and data will be saved as a pickle file.</p>
 </div>
 </div>
 
@@ -152,6 +169,7 @@ between the meta data categories specified present under compareVar.</p>
 <li class="toctree-l2"><a class="reference internal" href="#alpha-diversity-plot">Alpha diversity plot</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#pcoa">PCoA</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#pairwise-dissimilarity">Pairwise dissimilarity</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#rarefaction-curve">Rarefaction curve</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="GUI.html">GUI</a></li>
@@ -167,13 +185,11 @@ between the meta data categories specified present under compareVar.</p>
 </ul>
 </div>
 <div id="searchbox" style="display: none" role="search">
-  <h3>Quick search</h3>
+  <h3 id="searchlabel">Quick search</h3>
     <div class="searchformwrapper">
     <form class="search" action="search.html" method="get">
-      <input type="text" name="q" />
+      <input type="text" name="q" aria-labelledby="searchlabel" />
       <input type="submit" value="Go" />
-      <input type="hidden" name="check_keywords" value="yes" />
-      <input type="hidden" name="area" value="default" />
     </form>
     </div>
 </div>
@@ -194,7 +210,7 @@ between the meta data categories specified present under compareVar.</p>
       &copy;2019, Oskar Modin.
       
       |
-      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.8.5</a>
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 2.2.0</a>
       &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.12</a>
       
       |

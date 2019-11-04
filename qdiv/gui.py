@@ -497,6 +497,90 @@ def Heatmap(obj, path):
 
     root.mainloop()
 
+def Rarefaction_curve(obj, path):
+    def run():
+        from . import plot
+
+        if step.get() != 'flexible':
+            stepin = int(step.get())
+        else:
+            stepin = 'flexible'
+
+        plot.rarefactioncurve(obj, step=stepin, figSize=(figSizeW.get(), figSizeH.get()), fontSize=fontSize.get(), 
+                             var=var.get(), order=order.get(), tag=tag.get(), colorlist='None',
+                             onlyReturnData=False, onlyPlotData='None', savename=path + 'Rarefaction_curve')
+
+    def quit():
+        master.destroy()
+
+    # Create GUI window
+    master = tk.Toplevel()
+    master.title('Rarefaction_curve')
+    master.geometry('600x700')
+    # Create scrollbar, root is the frame the all widgets are later placed on
+    def onFrameConfigure(canvas):
+        ###Reset the scroll region to encompass the inner frame
+        canvas.configure(scrollregion=canvas.bbox("all"))
+    canvas = tk.Canvas(master, borderwidth=0, background=bgcol)
+    root = tk.Frame(canvas, background=bgcol)
+    vsb = tk.Scrollbar(master, orient="vertical", command=canvas.yview)
+    hsb = tk.Scrollbar(master, orient="horizontal", command=canvas.xview)
+    canvas.configure(yscrollcommand=vsb.set)
+    canvas.configure(xscrollcommand=hsb.set)
+    vsb.pack(side="right", fill="y")
+    hsb.pack(side="bottom", fill="x")
+    canvas.pack(side="left", fill="both", expand=True)
+    canvas.create_window((8, 20), window=root, anchor="nw")
+    root.bind("<Configure>", lambda event, canvas=canvas: onFrameConfigure(canvas))
+
+    ####################
+
+    tk.Label(root, text='Various input options for rarefaction curve', bg=bgcol).grid(row=0, columnspan=4, sticky=tk.W)
+    tk.Label(root, text='-'*70, bg=bgcol).grid(row=1, columnspan=3, sticky=tk.W)
+
+    # Input step size
+    step = tk.StringVar(root, 'flexible')
+    tk.Label(root, text='Enter step size', bg=bgcol).grid(row=5, sticky=tk.W)
+    tk.Entry(root, textvariable=step).grid(row=5, column=1, sticky=tk.W)
+    tk.Label(root, text='-'*70, bg=bgcol).grid(row=7, columnspan=3, sticky=tk.W)
+
+    #figSize
+    tk.Label(root, text='Specify figure dimensions and text size', bg=bgcol).grid(row=10, columnspan=3, sticky=tk.W)
+    figSizeW = tk.IntVar(root, 14)
+    figSizeH = tk.IntVar(root, 10)
+    tk.Label(root, text='Width', bg=bgcol).grid(row=11, sticky=tk.E)
+    tk.Entry(root, textvariable=figSizeW).grid(row=11, column=1, sticky=tk.W)
+    tk.Label(root, text='Height', bg=bgcol).grid(row=12, sticky=tk.E)
+    tk.Entry(root, textvariable=figSizeH).grid(row=12, column=1, sticky=tk.W)
+
+    #FontSize
+    fontSize = tk.IntVar(root, 15)
+    tk.Label(root, text='Font size', bg=bgcol).grid(row=15, sticky=tk.E)
+    tk.Entry(root, textvariable=fontSize).grid(row=15, column=1, sticky=tk.W)
+    tk.Label(root, text='-'*70, bg=bgcol).grid(row=17, columnspan=3, sticky=tk.W)
+
+    # var
+    var = tk.StringVar(root, 'None')
+    tk.Label(root, text='Enter metadata column for color labels', bg=bgcol).grid(row=20, columnspan=3, sticky=tk.W)
+    tk.Entry(root, textvariable=var).grid(row=21, sticky=tk.W)
+
+    # Logic order
+    order = tk.StringVar(root, 'None')
+    tk.Label(root, text='Meta data column used to order the samples in the legend', bg=bgcol).grid(row=25, columnspan=3, sticky=tk.W)
+    tk.Entry(root, textvariable=order).grid(row=26, sticky=tk.W)
+
+    # tag
+    tag = tk.StringVar(root, 'None')
+    tk.Label(root, text='Meta data column used to label lines in plot', bg=bgcol).grid(row=30, columnspan=3, sticky=tk.W)
+    tk.Entry(root, textvariable=tag).grid(row=31, sticky=tk.W)
+    tk.Label(root, text='-'*70, bg=bgcol).grid(row=35, columnspan=3, sticky=tk.W)
+
+    # Buttons to run functions
+    tk.Button(root, text='Plot rarefaction curve', command=run).grid(row=80)
+    tk.Button(root, text='Quit', command=quit).grid(row=80, column=1)
+
+    root.mainloop()
+
 def Alpha_div(obj, path):
     # Create GUI window
     master = tk.Toplevel()
@@ -758,18 +842,21 @@ def Plot_PCoA(obj, path):
     tk.Label(root, text='Specify position of marker legend (typically 0.2-0.5)', bg=bgcol).grid(row=48, columnspan=3, sticky=tk.W)
     tk.Entry(root, textvariable=var2_pos).grid(row=49, sticky=tk.W)
 
-    # Right space for legend
-    right_space = tk.DoubleVar()
-    right_space.set(0.10)
-    tk.Label(root, text='Specify fraction of the figure to be used for legend (typically 0-0.2)', bg=bgcol).grid(row=50, columnspan=3, sticky=tk.W)
-    tk.Entry(root, textvariable=right_space).grid(row=51, sticky=tk.W)
+    # Tag
+    tag = tk.StringVar(root, 'None')
+    tk.Label(root, text='Meta data column used to label points', bg=bgcol).grid(row=52, columnspan=3, sticky=tk.W)
+    tk.Entry(root, textvariable=tag).grid(row=53, sticky=tk.W)
+
+    # Connect points
+    connect = tk.StringVar(root, 'None')
+    tk.Label(root, text='Meta data column used to connect points', bg=bgcol).grid(row=54, columnspan=3, sticky=tk.W)
+    tk.Entry(root, textvariable=connect).grid(row=55, sticky=tk.W)
 
     # Logic order
-    order = tk.StringVar()
-    order.set('None')
-    tk.Label(root, text='Specify metadata column used to order the samples in the legend', bg=bgcol).grid(row=55, columnspan=3, sticky=tk.W)
-    tk.Entry(root, textvariable=order).grid(row=56, sticky=tk.W)
-    tk.Label(root, text='-'*70, bg=bgcol).grid(row=57, columnspan=3, sticky=tk.W)
+    order = tk.StringVar(root, 'None')
+    tk.Label(root, text='Meta data column used to order the samples in the legend', bg=bgcol).grid(row=56, columnspan=3, sticky=tk.W)
+    tk.Entry(root, textvariable=order).grid(row=57, sticky=tk.W)
+    tk.Label(root, text='-'*70, bg=bgcol).grid(row=58, columnspan=3, sticky=tk.W)
 
     #figSize
     tk.Label(root, text='Specify figure dimensions and text size', bg=bgcol).grid(row=60, columnspan=3, sticky=tk.W)
@@ -797,10 +884,10 @@ def Plot_PCoA(obj, path):
         dist_file = pd.read_csv(dis_mat_name.get(), index_col=0)
         plot.pcoa(dist_file, obj['meta'], biplot=[], var1=var_col.get(), var2=var_marker.get(),
                  var1_title=var1_title.get(), var2_title=var2_title.get(),
-                 whitePad=1.1, rightSpace=right_space.get(), var2pos=0.4, tag='None', order=order.get(), title='',
+                 whitePad=1.1, var2pos=0.4, tag=tag.get(), order=order.get(), title='',
+                 connectPoints=connect.get(),
                  figSize=(figSizeW.get(), figSizeH.get()), fontSize=fontSize.get(), colorlist='None', markerlist='None',
                  savename=path + savename_pcoa.get())
-
     tk.Button(root, text='Plot PCoA', command=plot_pcoa).grid(row=75, sticky=tk.W)
 
     def quit():
@@ -952,7 +1039,7 @@ def Null_model(obj, path):
 def Mantel_test():
     # Create GUI window
     master = tk.Toplevel()
-    master.title('Null model')
+    master.title('Mantel')
     master.geometry('500x700')
     # Create scrollbar, root is the frame the all widgets are later placed on
     def onFrameConfigure(canvas):
@@ -1025,6 +1112,66 @@ def Mantel_test():
         master.destroy()
     tk.Button(root, text='Quit', command=quit).grid(row=60, column=1, sticky=tk.W)
 
+def Permanova(obj, path):
+    # Create GUI window
+    master = tk.Toplevel()
+    master.title('Permanova')
+    master.geometry('500x700')
+    # Create scrollbar, root is the frame the all widgets are later placed on
+    def onFrameConfigure(canvas):
+        ###Reset the scroll region to encompass the inner frame
+        canvas.configure(scrollregion=canvas.bbox("all"))
+    canvas = tk.Canvas(master, borderwidth=0, background=bgcol)
+    root = tk.Frame(canvas, background=bgcol)
+    vsb = tk.Scrollbar(master, orient="vertical", command=canvas.yview)
+    hsb = tk.Scrollbar(master, orient="horizontal", command=canvas.xview)
+    canvas.configure(yscrollcommand=vsb.set)
+    canvas.configure(xscrollcommand=hsb.set)
+    vsb.pack(side="right", fill="y")
+    hsb.pack(side="bottom", fill="x")
+    canvas.pack(side="left", fill="both", expand=True)
+    canvas.create_window((8, 20), window=root, anchor="nw")
+    root.bind("<Configure>", lambda event, canvas=canvas: onFrameConfigure(canvas))
+
+    ########
+
+    #Specify input dissimilarity matrix
+    tk.Label(root, text='Select dissimilarity matrix', bg=bgcol).grid(row=1, sticky=tk.W)
+    file1_name = tk.StringVar(root, 'None')
+    def openFile1():
+        file1_name.set(askopenfilename())
+    tk.Button(root, text='Dissimilarity matrix', command=openFile1).grid(row=3, sticky=tk.W)
+    tk.Label(root, textvariable=file1_name, bg=bgcol).grid(row=3, column=1, sticky=tk.W)
+
+    # category
+    var = tk.StringVar(root, 'None')
+    tk.Label(root, text='Meta data column specifying categories', bg=bgcol).grid(row=5, columnspan=3, sticky=tk.W)
+    tk.Entry(root, textvariable=var).grid(row=6, columnspan=2, sticky=tk.W)
+
+    perm_nr = tk.IntVar(root, 999)
+    tk.Label(root, text='Number of permutations', bg=bgcol).grid(row=15, sticky=tk.W)
+    tk.Entry(root, textvariable=perm_nr, width=10).grid(row=15, column=1, sticky=tk.W)
+
+    def run_permanova():
+        from . import stats
+
+        dis1 = pd.read_csv(file1_name.get(), index_col=0)
+        res = stats.permanova(dis1, meta=obj['meta'], var=var.get(), permutations=perm_nr.get())
+
+        rootRes = tk.Tk()
+        rootRes.title('Permanova results')
+        tk.Label(rootRes, text='Test statistic=').grid(row=1, column=0, sticky=tk.W)
+        tk.Label(rootRes, text=str(res[0])).grid(row=1, column=1, sticky=tk.W)
+        tk.Label(rootRes, text='p value=').grid(row=2, column=0, sticky=tk.W)
+        tk.Label(rootRes, text=str(res[1])).grid(row=2, column=1, sticky=tk.W)
+
+    # Buttons to run model or quit
+    tk.Button(root, text='Run permanova', command=run_permanova).grid(row=20, sticky=tk.W)
+
+    def quit():
+        master.destroy()
+    tk.Button(root, text='Quit', command=quit).grid(row=20, column=1, sticky=tk.W)
+
 def run():
 
     # Functions that specify what to do with input choices
@@ -1048,6 +1195,8 @@ def run():
             Calc_phyl_dist(obj, path_name.get() + '/')
         elif v.get() == 'Heatmap':
             Heatmap(obj, path_name.get()+'/')
+        elif v.get() == 'Rarefaction_curve':
+            Rarefaction_curve(obj, path_name.get()+'/')
         elif v.get() == 'Alpha_div':
             Alpha_div(obj, path_name.get()+'/')
         elif v.get() == 'Beta_div':
@@ -1058,6 +1207,8 @@ def run():
             Null_model(obj, path_name.get() + '/')
         elif v.get() == 'Mantel_test':
             Mantel_test()
+        elif v.get() == 'Permanova':
+            Permanova(obj, path_name.get() + '/')
 
     def quit():
         master.destroy()
@@ -1188,14 +1339,14 @@ def run():
     tk.Label(root, text='Choose a task', bg=bgcol).grid(row=31, columnspan=2, sticky=tk.W)
 
     v = tk.StringVar()
-    options = ['Make_consensus', 'Subset_data', 'Calculate_phyl_dist', 'Heatmap', 'Alpha_div', 'Beta_div', 'PCoA', 'Null_model', 'Mantel_test']
+    options = ['Make_consensus', 'Subset_data', 'Calculate_phyl_dist', 'Heatmap', 'Rarefaction_curve', 'Alpha_div', 'Beta_div', 'PCoA', 'Null_model', 'Mantel_test', 'Permanova']
     for val, opt in enumerate(options):
-        if val < 4:
+        if val < 5:
             colnr = 0
             rownr = val
         else:
             colnr = 1
-            rownr = val-4
+            rownr = val-5
         tk.Radiobutton(root, text=opt, variable=v, value=opt, bg=bgcol).grid(row=40+rownr, column=colnr, sticky=tk.W)
 
     # Buttons that connects to functions

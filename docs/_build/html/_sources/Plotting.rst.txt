@@ -77,7 +77,7 @@ PCoA
 
 .. code-block:: python
 
-   plot.pcoa(dist, meta, biplot=[], var1='None', var2='None', var1_title='', var2_title='', whitePad=1.1, rightSpace=0.15, var2pos=0.4, tag='None', order='None', title='', figSize=(10, 14), fontSize=18, markerSize=100, hideAxisValues=False, showLegend=True, colorlist='None', markerlist='None', savename='None')
+   pcoa(dist, meta, biplot=[], var1='None', var2='None', var1_title='', var2_title='', whitePad=1.1, var2pos=0.4, tag='None', order='None', title='', connectPoints='None', figSize=(10, 14), fontSize=18, markerSize=100, markerscale=1.1, hideAxisValues=False, showLegend=True, colorlist='None', markerlist='None', savename='None')
 
 Visualizes dissimilarities between samples in principal coordinate analysis plot.
 
@@ -98,6 +98,8 @@ Visualizes dissimilarities between samples in principal coordinate analysis plot
 *rightSpace* is the space for the legend on the right.
 
 *var2pos* is the vertical position of the var2 legend.
+
+*connectPoints* is a meta data column with numbers. If specified, the sample points in the PCoA will be connected by lines in the order determined by the numbers in the column.
 
 *tag* is a heading in the meta used to add labels to each point in figure.
 
@@ -143,3 +145,33 @@ If *onlyReturnData* =True, no plots will be done and only a python dictionary co
 
 *savename* is path and name to the generated output. The data in the python dictionary is saved as a pickle file.
 
+Rarefaction curve
+#################
+
+.. code-block:: python
+
+   rarefactioncurve(obj, step='flexible', figSize=(14, 10), fontSize=18, var='None', order='None', tag='None', colorlist='None', onlyReturnData=False, onlyPlotData='None', savename='None')
+
+Calculates a rarefaction curve based on subsampling without replacement.
+
+*obj* is the object. 
+
+*step* is the step size used during subsampling, if 'flexible' the total reads are divided by 20.
+
+*figsize* is width and height of the figure in inches.
+
+*fontSize* is size of text in figure.
+
+*var* is the column in the meta data used to color code lines in plot.
+
+*order* is the column in the meta data used to order the samples.
+
+*tag* is the column in the meta data used to name lines in plot, if tag='index', the sample names are used.
+
+*colorlist* is list of colors to be used in the plot, if 'None' qdiv default is used.
+
+if *onlyReturnData* =True, function will return a python dictionary with data.
+
+if *onlyPlotData* is a dictionary with data (generated in a previous step by running the function with onlyReturnData=True), it will be plotted and no calculations will be carried out.
+
+is *savename* is specified, plots will be saved and data will be saved as a pickle file.

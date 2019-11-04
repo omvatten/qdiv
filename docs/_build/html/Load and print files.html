@@ -1,11 +1,9 @@
 
-<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
-  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<!DOCTYPE html>
 
 <html xmlns="http://www.w3.org/1999/xhtml">
   <head>
-    <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
-    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta charset="utf-8" />
     <title>Load and print files &#8212; qdiv  documentation</title>
     <link rel="stylesheet" href="_static/alabaster.css" type="text/css" />
     <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
@@ -52,11 +50,11 @@
 </div>
 <p>obj is now a python dictionary containing five pandas dataframes ‘tab’, ‘ra’, ‘tax’, ‘seq’, and ‘meta’.</p>
 <ul class="simple">
-<li>‘tab’ holds the counts associated with each OTU/SV (rows) and sample (columns).</li>
-<li>‘ra’ holds the percentage relative abundance of reads per sample associated with each OTU/SV (rows) and sample (columns).</li>
-<li>‘tax’ holds the taxonomic classification for each OTU/SV. The row indices are OTU/SV names, the column names are ‘Kingdom’, ‘Phylum’, ‘Class’, ‘Order’, ‘Family’, ‘Genus’, ‘Species’.</li>
-<li>‘seq’ holds the sequences. The row indices are the OTU/SV names, the column ‘seq’ holds the sequences.</li>
-<li>‘meta’ holds the meta data. The row indices are the samples names (the same as the column headings in ‘tab’). The columns are variables that define each sample as determined by the user in the meta data input file.</li>
+<li><p>‘tab’ holds the counts associated with each OTU/SV (rows) and sample (columns).</p></li>
+<li><p>‘ra’ holds the percentage relative abundance of reads per sample associated with each OTU/SV (rows) and sample (columns).</p></li>
+<li><p>‘tax’ holds the taxonomic classification for each OTU/SV. The row indices are OTU/SV names, the column names are ‘Kingdom’, ‘Phylum’, ‘Class’, ‘Order’, ‘Family’, ‘Genus’, ‘Species’.</p></li>
+<li><p>‘seq’ holds the sequences. The row indices are the OTU/SV names, the column ‘seq’ holds the sequences.</p></li>
+<li><p>‘meta’ holds the meta data. The row indices are the samples names (the same as the column headings in ‘tab’). The columns are variables that define each sample as determined by the user in the meta data input file.</p></li>
 </ul>
 </div>
 <div class="section" id="printing-files">
@@ -119,13 +117,11 @@
 </ul>
 </div>
 <div id="searchbox" style="display: none" role="search">
-  <h3>Quick search</h3>
+  <h3 id="searchlabel">Quick search</h3>
     <div class="searchformwrapper">
     <form class="search" action="search.html" method="get">
-      <input type="text" name="q" />
+      <input type="text" name="q" aria-labelledby="searchlabel" />
       <input type="submit" value="Go" />
-      <input type="hidden" name="check_keywords" value="yes" />
-      <input type="hidden" name="area" value="default" />
     </form>
     </div>
 </div>
@@ -146,7 +142,7 @@
       &copy;2019, Oskar Modin.
       
       |
-      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.8.5</a>
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 2.2.0</a>
       &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.12</a>
       
       |

@@ -38,3 +38,20 @@ Carries out a mantel tests and return a list containing the test statistic and t
 If *getOnlyStat* =True, only the test statistic will be returned, no permutations and consequently no p-value will be calculated. 
 
 *permutations* is the number of randomizations carried out. 
+
+Permanova
+###########
+
+.. code-block:: python
+
+   stats.permanova(dis, meta, var, permutations=99)
+
+Carries out a permanova tests and return a list containing the test statistic and the p value.
+
+*dis* is a dissimilarity matrix. 
+
+*meta* is the meta data, e.g. obj['meta'].
+
+*var* is the column in the meta data that holds the categories of samples being compared. 
+
+*permutations* is the number of randomizations carried out.
