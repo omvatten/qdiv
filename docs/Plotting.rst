@@ -54,7 +54,7 @@ Alpha diversity plot
 
 .. code-block:: python
 
-   plot.alpha_diversity(obj, distmat='None', var='None', slist='All', order='None', ylog=False, colorlist='None', savename='None')
+   plot.alpha_diversity(obj, distmat='None', var='None', slist='All', order='None', ylog=False, figSize=(10, 6), fontSize=18, colorlist='None', savename='None')
 
 Visualizes how alpha diversity depends on diversity order.
 
@@ -67,6 +67,10 @@ If *distmat* is specified, the diversity.phyl_alpha function is used, otherwise 
 *order* refers to column heading in meta data used to order the samples. 
 
 If *ylog* =True, the y-axis of the plot will be logarithmic.
+
+*figSize* is the width and height of the figure in inches
+
+*fontSize* refers to the axis text font size
 
 *colorlist* is a list of colors used for the lines in the plot, if colorlist=’None’, qdiv will decide the colors. 
 
@@ -111,7 +115,7 @@ Visualizes dissimilarities between samples in principal coordinate analysis plot
 
 *markerlist* specifies markers to use for var2. If 'None', qdiv will decide the markers. 
 
-savename is path and name to save png figure output.
+*savename* is path and name to save png figure output.
 
 Pairwise dissimilarity
 ######################
@@ -174,4 +178,4 @@ if *onlyReturnData* =True, function will return a python dictionary with data.
 
 if *onlyPlotData* is a dictionary with data (generated in a previous step by running the function with onlyReturnData=True), it will be plotted and no calculations will be carried out.
 
-is *savename* is specified, plots will be saved and data will be saved as a pickle file.
+if *savename* is specified, plots will be saved and data will be saved as a pickle file.

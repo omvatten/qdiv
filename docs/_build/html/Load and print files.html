@@ -40,10 +40,10 @@
 </pre></div>
 </div>
 <p>Loads files into an object, which is used for further analysis.</p>
-<p><em>path</em> is the path to the directory holding the input files, <em>tab</em> is the name of the frequency table file,</p>
-<p><em>fasta</em> is the name of the fasta file, <em>meta</em> is the name of meta data file, <em>sep</em> is the separator used in the frequency table and meta data files (, or ; or t).</p>
+<p><em>path</em> is the path to the directory holding the input files, <em>tab</em> is the name of the count table file,</p>
+<p><em>fasta</em> is the name of the fasta file, <em>meta</em> is the name of meta data file, <em>sep</em> is the separator used in the count table and meta data files (, or ; or t).</p>
 <p>Example</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">qdiv</span> <span class="kn">as</span> <span class="nn">qd</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">qdiv</span> <span class="k">as</span> <span class="nn">qd</span>
 
 <span class="n">obj</span> <span class="o">=</span> <span class="n">qd</span><span class="o">.</span><span class="n">files</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">path</span><span class="o">=</span><span class="s1">&#39;&#39;</span><span class="p">,</span> <span class="n">tab</span><span class="o">=</span><span class="s1">&#39;example_tab.csv&#39;</span><span class="p">,</span> <span class="n">fasta</span><span class="o">=</span><span class="s1">&#39;example_fasta.fa&#39;</span><span class="p">,</span> <span class="n">meta</span><span class="o">=</span><span class="s1">&#39;example_meta.csv&#39;</span><span class="p">,</span> <span class="n">sep</span><span class="o">=</span><span class="s1">&#39;,&#39;</span><span class="p">)</span>
 </pre></div>
@@ -65,9 +65,9 @@
 <p>Prints the python object as files or the same type as the input files.</p>
 <p><em>obj</em> is the object to be printed.</p>
 <p><em>path</em> is the path to the directory holding the printed files.</p>
-<p><em>savename</em> is the name used for the printed files, <em>sep</em> is the separator to be used in the printed frequency table and meta data files (, or ; or t).</p>
+<p><em>savename</em> is the name used for the printed files, <em>sep</em> is the separator to be used in the printed count table and meta data files (‘,’ or ‘;’ or ‘t’).</p>
 <p>Example</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">qdiv</span> <span class="kn">as</span> <span class="nn">qd</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">qdiv</span> <span class="k">as</span> <span class="nn">qd</span>
 
 <span class="n">qd</span><span class="o">.</span><span class="n">files</span><span class="o">.</span><span class="n">printout</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">path</span><span class="o">=</span><span class="s1">&#39;&#39;</span><span class="p">,</span> <span class="n">savename</span><span class="o">=</span><span class="s1">&#39;output&#39;</span><span class="p">,</span> <span class="n">sep</span><span class="o">=</span><span class="s1">&#39;,&#39;</span><span class="p">)</span>
 </pre></div>
@@ -142,7 +142,7 @@
       &copy;2019, Oskar Modin.
       
       |
-      Powered by <a href="http://sphinx-doc.org/">Sphinx 2.2.0</a>
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 2.3.1</a>
       &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.12</a>
       
       |

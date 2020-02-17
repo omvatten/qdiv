@@ -63,7 +63,7 @@ The values are the same as the functional diversity measures described by Chiu e
 </div>
 <div class="section" id="beta-diversity-dissimilarity">
 <h2>Beta diversity (dissimilarity)<a class="headerlink" href="#beta-diversity-dissimilarity" title="Permalink to this headline">¶</a></h2>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">naive_beta</span><span class="p">(</span><span class="n">tab</span><span class="p">,</span> <span class="n">q</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">dis</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span> <span class="n">viewpoint</span><span class="o">=</span><span class="s1">&#39;local&#39;</span><span class="p">):</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">naive_beta</span><span class="p">(</span><span class="n">tab</span><span class="p">,</span> <span class="n">q</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">dis</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">viewpoint</span><span class="o">=</span><span class="s1">&#39;local&#39;</span><span class="p">):</span>
 </pre></div>
 </div>
 <p>Returns a dataframe of pairwise dissimilarities between samples. Taxonomic Hill-based dissimilarities of order q are calculated.</p>
@@ -72,7 +72,7 @@ The values are the same as the functional diversity measures described by Chiu e
 <p>If <em>dis</em> =True, dissimilarities constrained between 0 and 1 are calculated,
 if <em>dis</em> =False, beta diversity constrained between 1 and 2 are calculated.</p>
 <p><em>viewpoint</em> can ‘local’ or ‘regional’, the difference is described in Chao et al. (2014), <em>Annual Review of Ecology, Evolution, and Systematics,</em> 45, 297-324.</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">diversity</span><span class="o">.</span><span class="n">phyl_beta</span><span class="p">(</span><span class="n">tab</span><span class="p">,</span> <span class="n">distmat</span><span class="p">,</span> <span class="n">q</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">dis</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span> <span class="n">viewpoint</span><span class="o">=</span><span class="s1">&#39;local&#39;</span><span class="p">):</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">diversity</span><span class="o">.</span><span class="n">phyl_beta</span><span class="p">(</span><span class="n">tab</span><span class="p">,</span> <span class="n">distmat</span><span class="p">,</span> <span class="n">q</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">dis</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">viewpoint</span><span class="o">=</span><span class="s1">&#39;local&#39;</span><span class="p">):</span>
 </pre></div>
 </div>
 <p>Returns a dataframe of pairwise dissimilarities, which take sequence distances into account. The values are the functional beta diversity measures described by Chiu et al. (2014), <em>PLOS ONE,</em> 9(7), e100014.</p>
@@ -95,7 +95,7 @@ if <em>dis</em> =False, beta diversity constrained between 1 and 4 are calculate
 </div>
 <div class="section" id="null-model-analysis-based-on-raup-crick">
 <h2>Null model analysis based on Raup-Crick<a class="headerlink" href="#null-model-analysis-based-on-raup-crick" title="Permalink to this headline">¶</a></h2>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">diversity</span><span class="o">.</span><span class="n">rcq</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">constrainingVar</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">randomization</span><span class="o">=</span><span class="s1">&#39;abundance&#39;</span><span class="p">,</span> <span class="n">weightingVar</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">weight</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">iterations</span><span class="o">=</span><span class="mi">9</span><span class="p">,</span> <span class="n">disIndex</span><span class="o">=</span><span class="s1">&#39;Hill&#39;</span><span class="p">,</span> <span class="n">distmat</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">q</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">compareVar</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">RCrange</span><span class="o">=</span><span class="s1">&#39;Raup&#39;</span><span class="p">):</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">diversity</span><span class="o">.</span><span class="n">rcq</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">constrainingVar</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">randomization</span><span class="o">=</span><span class="s1">&#39;frequency&#39;</span><span class="p">,</span> <span class="n">weightingVar</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">weight</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">iterations</span><span class="o">=</span><span class="mi">9</span><span class="p">,</span> <span class="n">disIndex</span><span class="o">=</span><span class="s1">&#39;Hill&#39;</span><span class="p">,</span> <span class="n">distmat</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">q</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">compareVar</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">RCrange</span><span class="o">=</span><span class="s1">&#39;Raup&#39;</span><span class="p">):</span>
 </pre></div>
 </div>
 <p>The observed dissimilarities between samples are compared to a null distribution.
@@ -195,7 +195,7 @@ Chase et al. (2011), <em>Ecosphere,</em> 2(2), 24.</p>
       &copy;2019, Oskar Modin.
       
       |
-      Powered by <a href="http://sphinx-doc.org/">Sphinx 2.2.0</a>
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 2.3.1</a>
       &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.12</a>
       
       |

@@ -97,7 +97,7 @@ Null model analysis based on Raup-Crick
 
 .. code-block:: python
 
-   diversity.rcq(obj, constrainingVar='None', randomization='abundance', weightingVar='None', weight=1, iterations=9, disIndex='Hill', distmat='None', q=1, compareVar='None', RCrange='Raup'):
+   diversity.rcq(obj, constrainingVar='None', randomization='frequency', weightingVar='None', weight=1, iterations=9, disIndex='Hill', distmat='None', q=1, compareVar='None', RCrange='Raup'):
 
 The observed dissimilarities between samples are compared to a null distribution. 
 The null model randomizes the frequency table to calculate a null expectation of the pairwise dissimilarities between samples. The is repeated several times (iterations) to get a null distribution.

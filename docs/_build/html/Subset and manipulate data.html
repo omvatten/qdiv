@@ -36,34 +36,34 @@
 <h1>Subset and manipulate data<a class="headerlink" href="#subset-and-manipulate-data" title="Permalink to this headline">¶</a></h1>
 <div class="section" id="subset-to-specific-samples">
 <h2>Subset to specific samples<a class="headerlink" href="#subset-to-specific-samples" title="Permalink to this headline">¶</a></h2>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">subset</span><span class="o">.</span><span class="n">samples</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">var</span><span class="o">=</span><span class="s1">&#39;index&#39;</span><span class="p">,</span> <span class="n">slist</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">keep0</span><span class="o">=</span><span class="bp">False</span><span class="p">):</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">subset</span><span class="o">.</span><span class="n">samples</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">var</span><span class="o">=</span><span class="s1">&#39;index&#39;</span><span class="p">,</span> <span class="n">slist</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">keep0</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
 </pre></div>
 </div>
 <p>Returns an object subsetted to the selected samples.</p>
 <p><em>obj</em> is the object generated with files.load</p>
 <p><em>var</em> is the column heading in the meta data used for subsetting, if var=’index’ the actual sample names will be used</p>
 <p><em>slist</em> is a list of samples or meta data labels to keep</p>
-<p>if <em>keep0</em> =True, OTUs/SVs, which have zero reads associated with them after subsetting will be kept, otherwise they will be removed from the data.</p>
+<p>if <em>keep0</em> =True, OTUs/ASVs, which have zero reads associated with them after subsetting will be kept, otherwise they will be removed from the data.</p>
 </div>
-<div class="section" id="subset-to-specific-otus-svs">
-<h2>Subset to specific OTUs/SVs<a class="headerlink" href="#subset-to-specific-otus-svs" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="subset-to-specific-otus-asvs">
+<h2>Subset to specific OTUs/ASVs<a class="headerlink" href="#subset-to-specific-otus-asvs" title="Permalink to this headline">¶</a></h2>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">subset</span><span class="o">.</span><span class="n">sequences</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">svlist</span><span class="p">)</span>
 </pre></div>
 </div>
-<p>Returns and object subsetted to the selected OTUs/SVs.</p>
+<p>Returns and object subsetted to the selected OTUs/ASVs.</p>
 <p><em>obj</em> is the object generated with files.load</p>
-<p><em>svlist</em> is a list of OTU or SV names that should be kept in the data set.</p>
+<p><em>svlist</em> is a list of OTU or ASV names that should be kept in the data set.</p>
 </div>
-<div class="section" id="subset-to-the-most-abundant-otus-svs">
-<h2>Subset to the most abundant OTUs/SVs<a class="headerlink" href="#subset-to-the-most-abundant-otus-svs" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="subset-to-the-most-abundant-otus-asvs">
+<h2>Subset to the most abundant OTUs/ASVs<a class="headerlink" href="#subset-to-the-most-abundant-otus-asvs" title="Permalink to this headline">¶</a></h2>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">subset</span><span class="o">.</span><span class="n">abundant_sequences</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">number</span><span class="o">=</span><span class="mi">25</span><span class="p">,</span> <span class="n">method</span><span class="o">=</span><span class="s1">&#39;sum&#39;</span><span class="p">)</span>
 </pre></div>
 </div>
-<p>Returns an object with only the most abundant OTUs/SVs.</p>
+<p>Returns an object with only the most abundant OTUs/ASVs.</p>
 <p><em>obj</em> is the object generated with files.load</p>
-<p><em>number</em> specifies the number of SVs to keep</p>
-<p><em>method</em> is the method used to rank OTUs/SVs.
-If <em>method</em> =’sum’, the OTUs/SVs are ranked based on the sum of the relative abundances in all samples.
+<p><em>number</em> specifies the number of ASVs to keep</p>
+<p><em>method</em> is the method used to rank OTUs/ASVs.
+If <em>method</em> =’sum’, the OTUs/ASVs are ranked based on the sum of the relative abundances in all samples.
 If <em>method</em> =’max’, they are ranked based on the max relative abundance in a sample.</p>
 </div>
 <div class="section" id="subset-based-on-taxonomic-classification">
@@ -71,30 +71,30 @@ If <em>method</em> =’max’, they are ranked based on the max relative abundan
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">subset</span><span class="o">.</span><span class="n">text_patterns</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">subsetLevels</span><span class="o">=</span><span class="p">[],</span> <span class="n">subsetPatterns</span><span class="o">=</span><span class="p">[]):</span>
 </pre></div>
 </div>
-<p>Search for specific text patterns among the taxonomic classifications. Returns an object subsetted to OTUs/SVs matching those text patterns.</p>
+<p>Search for specific text patterns among the taxonomic classifications. Returns an object subsetted to OTUs/ASVs matching those text patterns.</p>
 <p><em>subsetLevels</em> is a list taxonomic levels in which text patterns are searched for, e.g. [‘Family’, ‘Genus’]</p>
 <p><em>subsetPatterns</em> is a list of text patterns to search for, e.g. [‘Nitrosom’, ‘Brochadia’]</p>
 </div>
 <div class="section" id="merge-samples">
 <h2>Merge samples<a class="headerlink" href="#merge-samples" title="Permalink to this headline">¶</a></h2>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">subset</span><span class="o">.</span><span class="n">merge_samples</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">var</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">slist</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">keep0</span><span class="o">=</span><span class="bp">False</span><span class="p">)</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">subset</span><span class="o">.</span><span class="n">merge_samples</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">var</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">slist</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">keep0</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
 </pre></div>
 </div>
 <p>Returns an object where samples belonging the same category (as defined in the meta data) have been merged.</p>
 <p><em>var</em> is the column heading in metadata used to merge samples, the read counts for all samples with the same text in var column will be merged</p>
 <p><em>slist</em> is a list of names in meta data column which specify samples to keep, if slist=’None’ (default), all samples are kept</p>
-<p>if <em>keep0</em> =False, all OTUs/SVs with 0 counts after merging will be discarded from the data.</p>
+<p>if <em>keep0</em> =False, all OTUs/ASVs with 0 counts after merging will be discarded from the data.</p>
 </div>
 <div class="section" id="rarefy">
 <h2>Rarefy<a class="headerlink" href="#rarefy" title="Permalink to this headline">¶</a></h2>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">subset</span><span class="o">.</span><span class="n">rarefy_table</span><span class="p">(</span><span class="n">tab</span><span class="p">,</span> <span class="n">depth</span><span class="o">=</span><span class="s1">&#39;min&#39;</span><span class="p">,</span> <span class="n">seed</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">replacement</span><span class="o">=</span><span class="bp">False</span><span class="p">)</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">subset</span><span class="o">.</span><span class="n">rarefy_table</span><span class="p">(</span><span class="n">tab</span><span class="p">,</span> <span class="n">depth</span><span class="o">=</span><span class="s1">&#39;min&#39;</span><span class="p">,</span> <span class="n">seed</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">replacement</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
 
-<span class="n">subset</span><span class="o">.</span><span class="n">rarefy_object</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">depth</span><span class="o">=</span><span class="s1">&#39;min&#39;</span><span class="p">,</span> <span class="n">seed</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">replacement</span><span class="o">=</span><span class="bp">False</span><span class="p">):</span>
+<span class="n">subset</span><span class="o">.</span><span class="n">rarefy_object</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">depth</span><span class="o">=</span><span class="s1">&#39;min&#39;</span><span class="p">,</span> <span class="n">seed</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">replacement</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
 </pre></div>
 </div>
 <p>Rarefies a frequency table to a specific number of reads per sample. The function subset.rarefy_table() operates only on the frequency table and returns only a rarefied table.
 The function subset.rarefy_object() operates on the whole object and returns a whole object.
-This means that samples and OTUs/SVs which might have been dropped from the frequency table during rarefaction
+This means that samples and OTUs/ASVs which might have been dropped from the frequency table during rarefaction
 are also dropped from the ‘ra’, ‘tax’, ‘seq’, and ‘meta’ dataframes of the object.</p>
 <p><em>tab</em> is the frequency table to be rarefied</p>
 <p><em>object</em> is the object containing the frequency table to be rarefied</p>
@@ -104,17 +104,29 @@ are also dropped from the ‘ra’, ‘tax’, ‘seq’, and ‘meta’ datafra
 </div>
 <div class="section" id="consensus-table">
 <h2>Consensus table<a class="headerlink" href="#consensus-table" title="Permalink to this headline">¶</a></h2>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">subset</span><span class="o">.</span><span class="n">consensus</span><span class="p">(</span><span class="n">objlist</span><span class="p">,</span> <span class="n">keepObj</span><span class="o">=</span><span class="s1">&#39;best&#39;</span><span class="p">,</span> <span class="n">taxa</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">alreadyAligned</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span> <span class="n">differentLengths</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">subset</span><span class="o">.</span><span class="n">consensus</span><span class="p">(</span><span class="n">objlist</span><span class="p">,</span> <span class="n">keepObj</span><span class="o">=</span><span class="s1">&#39;best&#39;</span><span class="p">,</span> <span class="n">taxa</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">alreadyAligned</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">differentLengths</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 </pre></div>
 </div>
-<p>Takes a list of objects and returns a consensus object based on SVs found in all.</p>
+<p>Takes a list of objects and returns a consensus object based on ASVs found in all. Information about the fraction of reads retained from the original objects is also provided.</p>
 <p><em>objlist</em> is a list of objects</p>
 <p><em>keepObj</em> makes it possible to specify which object in objlist that should be kept after filtering based on common SVs, specify with integer
 (0 is the first object, 1 is the second, etc), ‘best’ means that the object which has the highest fraction of its reads mapped to the common SVs is kept;</p>
 <p><em>taxa</em> makes it possible to specify with an integer the object having taxa information that should be kept
 (0 is the first object, 1 is the second, etc), if ‘None’, the taxa information in the kept object is used</p>
 <p>if <em>alreadyAligned</em> =True, the subset.align_sequences function has already been run on the objects to make sure the same sequences in different objects have the same names</p>
-<p>if <em>differentLengths</em> =True, it assumes that the same SV inferred with different bioinformatics pipelines could have different sequence lengths.</p>
+<p>if <em>differentLengths</em> =True, it assumes that the same ASV inferred with different bioinformatics pipelines could have different sequence lengths.</p>
+<p>Example</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">qdiv</span> <span class="k">as</span> <span class="nn">qd</span>
+
+<span class="n">cons_obj</span><span class="p">,</span> <span class="n">info</span> <span class="o">=</span> <span class="n">qd</span><span class="o">.</span><span class="n">subset</span><span class="o">.</span><span class="n">consensus</span><span class="p">([</span><span class="n">obj1</span><span class="p">,</span> <span class="n">obj2</span><span class="p">])</span>
+
+<span class="n">qd</span><span class="o">.</span><span class="n">stats</span><span class="o">.</span><span class="n">print_info</span><span class="p">(</span><span class="n">cons_obj</span><span class="p">)</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="n">info</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>In the example above, <em>cons_obj</em> is the new consensus object constructed based on obj1 and obj2.</p>
+<p><em>info</em> contains information about the fraction of reads retained from obj1 and obj2, as well as the maximum relative abundance of reads lost in a sample in each of the original objects.</p>
 </div>
 </div>
 
@@ -142,8 +154,8 @@ are also dropped from the ‘ra’, ‘tax’, ‘seq’, and ‘meta’ datafra
 <li class="toctree-l1"><a class="reference internal" href="Information and statistics.html">Information and statistics</a></li>
 <li class="toctree-l1 current"><a class="current reference internal" href="#">Subset and manipulate data</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="#subset-to-specific-samples">Subset to specific samples</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#subset-to-specific-otus-svs">Subset to specific OTUs/SVs</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#subset-to-the-most-abundant-otus-svs">Subset to the most abundant OTUs/SVs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#subset-to-specific-otus-asvs">Subset to specific OTUs/ASVs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#subset-to-the-most-abundant-otus-asvs">Subset to the most abundant OTUs/ASVs</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#subset-based-on-taxonomic-classification">Subset based on taxonomic classification</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#merge-samples">Merge samples</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#rarefy">Rarefy</a></li>
@@ -190,7 +202,7 @@ are also dropped from the ‘ra’, ‘tax’, ‘seq’, and ‘meta’ datafra
       &copy;2019, Oskar Modin.
       
       |
-      Powered by <a href="http://sphinx-doc.org/">Sphinx 2.2.0</a>
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 2.3.1</a>
       &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.12</a>
       
       |

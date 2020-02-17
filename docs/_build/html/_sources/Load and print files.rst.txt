@@ -10,9 +10,9 @@ Loading files
 
 Loads files into an object, which is used for further analysis.
 
-*path* is the path to the directory holding the input files, *tab* is the name of the frequency table file, 
+*path* is the path to the directory holding the input files, *tab* is the name of the count table file, 
 
-*fasta* is the name of the fasta file, *meta* is the name of meta data file, *sep* is the separator used in the frequency table and meta data files (, or ; or \t).
+*fasta* is the name of the fasta file, *meta* is the name of meta data file, *sep* is the separator used in the count table and meta data files (, or ; or \t).
 
 Example
 
@@ -43,7 +43,7 @@ Prints the python object as files or the same type as the input files.
 
 *path* is the path to the directory holding the printed files.
  
-*savename* is the name used for the printed files, *sep* is the separator to be used in the printed frequency table and meta data files (, or ; or \t).
+*savename* is the name used for the printed files, *sep* is the separator to be used in the printed count table and meta data files (',' or ';' or '\t').
 
 Example
 

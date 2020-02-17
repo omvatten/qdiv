@@ -102,8 +102,8 @@ def mantel(dis1, dis2, method='spearman', getOnlyStat=False, permutations=99):
         return [real_stat, p_val]
 
 # dis is dissimilarity matrix
-# categories is pandas data series with index names identical to index- and column names in dis
-# the values in categories group the objects in the dis matrix into different categories
+# meta is the metadata
+# var is the heading in the meta data having categories which group the samples
 # returns list [F_stat, p_value]
 def permanova(dis, meta, var, permutations=99):
 

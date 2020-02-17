@@ -40,15 +40,16 @@
 </pre></div>
 </div>
 <p>Opens a dialogue box with information about the number of samples, number of reads, minimum and maximum number of reads in a samples, meta data, etc.</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">stats</span><span class="o">.</span><span class="n">taxa</span><span class="p">(</span><span class="n">obj</span><span class="p">)</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">stats</span><span class="o">.</span><span class="n">taxa</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">savename</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">)</span>
 </pre></div>
 </div>
 <p>Returns a pandas dataframe with information about the number of taxa at different taxonomic levels in the data.</p>
 <p><em>obj</em> is an object.</p>
+<p>if <em>savename</em> is specified, a csv file with the information is saved.</p>
 </div>
 <div class="section" id="mantel-test">
 <h2>Mantel test<a class="headerlink" href="#mantel-test" title="Permalink to this headline">¶</a></h2>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">stats</span><span class="o">.</span><span class="n">mantel</span><span class="p">(</span><span class="n">dis1</span><span class="p">,</span> <span class="n">dis2</span><span class="p">,</span> <span class="n">method</span><span class="o">=</span><span class="s1">&#39;spearman&#39;</span><span class="p">,</span> <span class="n">getOnlyStat</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span> <span class="n">permutations</span><span class="o">=</span><span class="mi">99</span><span class="p">)</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">stats</span><span class="o">.</span><span class="n">mantel</span><span class="p">(</span><span class="n">dis1</span><span class="p">,</span> <span class="n">dis2</span><span class="p">,</span> <span class="n">method</span><span class="o">=</span><span class="s1">&#39;spearman&#39;</span><span class="p">,</span> <span class="n">getOnlyStat</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">permutations</span><span class="o">=</span><span class="mi">99</span><span class="p">)</span>
 </pre></div>
 </div>
 <p>Carries out a mantel tests and return a list containing the test statistic and the p value.</p>
@@ -143,7 +144,7 @@
       &copy;2019, Oskar Modin.
       
       |
-      Powered by <a href="http://sphinx-doc.org/">Sphinx 2.2.0</a>
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 2.3.1</a>
       &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.12</a>
       
       |

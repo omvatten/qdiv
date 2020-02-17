@@ -5,11 +5,12 @@
 
 Welcome to qdiv's documentation!
 ================================
-qdiv is a python package for analyzing results from 16S rRNA gene amplicon sequencing (or similar data).
+qdiv is a python package for analyzing results from rRNA gene amplicon sequencing or similar data.
 
-With qdiv, you can subset the data, generate a consensus table based on several frequency tables, 
+With qdiv you can subset and rarefy the data, generate a consensus table based on several count tables, 
 calculate alpha- and beta diversity indices (focusing on Hill-based indices), 
-plot a heatmap or PCoA, carry out null model analysis using Raup-Crick extended to Hill-based dissimilarity indices, and do the Mantel test.
+plot a heatmap or PCoA, carry out null model analysis using Raup-Crick extended to Hill-based dissimilarity indices, 
+and run the Mantel- and Permanova tests.
 
 .. toctree::
    :maxdepth: 2

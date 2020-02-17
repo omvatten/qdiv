@@ -12,11 +12,13 @@ Opens a dialogue box with information about the number of samples, number of rea
 
 .. code-block:: python
 
-   stats.taxa(obj)
+   stats.taxa(obj, savename='None')
 
 Returns a pandas dataframe with information about the number of taxa at different taxonomic levels in the data.
 
 *obj* is an object.
+
+if *savename* is specified, a csv file with the information is saved.
 
 Mantel test
 ###########
