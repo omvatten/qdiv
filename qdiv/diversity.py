@@ -378,7 +378,7 @@ def phyl_beta(tab, distmat, q=1, dis=True, viewpoint='local'):
 # iterations specifies the number of randomizations, 999 is normal but can take several hours for large frequency tables
 # disIndex specifies the dissimilarity index to calculate: 'Jaccard', 'Bray', and 'Hill' are available choices.
 #    'Hill' refers to naive or phylogenetic dissimilarities of order q. If distmat is specified, phylogenetic are calculated.
-def rcq(obj, constrainingVar='None', randomization='abundance', weightingVar='None', weight=1, iterations=9,
+def rcq(obj, constrainingVar='None', randomization='frequency', weightingVar='None', weight=1, iterations=9,
          disIndex='Hill', distmat='None', q=1, compareVar='None', RCrange='Raup'):
 
     # Returns a list of randomized tables
