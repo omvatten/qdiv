@@ -28,7 +28,7 @@ def load(path='', tab='None', fasta='None', meta='None', sep=','):  # Import fil
             taxpos = len(readtab.columns)
             taxaavailable = 0
 
-        readtab.index.name = 'SV'
+        readtab.index.name = 'ASV'
         ctab = readtab.iloc[:, :taxpos]
         ratab = 100 * ctab / ctab.sum()
 
@@ -60,9 +60,9 @@ def load(path='', tab='None', fasta='None', meta='None', sep=','):  # Import fil
                         checktax.loc[ix] = bokstav + checktax.loc[ix]
                     taxtab.loc[checktax.index, taxtab.columns[nr]] = checktax
 
-    ##Read fasta file with SV sequences
+    ##Read fasta file with ASV sequences
     if fasta != 'None':
-        fastalist = [['SV', 'seq']]
+        fastalist = [['ASV', 'seq']]
         with open(path + fasta, 'r') as f:
             for line in f:
                 if line[0] == '>':
@@ -70,7 +70,7 @@ def load(path='', tab='None', fasta='None', meta='None', sep=','):  # Import fil
                 else:
                     fastalist[-1][1] = fastalist[-1][1] + line.strip()
 
-        # Correct fasta list based on SVs actually in count table (some might not be represented)
+        # Correct fasta list based on ASVs actually in count table (some might not be represented)
         if tab != 'None':
             tabSVs = list(ctab.index)
             corrfastalist = [fastalist[0]]
@@ -81,7 +81,7 @@ def load(path='', tab='None', fasta='None', meta='None', sep=','):  # Import fil
         else:
             seqtab = pd.DataFrame(fastalist[1:], columns=fastalist[0])
 
-        seqtab = seqtab.set_index('SV')
+        seqtab = seqtab.set_index('ASV')
         seqtab = seqtab.sort_index()
 
     # Read meta data
@@ -101,6 +101,7 @@ def load(path='', tab='None', fasta='None', meta='None', sep=','):  # Import fil
     # Return dictionary object with all dataframes
     out = {}
     if tab != 'None':
+        ctab = ctab.applymap(int)
         out['tab'] = ctab
         out['ra'] = ratab
     if tab != 'None' and taxaavailable == 1:

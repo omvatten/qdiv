@@ -73,9 +73,9 @@ def get_colors_markers(type='colors', plot=False):
 # Groups SVs based on taxa, returns object with grouped sequences
 # levels specifies taxonomic levels to use in the grouping
 # nameType specifies the abbreviation to be used for unclassified sequences
-def groupbytaxa(obj, levels=['Phylum', 'Genus'], nameType='SV'):
+def groupbytaxa(obj, levels=['Phylum', 'Genus'], nameType='ASV'):
     # Clean up tax data frame
-    tax = obj['tax']
+    tax = obj['tax'].copy()
     tax = tax.fillna('0')
     taxSV = tax.copy() #df to hold nameTypes in undefined
     taxNames = tax.copy() #df to hold lowest known taxaname in undefined
@@ -132,21 +132,21 @@ def groupbytaxa(obj, levels=['Phylum', 'Genus'], nameType='SV'):
     #Grouby Name and return object
     out = {}
     if 'tab' in obj.keys():
-        tab = obj['tab']
+        tab = obj['tab'].copy()
         tab['Name'] = tax['Name']
         tab = tab.set_index(['Name'])
         tab = tab.groupby(tab.index).sum()
         out['tab'] = tab
     if 'ra' in obj.keys():
-        ra = obj['ra']
+        ra = obj['ra'].copy()
         ra['Name'] = tax['Name']
         ra = ra.set_index('Name')
         ra = ra.groupby(ra.index).sum()
         out['ra'] = ra
     if 'meta' in obj.keys():
-        out['meta'] = obj['meta']
+        out['meta'] = obj['meta'].copy()
     if 'tax' in obj.keys():
-        newtax = obj['tax']
+        newtax = obj['tax'].copy()
         newtax['Name'] = tax['Name']
         newtax = newtax.set_index(['Name'])
         newtax = newtax.groupby(newtax.index).first()
@@ -160,8 +160,6 @@ def groupbytaxa(obj, levels=['Phylum', 'Genus'], nameType='SV'):
                 newtax.iloc[:, c_nr] = np.nan
         out['tax'] = newtax
     return out
-
-
 
 ## Plots heatmap
     # xAxis specifies heading in meta data used to merge samples
@@ -183,7 +181,7 @@ def groupbytaxa(obj, levels=['Phylum', 'Genus'], nameType='SV'):
     # cBar is a list of tick marks to use if a color bar is included as legend
     # savename is the name (also include path) of the saved png file, if 'None' no figure is saved
 def heatmap(obj, xAxis='None', levels=['Phylum', 'Genus'], levelsShown='None', subsetLevels='None', subsetPatterns='None',
-                order='None', numberToPlot=20, method='max_sample', nameType='SV',
+                order='None', numberToPlot=20, method='max_sample', nameType='ASV',
                  figSize=(14, 10), fontSize=15, sepCol = [],
                 labels=True, labelSize=10, cThreshold=8,
                 cMap='Reds', cLinear=0.5, cBar=[], savename='None'):
@@ -240,7 +238,7 @@ def heatmap(obj, xAxis='None', levels=['Phylum', 'Genus'], levelsShown='None', s
     taxa_list = table.index.tolist()
     new_taxa_list = []
     for n in taxa_list:
-        if ';' in n: #Check if there are two taxa names
+        if ';' in n and '__' in n: #Check if there are two taxa names
             splitname = n.split(';')
             splitname1 = splitname[0].split('__')
             newname1 = splitname1[0]+'__'+'$\it{'+splitname1[1]+'}$'
@@ -250,6 +248,9 @@ def heatmap(obj, xAxis='None', levels=['Phylum', 'Genus'], levelsShown='None', s
             else:
                 newname2 = splitname[1]
             newname = newname1+';'+newname2
+        elif ';' in n and '__' not in n:
+            splitname = n.split(';')
+            newname = splitname[0]
         else: #If there is only one taxa name
             if '__' in n:
                 splitname = n.split('__')
@@ -341,7 +342,8 @@ def heatmap(obj, xAxis='None', levels=['Phylum', 'Genus'], levelsShown='None', s
 # slist is a list of samples from the var column to include (default is all)
 # order refers to column heading in meta data used to order the samples
 # If ylog=True, the y-axis of the plot will be logarithmic
-def alpha_diversity(obj, distmat='None', var='None', slist='All', order='None', ylog=False, colorlist='None', savename='None'):
+def alpha_diversity(obj, distmat='None', var='None', slist='All', order='None', ylog=False, 
+                    figSize=(10, 6), fontSize=18, colorlist='None', savename='None'):
     #Pick out samples to include based on var and slist
     meta = obj['meta']
     if order != 'None':
@@ -368,8 +370,8 @@ def alpha_diversity(obj, distmat='None', var='None', slist='All', order='None', 
         df.loc[x, smplist] = alphadiv
 
     #Plot data
-    plt.rcParams.update({'font.size': 20})
-    fig, ax = plt.subplots(figsize=(10, 6))
+    plt.rcParams.update({'font.size': fontSize})
+    fig, ax = plt.subplots(figsize=figSize)
 
     if colorlist == 'None':
         colorlist = get_colors_markers('colors')
@@ -402,7 +404,7 @@ def alpha_diversity(obj, distmat='None', var='None', slist='All', order='None', 
     ax.set_xticks([0.0, 0.5, 1.0, 1.5, 2.0])
     ax.set_xlim(0, 2)
 
-    plt.legend()
+    plt.legend(bbox_to_anchor=(1, 1), loc='upper left', frameon=False)
     plt.tight_layout()
     if savename != 'None':
         plt.savefig(savename+'.pdf', format='pdf')
@@ -611,7 +613,6 @@ def pcoa(dist, meta, biplot=[], var1='None', var2='None', var1_title='', var2_ti
         ax.set_yticklabels([])
     plt.title(title)
     plt.tight_layout()
-    #plt.tight_layout(rect=[0, 0, 1-rightSpace, 1])
     if savename != 'None':
         plt.savefig(savename+'.pdf', format='pdf')
         plt.savefig(savename)
@@ -954,6 +955,7 @@ def rarefactioncurve(obj, step='flexible', figSize=(14, 10), fontSize=18,
     def get_dictionary(tab):
         res_di = {} #Dictionary holding x and y for each samples   
         for smp in tab.columns:
+            print('Working on rarefaction curve for sample:', smp)
             smp_series = tab[smp][tab[smp] > 0]
             totalreads = smp_series.sum()
             

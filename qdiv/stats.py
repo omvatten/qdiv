@@ -16,7 +16,7 @@ def print_info(obj):
     return None
 
 # Prints file with number of different taxa at different taxonomic levels
-def taxa(obj):
+def taxa(obj, savename='None'):
     if 'tax' in obj.keys():
         tax = obj['tax'].copy()
         taxlevels = tax.columns.tolist() #List of taxonomic levels
@@ -49,6 +49,8 @@ def taxa(obj):
         output.append(templist)
     output = pd.DataFrame(output[1:], columns=output[0])
     output = output.set_index('Sample')
+    if savename != 'None':
+        output.to_csv(savename + '.csv')
     return output
 
 # dis1 and dis2 are two dissimilarity matrices

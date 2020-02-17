@@ -259,7 +259,7 @@ def rarefy_table(tab, depth='min', seed='None', replacement=False):
             for i, (v1, v2) in enumerate(zip(cumreads1, cumreads2)):
                 ind_reads_arr[v1:v2] = name_arr[i]
             if seed != 'None':
-                random.seed(seed)
+                np.random.seed(seed)
             np.random.shuffle(ind_reads_arr)
             bins_counts = np.unique(ind_reads_arr[:depth], return_counts=True)
             rtab.loc[bins_counts[0], smp] = bins_counts[1]
@@ -480,7 +480,8 @@ def consensus(objlist, keepObj='best', taxa='None', alreadyAligned=False, differ
     elif taxa != 'None':
         cons_obj['tax'] = aligned_objects[taxa]['tax'].loc[incommonSVs, :]
 
-    info = {'ra_in_tab': ra_in_tab, 'ra_sample_max': ra_sample_max}
+    info = {'Relative abundance (%) of reads associated with retained ASVs': ra_in_tab, 
+            'Maximum relative abundance (%) of lost reads in a sample': ra_sample_max}
 
     return cons_obj, info
 
