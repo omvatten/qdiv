@@ -1,0 +1,210 @@
+
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta charset="utf-8" />
+    <title>Diversity calculations &#8212; qdiv  documentation</title>
+    <link rel="stylesheet" href="_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    <script type="text/javascript" id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <script type="text/javascript" src="_static/language_data.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Plotting" href="Plotting.html" />
+    <link rel="prev" title="Subset and manipulate data" href="Subset and manipulate data.html" />
+   
+  <link rel="stylesheet" href="_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <div class="section" id="diversity-calculations">
+<h1>Diversity calculations<a class="headerlink" href="#diversity-calculations" title="Permalink to this headline">¶</a></h1>
+<div class="section" id="distance-between-sequences">
+<h2>Distance between sequences<a class="headerlink" href="#distance-between-sequences" title="Permalink to this headline">¶</a></h2>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">diversity</span><span class="o">.</span><span class="n">sequence_comparison</span><span class="p">(</span><span class="n">seq</span><span class="p">,</span> <span class="n">savename</span><span class="o">=</span><span class="s1">&#39;PhylDistMat&#39;</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Returns a csv file with pairwise distances between sequences in the data set.
+The distance is calculated as the Levenshtein distance dividied by the length of the longest distance in the pair.</p>
+<p><em>seq</em> is a dataframe holding the sequences, typically obj[‘seq’]</p>
+<p><em>savename</em> specifies path and name of output file.</p>
+</div>
+<div class="section" id="alpha-diversity">
+<h2>Alpha diversity<a class="headerlink" href="#alpha-diversity" title="Permalink to this headline">¶</a></h2>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">diversity</span><span class="o">.</span><span class="n">naive_alpha</span><span class="p">(</span><span class="n">tab</span><span class="p">,</span> <span class="n">q</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Returns taxonomic (or naive) alpha diversity values (i.e. Hill numbers) for all samples.</p>
+<p><em>tab</em> is a frequency table holding the read counts, typically object[‘tab’]</p>
+<p><em>q</em> is the diversity order for the Hill numbers.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">diversity</span><span class="o">.</span><span class="n">phyl_alpha</span><span class="p">(</span><span class="n">tab</span><span class="p">,</span> <span class="n">distmat</span><span class="p">,</span> <span class="n">q</span><span class="o">=</span><span class="mi">0</span><span class="p">):</span>
+</pre></div>
+</div>
+<p>Returns alpha diversity values that takes the pairwise distances between sequences into account.
+The values are the same as the functional diversity measures described by Chiu et al. (2014), <em>PLOS ONE,</em> 9(7), e100014.</p>
+<p><em>tab</em> is a frequency table holding the read counts, typically object[‘tab’]</p>
+<p><em>distmat</em> is a dataframe with pairwise distances between the sequences of OTUs/SVs. The file can be generated wit the diversity.sequence_comparison() function.</p>
+<p><em>q</em> is the diversity order for the Hill numbers.</p>
+</div>
+<div class="section" id="beta-diversity-dissimilarity">
+<h2>Beta diversity (dissimilarity)<a class="headerlink" href="#beta-diversity-dissimilarity" title="Permalink to this headline">¶</a></h2>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">naive_beta</span><span class="p">(</span><span class="n">tab</span><span class="p">,</span> <span class="n">q</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">dis</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">viewpoint</span><span class="o">=</span><span class="s1">&#39;local&#39;</span><span class="p">):</span>
+</pre></div>
+</div>
+<p>Returns a dataframe of pairwise dissimilarities between samples. Taxonomic Hill-based dissimilarities of order q are calculated.</p>
+<p><em>tab</em> is a frequency table holding the read counts, typically object[‘tab’]</p>
+<p><em>q</em> is the diversity order.</p>
+<p>If <em>dis</em> =True, dissimilarities constrained between 0 and 1 are calculated,
+if <em>dis</em> =False, beta diversity constrained between 1 and 2 are calculated.</p>
+<p><em>viewpoint</em> can ‘local’ or ‘regional’, the difference is described in Chao et al. (2014), <em>Annual Review of Ecology, Evolution, and Systematics,</em> 45, 297-324.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">diversity</span><span class="o">.</span><span class="n">phyl_beta</span><span class="p">(</span><span class="n">tab</span><span class="p">,</span> <span class="n">distmat</span><span class="p">,</span> <span class="n">q</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">dis</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">viewpoint</span><span class="o">=</span><span class="s1">&#39;local&#39;</span><span class="p">):</span>
+</pre></div>
+</div>
+<p>Returns a dataframe of pairwise dissimilarities, which take sequence distances into account. The values are the functional beta diversity measures described by Chiu et al. (2014), <em>PLOS ONE,</em> 9(7), e100014.</p>
+<p><em>tab</em> is a frequency table holding the read counts, typically object[‘tab’]</p>
+<p><em>distmat</em> is a dataframe with pairwise distances between the sequences of OTUs/SVs. The file can be generated wit the diversity.sequence_comparison() function.</p>
+<p><em>q</em> is the diversity order.</p>
+<p>If <em>dis</em> =True, dissimilarities constrained between 0 and 1 are calculated,
+if <em>dis</em> =False, beta diversity constrained between 1 and 4 are calculated.</p>
+<p><em>viewpoint</em> can ‘local’ or ‘regional’, the difference is described in Chao et al. (2014), <em>Annual Review of Ecology, Evolution, and Systematics,</em> 45, 297-324.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">diversity</span><span class="o">.</span><span class="n">jaccard</span><span class="p">(</span><span class="n">tab</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Returns a dataframe of pairwise Jaccard dissimilarities between samples.</p>
+<p><em>tab</em> is a frequency table holding the read counts, typically object[‘tab’]</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">diversity</span><span class="o">.</span><span class="n">bray</span><span class="p">(</span><span class="n">tab</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Returns a dataframe of pairwise Bray-Curtis dissimilarities between samples.</p>
+<p><em>tab</em> is a frequency table holding the read counts, typically object[‘tab’]</p>
+</div>
+<div class="section" id="null-model-analysis-based-on-raup-crick">
+<h2>Null model analysis based on Raup-Crick<a class="headerlink" href="#null-model-analysis-based-on-raup-crick" title="Permalink to this headline">¶</a></h2>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">diversity</span><span class="o">.</span><span class="n">rcq</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">constrainingVar</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">randomization</span><span class="o">=</span><span class="s1">&#39;frequency&#39;</span><span class="p">,</span> <span class="n">weightingVar</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">weight</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">iterations</span><span class="o">=</span><span class="mi">9</span><span class="p">,</span> <span class="n">disIndex</span><span class="o">=</span><span class="s1">&#39;Hill&#39;</span><span class="p">,</span> <span class="n">distmat</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">q</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">compareVar</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">RCrange</span><span class="o">=</span><span class="s1">&#39;Raup&#39;</span><span class="p">):</span>
+</pre></div>
+</div>
+<p>The observed dissimilarities between samples are compared to a null distribution.
+The null model randomizes the frequency table to calculate a null expectation of the pairwise dissimilarities between samples. The is repeated several times (iterations) to get a null distribution.
+During the randomization, the total OTU/SV count and read count for each sample are kept constant, but the distribution of reads between OTUs/SVs are randomized.
+The function returns a python dictionary with several items:</p>
+<ul class="simple">
+<li><p>‘Obs’ is the actually observed dissimilarity values.</p></li>
+<li><p>‘Nullmean’ is the mean values of the null dissimilarities (i.e. the dissimilarities of the randomized tables);</p></li>
+<li><p>‘Nullstd’ is the standard devation;</p></li>
+<li><p>‘RC’ is the Raup-Crick measure (i.e. the number of times the actual dissimilarities are higher than the null expectation).</p></li>
+</ul>
+<p><em>obj</em> is the object.</p>
+<p><em>constrainingVar</em> is a column heading in the meta data that can be used to constrain the randomizations so that read counts are only randomized with a certain category of samples.</p>
+<p><em>randomization</em> specifies the randomization procedure:</p>
+<ul class="simple">
+<li><p>‘abundance’ means that SVs are drawn to each sample based on the total read counts in the frequency table (or part of the table defined by <em>constrainingVar</em> )</p></li>
+<li><p>‘frequency’ means that SVs are drawn based on the number of samples in which they are detected. This method is the same as in Stegen et al. (2013). <em>ISME Journal,</em> 7(11), 2069-2079.</p></li>
+<li><p>‘weighting’ uses the abundance method but a meta data column (<em>weightingVar</em> ) can be used to categorize samples and the <em>weight</em> parameter decide the importance of the category of samples with the lowest richness. A <em>weight</em> of 0 means that the low-richness samples are not considered in the regional community used to populate the samples with read counts while a weight of 1 means that all sample groups have equal weighting.</p></li>
+</ul>
+<p><em>iterations</em> specifies the number of randomizations, 999 is the normal but could take several hours for large frequency tables.</p>
+<p><em>disIndex</em> specifies the dissimilarity index to calculate: ‘Jaccard’, ‘Bray’, and ‘Hill’ are available choices,
+‘Hill’ refers to naive or phylogenetic dissimilarities of order q. If distmat is specified, diversity.phyl_beta are calculated.</p>
+<p><em>compareVar</em> is a column heading in the meta data. If compareVar is not None, ‘RCmean’ and ‘RCstd’ are returned
+and represents the mean and standard deviation of all pairwise comparison between the meta data categories specified present under compareVar</p>
+<p>If <em>RCrange</em> =’Raup’ the range for the index will be 0 to 1, if it is ‘Chase’ it will -1 to 1. The names refer to Raup and Crick (1979), <em>J Paleontology,</em> 53(5), 1213-1227 and
+Chase et al. (2011), <em>Ecosphere,</em> 2(2), 24.</p>
+</div>
+</div>
+
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="index.html">qdiv</a></h1>
+
+
+
+
+
+
+
+
+<h3>Navigation</h3>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="Installation.html">Installation instructions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="Input files.html">Input files</a></li>
+<li class="toctree-l1"><a class="reference internal" href="Load and print files.html">Load and print files</a></li>
+<li class="toctree-l1"><a class="reference internal" href="Information and statistics.html">Information and statistics</a></li>
+<li class="toctree-l1"><a class="reference internal" href="Subset and manipulate data.html">Subset and manipulate data</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Diversity calculations</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#distance-between-sequences">Distance between sequences</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#alpha-diversity">Alpha diversity</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#beta-diversity-dissimilarity">Beta diversity (dissimilarity)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#null-model-analysis-based-on-raup-crick">Null model analysis based on Raup-Crick</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="Plotting.html">Plotting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="GUI.html">GUI</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="index.html">Documentation overview</a><ul>
+      <li>Previous: <a href="Subset and manipulate data.html" title="previous chapter">Subset and manipulate data</a></li>
+      <li>Next: <a href="Plotting.html" title="next chapter">Plotting</a></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" />
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2019, Oskar Modin.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 2.3.1</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.12</a>
+      
+      |
+      <a href="_sources/Diversity calculations.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>
