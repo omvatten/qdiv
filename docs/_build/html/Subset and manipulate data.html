@@ -1,17 +1,17 @@
 
 <!DOCTYPE html>
 
-<html xmlns="http://www.w3.org/1999/xhtml">
+<html>
   <head>
     <meta charset="utf-8" />
     <title>Subset and manipulate data &#8212; qdiv  documentation</title>
     <link rel="stylesheet" href="_static/alabaster.css" type="text/css" />
     <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
-    <script type="text/javascript" id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
-    <script type="text/javascript" src="_static/jquery.js"></script>
-    <script type="text/javascript" src="_static/underscore.js"></script>
-    <script type="text/javascript" src="_static/doctools.js"></script>
-    <script type="text/javascript" src="_static/language_data.js"></script>
+    <script id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
+    <script src="_static/jquery.js"></script>
+    <script src="_static/underscore.js"></script>
+    <script src="_static/doctools.js"></script>
+    <script src="_static/language_data.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
     <link rel="next" title="Diversity calculations" href="Diversity calculations.html" />
@@ -104,7 +104,7 @@ are also dropped from the ‘ra’, ‘tax’, ‘seq’, and ‘meta’ datafra
 </div>
 <div class="section" id="consensus-table">
 <h2>Consensus table<a class="headerlink" href="#consensus-table" title="Permalink to this headline">¶</a></h2>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">subset</span><span class="o">.</span><span class="n">consensus</span><span class="p">(</span><span class="n">objlist</span><span class="p">,</span> <span class="n">keepObj</span><span class="o">=</span><span class="s1">&#39;best&#39;</span><span class="p">,</span> <span class="n">taxa</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">alreadyAligned</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">differentLengths</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">subset</span><span class="o">.</span><span class="n">consensus</span><span class="p">(</span><span class="n">objlist</span><span class="p">,</span> <span class="n">keepObj</span><span class="o">=</span><span class="s1">&#39;best&#39;</span><span class="p">,</span> <span class="n">taxa</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">alreadyAligned</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">differentLengths</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
 </pre></div>
 </div>
 <p>Takes a list of objects and returns a consensus object based on ASVs found in all. Information about the fraction of reads retained from the original objects is also provided.</p>
@@ -116,9 +116,9 @@ are also dropped from the ‘ra’, ‘tax’, ‘seq’, and ‘meta’ datafra
 <p>if <em>alreadyAligned</em> =True, the subset.align_sequences function has already been run on the objects to make sure the same sequences in different objects have the same names</p>
 <p>if <em>differentLengths</em> =True, it assumes that the same ASV inferred with different bioinformatics pipelines could have different sequence lengths.</p>
 <p>Example</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">qdiv</span> <span class="k">as</span> <span class="nn">qd</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">qdiv</span>
 
-<span class="n">cons_obj</span><span class="p">,</span> <span class="n">info</span> <span class="o">=</span> <span class="n">qd</span><span class="o">.</span><span class="n">subset</span><span class="o">.</span><span class="n">consensus</span><span class="p">([</span><span class="n">obj1</span><span class="p">,</span> <span class="n">obj2</span><span class="p">])</span>
+<span class="n">cons_obj</span><span class="p">,</span> <span class="n">info</span> <span class="o">=</span> <span class="n">qdiv</span><span class="o">.</span><span class="n">subset</span><span class="o">.</span><span class="n">consensus</span><span class="p">([</span><span class="n">obj1</span><span class="p">,</span> <span class="n">obj2</span><span class="p">])</span>
 
 <span class="n">qd</span><span class="o">.</span><span class="n">stats</span><span class="o">.</span><span class="n">print_info</span><span class="p">(</span><span class="n">cons_obj</span><span class="p">)</span>
 
@@ -185,7 +185,7 @@ are also dropped from the ‘ra’, ‘tax’, ‘seq’, and ‘meta’ datafra
     </form>
     </div>
 </div>
-<script type="text/javascript">$('#searchbox').show(0);</script>
+<script>$('#searchbox').show(0);</script>
 
 
 
@@ -202,7 +202,7 @@ are also dropped from the ‘ra’, ‘tax’, ‘seq’, and ‘meta’ datafra
       &copy;2019, Oskar Modin.
       
       |
-      Powered by <a href="http://sphinx-doc.org/">Sphinx 2.3.1</a>
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 3.0.3</a>
       &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.12</a>
       
       |

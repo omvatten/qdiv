@@ -46,7 +46,7 @@ Beta diversity (dissimilarity)
 
 .. code-block:: python
 
-   naive_beta(tab, q=1, dis=True, viewpoint='local'):
+   diversity.naive_beta(tab, q=1, dis=True, viewpoint='local'):
 
 Returns a dataframe of pairwise dissimilarities between samples. Taxonomic Hill-based dissimilarities of order q are calculated. 
 
@@ -92,6 +92,51 @@ Returns a dataframe of pairwise Bray-Curtis dissimilarities between samples.
 
 *tab* is a frequency table holding the read counts, typically object['tab']
 
+.. code-block:: python
+
+   diversity.naive_multi_beta(obj, var='None', q=1)
+
+Returns a pandas dataframe containing beta diversity, and local- and regional dissimilarity values for categories of samples.
+
+*obj* is the qdiv object.
+
+*var* is the column heading in the meta data used to categorize the samples. If a category has two or more samples, beta diversity for that category is calculated.
+
+*q* is the diversity order. 
+
+.. code-block:: python
+
+   diversity.naive_dissimilarity_contributions(obj, var='None', q=1, index='local')
+
+Returns a pandas dataframe with information about dissimilarity, number of samples, and the percentage contribution of each OTU/ASV to the observed dissimilarity.
+
+*obj* is the qdiv object.
+
+*var* is the column heading in the meta data used to categorize the samples. If a category has two or more samples, dissimilarity for that category is calculated.
+
+*q* is the diversity order. 
+
+*index* is the type of dissimilarity index (either local or regional)
+
+Evenness
+########
+
+.. code-block:: python
+
+   diversity.evenness(tab, q=1, index='local', perspective='samples')
+
+Returns evenness calculated according to Chao and Ricotta (2019) Ecology 100(12), e02852.
+
+*tab* is count table and *q* is diversity order.
+
+*index* can be Chao1, Chao2, Chao3, Chao4, or Chao5. These refer to the indices described in Table 1 in Chao and Ricotta (2019).
+
+index can also be local, which is equal to Chao2, or regional, which is equal to Chao1.
+
+*perspective* can be samples, which means an evenness value is calculated for each sample (column) in the count table
+
+*perspective* can also taxa, which means an evenness value is calculated for each OTU/ASV (row) in the count table
+
 Null model analysis based on Raup-Crick
 #######################################
 
@@ -101,7 +146,7 @@ Null model analysis based on Raup-Crick
 
 The observed dissimilarities between samples are compared to a null distribution. 
 The null model randomizes the frequency table to calculate a null expectation of the pairwise dissimilarities between samples. The is repeated several times (iterations) to get a null distribution.
-During the randomization, the total OTU/SV count and read count for each sample are kept constant, but the distribution of reads between OTUs/SVs are randomized. 
+During the randomization, the total OTU/ASV count and read count for each sample are kept constant, but the distribution of reads between OTUs/ASVs are randomized. 
 The function returns a python dictionary with several items: 
 
 - 'Obs' is the actually observed dissimilarity values.

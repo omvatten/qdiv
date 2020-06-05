@@ -18,9 +18,9 @@ Example
 
 .. code-block:: python
 
-   import qdiv as qd
+   import qdiv
 
-   obj = qd.files.load(path='', tab='example_tab.csv', fasta='example_fasta.fa', meta='example_meta.csv', sep=',')
+   obj = qdiv.files.load(path='', tab='example_tab.csv', fasta='example_fasta.fa', meta='example_meta.csv', sep=',')
 
 obj is now a python dictionary containing five pandas dataframes ‘tab’, ‘ra’, ‘tax’, ‘seq’, and ‘meta’.
 
@@ -49,6 +49,6 @@ Example
 
 .. code-block:: python
 
-   import qdiv as qd
+   import qdiv
 
-   qd.files.printout(obj, path='', savename='output', sep=',')
+   qdiv.files.printout(obj, path='', savename='output', sep=',')

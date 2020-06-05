@@ -106,7 +106,7 @@ Consensus table
 
 .. code-block:: python
 
-   subset.consensus(objlist, keepObj='best', taxa='None', alreadyAligned=False, differentLengths=True)
+   subset.consensus(objlist, keepObj='best', taxa='None', alreadyAligned=False, differentLengths=False)
 
 Takes a list of objects and returns a consensus object based on ASVs found in all. Information about the fraction of reads retained from the original objects is also provided.
 
@@ -126,9 +126,9 @@ Example
 
 .. code-block:: python
 
-   import qdiv as qd
+   import qdiv
 
-   cons_obj, info = qd.subset.consensus([obj1, obj2])
+   cons_obj, info = qdiv.subset.consensus([obj1, obj2])
    
    qd.stats.print_info(cons_obj)
    
@@ -137,5 +137,3 @@ Example
 In the example above, *cons_obj* is the new consensus object constructed based on obj1 and obj2. 
 
 *info* contains information about the fraction of reads retained from obj1 and obj2, as well as the maximum relative abundance of reads lost in a sample in each of the original objects.
-
-

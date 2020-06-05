@@ -1,17 +1,17 @@
 
 <!DOCTYPE html>
 
-<html xmlns="http://www.w3.org/1999/xhtml">
+<html>
   <head>
     <meta charset="utf-8" />
     <title>Diversity calculations &#8212; qdiv  documentation</title>
     <link rel="stylesheet" href="_static/alabaster.css" type="text/css" />
     <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
-    <script type="text/javascript" id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
-    <script type="text/javascript" src="_static/jquery.js"></script>
-    <script type="text/javascript" src="_static/underscore.js"></script>
-    <script type="text/javascript" src="_static/doctools.js"></script>
-    <script type="text/javascript" src="_static/language_data.js"></script>
+    <script id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
+    <script src="_static/jquery.js"></script>
+    <script src="_static/underscore.js"></script>
+    <script src="_static/doctools.js"></script>
+    <script src="_static/language_data.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
     <link rel="next" title="Plotting" href="Plotting.html" />
@@ -63,7 +63,7 @@ The values are the same as the functional diversity measures described by Chiu e
 </div>
 <div class="section" id="beta-diversity-dissimilarity">
 <h2>Beta diversity (dissimilarity)<a class="headerlink" href="#beta-diversity-dissimilarity" title="Permalink to this headline">¶</a></h2>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">naive_beta</span><span class="p">(</span><span class="n">tab</span><span class="p">,</span> <span class="n">q</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">dis</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">viewpoint</span><span class="o">=</span><span class="s1">&#39;local&#39;</span><span class="p">):</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">diversity</span><span class="o">.</span><span class="n">naive_beta</span><span class="p">(</span><span class="n">tab</span><span class="p">,</span> <span class="n">q</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">dis</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">viewpoint</span><span class="o">=</span><span class="s1">&#39;local&#39;</span><span class="p">):</span>
 </pre></div>
 </div>
 <p>Returns a dataframe of pairwise dissimilarities between samples. Taxonomic Hill-based dissimilarities of order q are calculated.</p>
@@ -92,6 +92,33 @@ if <em>dis</em> =False, beta diversity constrained between 1 and 4 are calculate
 </div>
 <p>Returns a dataframe of pairwise Bray-Curtis dissimilarities between samples.</p>
 <p><em>tab</em> is a frequency table holding the read counts, typically object[‘tab’]</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">diversity</span><span class="o">.</span><span class="n">naive_multi_beta</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">var</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">q</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Returns a pandas dataframe containing beta diversity, and local- and regional dissimilarity values for categories of samples.</p>
+<p><em>obj</em> is the qdiv object.</p>
+<p><em>var</em> is the column heading in the meta data used to categorize the samples. If a category has two or more samples, beta diversity for that category is calculated.</p>
+<p><em>q</em> is the diversity order.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">diversity</span><span class="o">.</span><span class="n">naive_dissimilarity_contributions</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">var</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">q</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">index</span><span class="o">=</span><span class="s1">&#39;local&#39;</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Returns a pandas dataframe with information about dissimilarity, number of samples, and the percentage contribution of each OTU/ASV to the observed dissimilarity.</p>
+<p><em>obj</em> is the qdiv object.</p>
+<p><em>var</em> is the column heading in the meta data used to categorize the samples. If a category has two or more samples, dissimilarity for that category is calculated.</p>
+<p><em>q</em> is the diversity order.</p>
+<p><em>index</em> is the type of dissimilarity index (either local or regional)</p>
+</div>
+<div class="section" id="evenness">
+<h2>Evenness<a class="headerlink" href="#evenness" title="Permalink to this headline">¶</a></h2>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">diversity</span><span class="o">.</span><span class="n">evenness</span><span class="p">(</span><span class="n">tab</span><span class="p">,</span> <span class="n">q</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">index</span><span class="o">=</span><span class="s1">&#39;local&#39;</span><span class="p">,</span> <span class="n">perspective</span><span class="o">=</span><span class="s1">&#39;samples&#39;</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Returns evenness calculated according to Chao and Ricotta (2019) Ecology 100(12), e02852.</p>
+<p><em>tab</em> is count table and <em>q</em> is diversity order.</p>
+<p><em>index</em> can be Chao1, Chao2, Chao3, Chao4, or Chao5. These refer to the indices described in Table 1 in Chao and Ricotta (2019).</p>
+<p>index can also be local, which is equal to Chao2, or regional, which is equal to Chao1.</p>
+<p><em>perspective</em> can be samples, which means an evenness value is calculated for each sample (column) in the count table</p>
+<p><em>perspective</em> can also taxa, which means an evenness value is calculated for each OTU/ASV (row) in the count table</p>
 </div>
 <div class="section" id="null-model-analysis-based-on-raup-crick">
 <h2>Null model analysis based on Raup-Crick<a class="headerlink" href="#null-model-analysis-based-on-raup-crick" title="Permalink to this headline">¶</a></h2>
@@ -100,7 +127,7 @@ if <em>dis</em> =False, beta diversity constrained between 1 and 4 are calculate
 </div>
 <p>The observed dissimilarities between samples are compared to a null distribution.
 The null model randomizes the frequency table to calculate a null expectation of the pairwise dissimilarities between samples. The is repeated several times (iterations) to get a null distribution.
-During the randomization, the total OTU/SV count and read count for each sample are kept constant, but the distribution of reads between OTUs/SVs are randomized.
+During the randomization, the total OTU/ASV count and read count for each sample are kept constant, but the distribution of reads between OTUs/ASVs are randomized.
 The function returns a python dictionary with several items:</p>
 <ul class="simple">
 <li><p>‘Obs’ is the actually observed dissimilarity values.</p></li>
@@ -153,6 +180,7 @@ Chase et al. (2011), <em>Ecosphere,</em> 2(2), 24.</p>
 <li class="toctree-l2"><a class="reference internal" href="#distance-between-sequences">Distance between sequences</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#alpha-diversity">Alpha diversity</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#beta-diversity-dissimilarity">Beta diversity (dissimilarity)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#evenness">Evenness</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#null-model-analysis-based-on-raup-crick">Null model analysis based on Raup-Crick</a></li>
 </ul>
 </li>
@@ -178,7 +206,7 @@ Chase et al. (2011), <em>Ecosphere,</em> 2(2), 24.</p>
     </form>
     </div>
 </div>
-<script type="text/javascript">$('#searchbox').show(0);</script>
+<script>$('#searchbox').show(0);</script>
 
 
 
@@ -195,7 +223,7 @@ Chase et al. (2011), <em>Ecosphere,</em> 2(2), 24.</p>
       &copy;2019, Oskar Modin.
       
       |
-      Powered by <a href="http://sphinx-doc.org/">Sphinx 2.3.1</a>
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 3.0.3</a>
       &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.12</a>
       
       |

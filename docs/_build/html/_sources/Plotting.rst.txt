@@ -49,8 +49,8 @@ The sample with the smallest number will be placed to the left in the heatmap.
 
 *savename* is the name (also include path) of the saved png file. If 'None', no figure is saved.
 
-Alpha diversity plot
-####################
+Alpha diversity
+###############
 
 .. code-block:: python
 
@@ -81,7 +81,7 @@ PCoA
 
 .. code-block:: python
 
-   pcoa(dist, meta, biplot=[], var1='None', var2='None', var1_title='', var2_title='', whitePad=1.1, var2pos=0.4, tag='None', order='None', title='', connectPoints='None', figSize=(10, 14), fontSize=18, markerSize=100, markerscale=1.1, hideAxisValues=False, showLegend=True, colorlist='None', markerlist='None', savename='None')
+   plot.pcoa(dist, meta, biplot=[], var1='None', var2='None', var1_title='', var2_title='', whitePad=1.1, var2pos=0.4, tag='None', order='None', title='', connectPoints='None', figSize=(10, 14), fontSize=18, markerSize=100, markerscale=1.1, hideAxisValues=False, showLegend=True, colorlist='None', markerlist='None', savename='None')
 
 Visualizes dissimilarities between samples in principal coordinate analysis plot.
 
@@ -154,7 +154,7 @@ Rarefaction curve
 
 .. code-block:: python
 
-   rarefactioncurve(obj, step='flexible', figSize=(14, 10), fontSize=18, var='None', order='None', tag='None', colorlist='None', onlyReturnData=False, onlyPlotData='None', savename='None')
+   plot.rarefactioncurve(obj, step='flexible', figSize=(14, 10), fontSize=18, var='None', order='None', tag='None', colorlist='None', onlyReturnData=False, onlyPlotData='None', savename='None')
 
 Calculates a rarefaction curve based on subsampling without replacement.
 
@@ -179,3 +179,55 @@ if *onlyReturnData* =True, function will return a python dictionary with data.
 if *onlyPlotData* is a dictionary with data (generated in a previous step by running the function with onlyReturnData=True), it will be plotted and no calculations will be carried out.
 
 if *savename* is specified, plots will be saved and data will be saved as a pickle file.
+
+Octave (frequency histogram)
+############################
+
+.. code-block:: python
+
+   plot.octave(obj, var='None', slist='None', nrows=2, ncols=2, fontSize=11, figSize=(10, 6), xlabels=True, ylabels=True, title=True, color='blue', savename='None')
+
+Octave plot according to Edgar and Flyvbjerg, DOI:10.1101/38983
+
+*obj* is the qdiv object. 
+
+*var* is the column heading in metadata used to select samples to include. The counts for all samples with the same text in var column will be merged.
+
+*slist* is a list of names in meta data column which specify samples to keep. If slist='None' (default), the whole meta data column is used.
+
+*nrows* and *ncols* are the number of rows and columns in the plot; nrows*ncols must be equal to or more than the number of samples plotted.
+
+if xlabels=True, k is shown for the bins on the x-axis
+
+if ylabels=True, ASV counts are shown on the y-axis
+
+if title=True, sample name is shown as title for each panel
+
+*color* determines color of bars
+
+*savename* is path and name of file.
+
+Dissimilarity contributions of taxa
+###################################
+
+.. code-block:: python
+
+   plot.dissimilarity_contributions(obj, var='None', q=1, index='local', numberToPlot=20, levels=['Genus'], fromFile='None', figSize=(18/2.54, 14/2.54), fontSize=10, savename='None')
+
+Plot showing contribution of each taxon to observed naive dissimilarity.
+
+*obj* is the qdiv object.
+
+*var* is the column heading in the meta data used to categorize the samples. If a category has two or more samples, dissimilarity samples within that category is calculated.
+
+*q* is the diversity order. 
+
+*index* is the type of dissimilarity index (either local or regional).
+
+*numberToPlot* is the number of taxa to include.
+
+*levels* are taxonomic levels to include on y-axis.
+
+*fromFile* could be that path to a csv file generated with the output from diversity.naive_dissimilarity_contributions.
+
+*savename* is path and name of files to be saved.
