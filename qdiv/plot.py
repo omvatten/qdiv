@@ -996,3 +996,139 @@ def rarefactioncurve(obj, step='flexible', figSize=(14, 10), fontSize=18,
     else:
         rd = get_dictionary(obj['tab'])
         plot_rarefactioncurve(obj['meta'], rd)
+
+# Octave plot according to Edgar and Flyvbjerg, DOI: https://doi.org/10.1101/38983
+# var is the column heading in metadata used to select samples to include. The counts for all samples with the same text in var column will be merged.
+# slist is a list of names in meta data column which specify samples to keep. If slist='None' (default), the whole meta data column is used
+# nrows and ncols are the number of rows and columns in the plot. 
+# nrows*ncols must be equal to or more than the number of samples plotted
+# if xlabels=True, k is shown for the bins on the x-axis
+# if ylabels=True, ASV counts are shown on the y-axis
+# if title=True, sample name is shown as title for each panel
+# color determines color of bars
+# savename is path and name of file
+def octave(obj, var='None', slist='None', nrows=2, ncols=2, fontSize=11, figSize=(10, 6), 
+           xlabels=True, ylabels=True, title=True, color='blue', savename='None'):
+    if var == 'None':
+        tab = obj['tab'].copy()
+        smplist = tab.columns.tolist()
+    else:
+        merged_obj = subset.merge_samples(obj, var=var, slist=slist)
+        tab = merged_obj['tab'].copy()
+        smplist = tab.columns.tolist()
+
+    if len(smplist) > nrows*ncols:
+        print('Too few panels, ', len(smplist),' are needed')
+        return 0
+
+    max_read = max(tab.max())
+    max_k = math.floor(math.log(max_read, 2))
+    k_index = np.arange(max_k+1)
+    df = pd.DataFrame(0, index=k_index, columns=['k', 'min_count', 'max_count']+smplist)
+    df['k'] = k_index
+    df['min_count'] = 2**k_index
+    df['max_count'] = 2**(k_index+1)-1
+
+    plt.rcParams.update({'font.size': fontSize})
+    fig = plt.figure(figsize=figSize, constrained_layout=True)
+    gs = fig.add_gridspec(nrows, ncols)
+    gs.update(wspace=0, hspace=0)
+
+    for smp_nr in range(len(smplist)):
+        row = math.floor(smp_nr/ncols)
+        col = smp_nr%ncols
+        ax = fig.add_subplot(gs[row, col], frame_on=True)
+        smp = smplist[smp_nr]
+        for k in df.index:
+            bin_min = df.loc[k, 'min_count']
+            bin_max = df.loc[k, 'max_count']
+            temp = tab[smp][tab[smp] >= bin_min]
+            temp = temp[temp <= bin_max]
+            df.loc[k, smp] = len(temp)
+            
+        ax.bar(df['k'], df[smp], color=color)
+        ax.set_xticks(range(0, len(df.index), 2))
+        if xlabels and row == nrows-1:
+            ax.set_xticklabels(range(0, len(df.index), 2))
+            ax.set_xlabel('k (bin [2$^k$..2$^{k+1}$-1])')
+        elif xlabels:
+            plt.setp(ax.get_xticklabels(), visible=False)
+        else:
+            ax.set_xticklabels([])
+        if ylabels and col == 0:
+            ax.set_ylabel('ASV count')
+        elif ylabels:
+            ax.set_ylabel('')
+        else:
+            ax.set_yticklabels([])
+        if title:
+            ax.text(0.98*ax.get_xlim()[1], 0.98*ax.get_ylim()[1], str(smp), verticalalignment='top', horizontalalignment='right')
+
+    if savename != 'None':
+        plt.savefig(savename)
+        plt.savefig(savename+'.pdf', format='pdf')
+        df.to_csv(savename + '.csv', index=False)
+        
+# Plot contribution of taxa to observed naive dissimilarity
+# var is the column heading in metadata used to categorize samples. Dissimilarity within each category is calculated.
+# q is diversity order and index is local or regional
+# numberToPlot is the number of taxa to include
+# levels are taxonomic levels to include on y-axis
+# fromFile could be that path to a file generated with the output from diversity.naive_dissimilarity_contributions()
+# savename is path and name of files to be saved
+def dissimilarity_contributions(obj, var='None', q=1, index='local', numberToPlot=20, 
+                                levels=['Genus'], fromFile='None',
+                                figSize=(18/2.54, 14/2.54), fontSize=10,
+                                savename='None'):
+    #Get dissimilarity file
+    if fromFile == 'None': #Generate the data
+        dis_data = diversity.naive_dissimilarity_contributions(obj, var=var, q=q, index=index)
+    else: #Read the data from file
+        dis_data = pd.read_csv(fromFile, index_col=0)
+    
+    df = dis_data.drop(['N', 'dis'], axis=0)
+    df['avg'] = df.mean(axis=1)
+    df = df.sort_values(by='avg', ascending=False).iloc[:numberToPlot]
+
+    #Plot
+    catlist = dis_data.columns.tolist()
+    ylist = range(len(df.index))
+    taxlist = df.index.tolist()          
+    if 'tax' in obj.keys(): #Fix taxonomy names
+        tax = obj['tax']
+        tax_df = tax.loc[df.index]
+        tax_df.fillna('', inplace=True)
+        for i, asv in enumerate(df.index.tolist()):
+            taxname = ''
+            for taxlevel in levels:
+                tn = tax_df.loc[asv, taxlevel]
+                if len(tn) > 3:
+                    taxname = taxname + tn + '; '
+            taxlist[i] = taxname + taxlist[i]
+
+    plt.rcParams.update({'font.size': fontSize})
+    fig = plt.figure(figsize=figSize, constrained_layout=True)
+    gs = fig.add_gridspec(1, len(catlist))
+    gs.update(wspace=0, hspace=0)
+
+    for cat_nr in range(len(catlist)):
+        cat = catlist[cat_nr]
+        ax = fig.add_subplot(gs[0, cat_nr], frame_on=True)
+        ax.barh(ylist, df[cat])
+        ax.set_yticks(range(0, len(df.index)))
+        if cat_nr == 0:
+            ax.set_yticklabels(taxlist)
+        else:
+            ax.set_yticklabels([])
+        ax.set_xlabel('%')
+
+        if cat == 'all':
+            ax.set_title('N=' + str(int(dis_data.loc['N', cat])) + 
+                     '\n$^{'+str(q)+'}$d='+str(round(dis_data.loc['dis', cat], 2)))
+        else:
+            ax.set_title(cat + '\nN=' + str(int(dis_data.loc['N', cat])) + 
+                     '\n$^{'+str(q)+'}$d='+str(round(dis_data.loc['dis', cat], 2)))
+
+    if savename != 'None':
+        plt.savefig(savename)
+        plt.savefig(savename+'.pdf', format='pdf')

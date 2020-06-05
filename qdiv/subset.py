@@ -282,7 +282,7 @@ def rarefy_object(obj, depth='min', seed='None', replacement=False):
 # Function that makes sure different objects have the same SV names. Returns a list of objects with aligned names
 # If differentLengths=True, it assumes that the same SV inferred with different bioinformatics pipelines could have different sequence length
 # For example, Deblur sets a specific read length while Dada2 allows different lengths. Comparing SVs from these two pipelines is thus impossible unless differentLengths=True
-def align_sequences(objectlist, differentLengths=True):
+def align_sequences(objectlist, differentLengths=False):
     objlist = copy.deepcopy(objectlist)
 
     # Keep track of progress
@@ -432,7 +432,7 @@ def align_sequences(objectlist, differentLengths=True):
 # keepObj makes it possible to specify which object in objlist that should be kept after filtering based on common SVs. Specify with integer (0 is the first object, 1 is the second, etc)
 # if keepObj='best', the frequency table having the largest fraction of its reads mapped to the common SVs is kept
 # taxa makes it possible to specify with an integer the object having taxa information that should be kept (0 is the first object, 1 is the second, etc). If 'None', the taxa information in the kept Obj is used
-def consensus(objlist, keepObj='best', taxa='None', alreadyAligned=False, differentLengths=True):
+def consensus(objlist, keepObj='best', taxa='None', alreadyAligned=False, differentLengths=False):
     if alreadyAligned:
         aligned_objects = objlist.copy()
     else:
@@ -442,7 +442,7 @@ def consensus(objlist, keepObj='best', taxa='None', alreadyAligned=False, differ
     incommonSVs = aligned_objects[0]['tab'].index.tolist()
     for i in range(1, len(aligned_objects)):
         obj = aligned_objects[i]
-        incommonSVs = set(incommonSVs).intersection(obj['tab'].index.tolist())
+        incommonSVs = list(set(incommonSVs).intersection(obj['tab'].index.tolist()))
 
     #Calculate relative abundance of incommon SVs in each tab
     ra_in_tab = []
@@ -479,8 +479,28 @@ def consensus(objlist, keepObj='best', taxa='None', alreadyAligned=False, differ
                 cons_obj['tax'] = a_obj['tax'].loc[incommonSVs, :]
     elif taxa != 'None':
         cons_obj['tax'] = aligned_objects[taxa]['tax'].loc[incommonSVs, :]
+    
+    #Change ASV names in consensus object
+    sort_df = cons_obj['ra'].copy()
+    sort_df['avg'] = sort_df.mean(axis=1)
+    sort_df = sort_df.sort_values(by='avg', ascending=False)
+    correct_order_svlist = sort_df.index.tolist()
+    cons_obj['tab'] = cons_obj['tab'].loc[correct_order_svlist]
+    cons_obj['ra'] = cons_obj['ra'].loc[correct_order_svlist]
+    cons_obj['seq'] = cons_obj['seq'].loc[correct_order_svlist]
+    if 'tax' in cons_obj.keys():
+        cons_obj['tax'] = cons_obj['tax'].loc[correct_order_svlist]
+    
+    newindex_dict = {}
+    for i in range(len(correct_order_svlist)):
+        newindex_dict[correct_order_svlist[i]]='ASV' + str(i+1)
+    cons_obj['tab'].rename(index=newindex_dict, inplace=True)
+    cons_obj['ra'].rename(index=newindex_dict, inplace=True)
+    cons_obj['seq'].rename(index=newindex_dict, inplace=True)
+    if 'tax' in cons_obj.keys():
+        cons_obj['tax'].rename(index=newindex_dict, inplace=True)
 
-    info = {'Relative abundance (%) of reads associated with retained ASVs': ra_in_tab, 
+    info = {'Kept obj pos': ra_max_pos, 'Relative abundance (%) of reads associated with retained ASVs': ra_in_tab, 
             'Maximum relative abundance (%) of lost reads in a sample': ra_sample_max}
 
     return cons_obj, info

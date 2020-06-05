@@ -3,6 +3,7 @@ import numpy as np
 import Levenshtein as Lv
 import tkinter as tk
 import math
+from . import subset
 
 pd.options.mode.chained_assignment = None  # default='warn'
 
@@ -64,22 +65,23 @@ def rao(tab, distmat):
 # Converts beta value to distances, specify q and type associated with the beta (assuming pairwise)
 # Used in beta dissimilarity calculations
 # The viewpoint refers to either the local or regional perspective as defined in Chao et al. 2014
-def beta2dist(beta, q=1, divType='naive', viewpoint='local'):
-    beta = beta.applymap(float)
-    dist = beta.copy()
-    mask = beta > 0
+def beta2dist(beta, q=1, N=2, divType='naive', viewpoint='local'):
+    if isinstance(beta, pd.DataFrame):
+        beta = beta.applymap(float)
+        beta = beta[beta > 0]
+        dist = beta.copy()
 
     if q == 1:
-        dist[mask] = np.log(beta[mask]) / math.log(2)
+        dist = np.log(beta) / math.log(N)
     else:
         if divType == 'naive' and viewpoint == 'local':
-            dist[mask] = 1 - (2 ** (1 - q) - beta[mask].pow(1 - q)) / (2 ** (1 - q) - 1)
+            dist = 1 - (N**(1 - q) - beta**(1 - q)) / (N**(1 - q) - 1)
         elif divType == 'phyl' and viewpoint == 'local':
-            dist[mask] = 1 - ((2 ** (2 * (1 - q)) - beta[mask].pow(1 - q)) / (2 ** (2 * (1 - q)) - 1))
+            dist = 1 - ((N**(2 * (1 - q)) - beta**(1 - q)) / (N**(2 * (1 - q)) - 1))
         elif divType == 'naive' and viewpoint == 'regional':
-            dist[mask] = 1 - ((1 / beta[mask]) ** (1 - q) - 0.5 ** (1 - q)) / (1 - 0.5 ** (1 - q))
+            dist = 1 - ((1 / beta)**(1 - q) - (1 / N)**(1 - q)) / (1 - (1 / N)**(1 - q))
         elif divType == 'phyl' and viewpoint == 'regional':
-            dist[mask] = 1 - ((1 / beta[mask]) ** (1 - q) - 0.5 ** (2 * (1 - q))) / (1 - 0.5 ** (2 * (1 - q)))
+            dist = 1 - ((1 / beta)**(1 - q) - (1 / N)**(2 * (1 - q))) / (1 - (1 / N)**(2 * (1 - q)))
     return dist
 
 # Returns taxonomic (naive) alpha diversity of order q for all samples
@@ -600,3 +602,132 @@ def rcq(obj, constrainingVar='None', randomization='frequency', weightingVar='No
         out['Nullmean'] = out_nullavg
         out['Nullstd'] = out_nullstd
     return out
+
+# Calculates the evenness measures described in Chao and Ricotta (2019) Ecology 100(12), e02852
+# tab is count table and q is diversity order
+# index can be Chao1, Chao2, Chao3, Chao4, or Chao5, as specified in Chao and Ricotta (2019)
+# Chao1 can also be called regional and Chao2 can also be called local
+# if perspective=samples, the evenness value for each sample is calculate (i.e. each column in tab)
+# if perspective=taxa, the evenness value for each taxon is calculate (i.e. each row in tab)
+def evenness(tab, q=1, index='local', perspective='samples'):
+    if perspective == 'samples':
+        ra = tab / tab.sum()
+        S_series = tab[tab > 0].count()
+    elif perspective == 'taxa':
+        tab = tab.transpose()
+        ra = tab / tab.sum()
+        S_series = tab.count() #Note all samples are counted here (even 0 reads)
+    
+    if index == 'Chao1' or index == 'regional':
+        power = float(1-q)
+    elif index == 'Chao2' or index == 'local':
+        power = float(q-1)
+
+    if q==1 and index in ['Chao1', 'Chao2', 'regional', 'local']:
+        raLn = ra[ra > 0].applymap(math.log)
+        Shannon = ra[ra > 0] * raLn[ra > 0]
+        Shannon = (-1) * Shannon.sum()
+        measure = Shannon / S_series.apply(math.log)
+    elif index in ['Chao1', 'Chao2', 'regional', 'local']:
+        D_series = naive_alpha(tab, q=q)
+        D_series = D_series.pow(power)
+        S_series = S_series.pow(power)
+        measure = (1-D_series) / (1-S_series)
+    elif index == 'Chao3':
+        D_series = naive_alpha(tab, q=q)
+        measure = (D_series - 1) / (S_series - 1)
+    elif index == 'Chao4':
+        D_series = naive_alpha(tab, q=q)
+        measure = (1 - 1 / D_series) / (1 - 1 / S_series)
+    elif index == 'Chao5':
+        D_series = naive_alpha(tab, q=q)
+        measure = D_series.apply(math.log) / S_series.apply(math.log)
+    return measure
+
+# Calculates the contribution of individual taxa to the dissimilarity between multiple samples
+# see Chao and Ricotta (2019) Ecology 100(12), e02852
+# obj is object containing at least meta and tab
+# var is column in meta data specifying how count table should be subdivided
+# if var=None, the whole count table is used 
+# q is the diversity order
+# index can be local (or Chao2) or regional (or Chao1)
+def naive_dissimilarity_contributions(obj, var='None', q=1, index='local'):
+    meta = obj['meta']
+    tabdict = {}
+    if var != 'None':
+        catlist = []
+        [catlist.append(x) for x in meta[var] if x not in catlist]
+        for cat in catlist:
+            tabdict[cat] = subset.samples(obj, var=var, slist=[cat])['tab']
+    else:
+        catlist = ['all']
+        tabdict['all'] = obj['tab'].copy()
+    
+    output = pd.DataFrame(np.nan, index=['dis', 'N'] + obj['tab'].index.tolist(), columns=catlist)
+    for cat in catlist:
+        tab = tabdict[cat]
+        output.loc['N', cat] = len(tab.columns)
+        if len(tab.columns) <= 1:
+            continue
+
+        if index == 'Chao1' or index == 'regional':
+            w = tab.sum(axis=1).pow(q) / sum(tab.sum(axis=1).pow(q))
+            ev = evenness(tab, q=q, index=index, perspective='taxa')
+        elif index == 'Chao2' or index == 'local':
+            tabpow = tab.copy()
+            tabpow[tabpow > 0] = tabpow[tabpow > 0].pow(q)
+            w = tabpow.sum(axis=1) / sum(tabpow.sum())
+            ev = evenness(tab, q=q, index=index, perspective='taxa')
+        else:
+            print('Wrong index')
+            return 0
+        w_mul_ev = w * (1 - ev)
+        output.loc['dis', cat] = w_mul_ev.sum()
+
+        taxa_contributions = 100 * w_mul_ev / w_mul_ev.sum()
+        output.loc[taxa_contributions.index, cat] = taxa_contributions
+        output[cat].fillna(0, inplace=True)
+    return output
+
+# Calculates the beta diversity or dissimilarity between multiple samples
+# obj is object containing at least meta and tab
+# var is column in meta data specifying how count table should be subdivided
+# if var=None, the whole count table is used 
+# q is the diversity order
+# returns a dataframe with the categories in var being the index
+# and including the columns N (nr of samples in category), beta, local_dis, regional_dis
+def naive_multi_beta(obj, var='None', q=1):
+    #Make dictionary with tabs, based on var
+    meta = obj['meta']
+    tabdict = {}
+    if var != 'None':
+        catlist = []
+        [catlist.append(x) for x in meta[var] if x not in catlist]
+        for cat in catlist:
+            tabdict[cat] = subset.samples(obj, var=var, slist=[cat])['tab']
+    else:
+        catlist = ['all']
+        tabdict['all'] = obj['tab'].copy()
+    
+    #Go through each tab and calculate multi beta
+    output_beta = pd.DataFrame(np.nan, index=catlist, columns=['N', 'beta', 'local_dis', 'regional_dis'])
+    for cat in catlist:
+        tab = tabdict[cat]
+        if len(tab.columns) <= 1: #There must be at least two samples in the tab
+            continue
+
+        N_cols = len(tab.columns)
+        N_rows = len(tab.index)
+        df_temp = pd.DataFrame(0, index=range(N_rows*N_cols), columns=['alpha', 'gamma'])
+        df_temp.loc[range(N_rows), 'gamma'] = tab.sum(axis=1).values
+        alphalist = []
+        for col in tab.columns:
+            alphalist = alphalist + tab[col].tolist()
+        df_temp['alpha'] = alphalist
+        alpha_gamma_divs = naive_alpha(df_temp, q=q)
+        beta_div = alpha_gamma_divs['gamma'] / (alpha_gamma_divs['alpha'] / N_cols)
+        output_beta.loc[cat, 'N'] = N_cols
+        output_beta.loc[cat, 'beta'] = beta_div
+        output_beta.loc[cat, 'local_dis'] = beta2dist(beta_div, q=q, N=N_cols, divType='naive', viewpoint='local')
+        output_beta.loc[cat, 'regional_dis'] = beta2dist(beta_div, q=q, N=N_cols, divType='naive', viewpoint='regional')
+    return output_beta
