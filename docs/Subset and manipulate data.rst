@@ -19,7 +19,7 @@ Returns an object subsetted to the selected samples.
 if *keep0* =True, OTUs/ASVs, which have zero reads associated with them after subsetting will be kept, otherwise they will be removed from the data.
 
 Subset to specific OTUs/ASVs
-###########################
+############################
 
 .. code-block:: python
 
@@ -32,7 +32,7 @@ Returns and object subsetted to the selected OTUs/ASVs.
 *svlist* is a list of OTU or ASV names that should be kept in the data set.
 
 Subset to the most abundant OTUs/ASVs
-####################################
+#####################################
 
 .. code-block:: python
 
