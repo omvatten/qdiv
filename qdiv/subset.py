@@ -426,13 +426,15 @@ def align_sequences(objectlist, differentLengths=False):
     rootAlign.destroy()
     return objlist
 
-# Function that takes a list of objects and return a consensus object based on SVs found in all
+# Function that takes a list of objects and return a consensus object based on ASVs found in all
+# Returns two items: consensus object, information about the object
 # If alreadyAligned=True, the alignSVsInObjects function has already been run on the objects
 # differentLengths is input for alignSVsInObjects function (see above)
 # keepObj makes it possible to specify which object in objlist that should be kept after filtering based on common SVs. Specify with integer (0 is the first object, 1 is the second, etc)
 # if keepObj='best', the frequency table having the largest fraction of its reads mapped to the common SVs is kept
 # taxa makes it possible to specify with an integer the object having taxa information that should be kept (0 is the first object, 1 is the second, etc). If 'None', the taxa information in the kept Obj is used
-def consensus(objlist, keepObj='best', taxa='None', alreadyAligned=False, differentLengths=False):
+# if onlyReturnSeqs=True, only a dataframe with the shared ASVs is returned
+def consensus(objlist, keepObj='best', taxa='None', alreadyAligned=False, differentLengths=False, onlyReturnSeqs=False):
     if alreadyAligned:
         aligned_objects = objlist.copy()
     else:
@@ -443,6 +445,13 @@ def consensus(objlist, keepObj='best', taxa='None', alreadyAligned=False, differ
     for i in range(1, len(aligned_objects)):
         obj = aligned_objects[i]
         incommonSVs = list(set(incommonSVs).intersection(obj['tab'].index.tolist()))
+
+    #If there are no tabs in objects, return object with only seq
+    if onlyReturnSeqs:
+        seq = aligned_objects[0]['seq']
+        seq = seq.loc[incommonSVs]
+        info = 'Only seq returned'
+        return seq, info
 
     #Calculate relative abundance of incommon SVs in each tab
     ra_in_tab = []

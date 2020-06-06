@@ -106,7 +106,7 @@ Consensus table
 
 .. code-block:: python
 
-   subset.consensus(objlist, keepObj='best', taxa='None', alreadyAligned=False, differentLengths=False)
+   subset.consensus(objlist, keepObj='best', taxa='None', alreadyAligned=False, differentLengths=False, onlyReturnSeqs=False)
 
 Takes a list of objects and returns a consensus object based on ASVs found in all. Information about the fraction of reads retained from the original objects is also provided.
 
@@ -122,6 +122,8 @@ if *alreadyAligned* =True, the subset.align_sequences function has already been 
 
 if *differentLengths* =True, it assumes that the same ASV inferred with different bioinformatics pipelines could have different sequence lengths. 
 
+if *onlyReturnSeqs* =True, only a dataframe with the shared ASVs is returned. 
+
 Example
 
 .. code-block:: python
@@ -130,10 +132,20 @@ Example
 
    cons_obj, info = qdiv.subset.consensus([obj1, obj2])
    
-   qd.stats.print_info(cons_obj)
+   qdiv.stats.print_info(cons_obj)
    
    print(info)
 
 In the example above, *cons_obj* is the new consensus object constructed based on obj1 and obj2. 
 
 *info* contains information about the fraction of reads retained from obj1 and obj2, as well as the maximum relative abundance of reads lost in a sample in each of the original objects.
+
+.. code-block:: python
+
+   import qdiv
+
+   shared_seqs, info = qdiv.subset.consensus([obj1, obj2], onlyReturnSeqs=True)
+   
+In the example above, *shared_seqs* is a pandas dataframe with the shared sequences
+
+*info* just contains a text string saying that the shared ASVs were returned.

@@ -4,15 +4,20 @@ import random
 
 # Returns some information about an object, e.g. number of samples, reads, headings in meta data etc.
 def print_info(obj):
-    tab = obj['tab']
-    print('Total number of samples= ', len(tab.columns))
-    print('Total number of SVs= ', len(tab.index))
-    print('Total reads= ', sum(tab.sum()))
-    print('Minimum number of reads in a sample= ', min(tab.sum()))
-    print('Column headings in meta data:')
-    print(list(obj['meta'].columns))
-    print('First row in meta data:')
-    print(list(obj['meta'].iloc[0, :]))
+    print('Dataframes in object:', list(obj.keys()))
+    if 'tab' in obj.keys():
+        tab = obj['tab']
+        print('Total number of samples= ', len(tab.columns))
+        print('Total number of SVs= ', len(tab.index))
+        print('Total reads= ', sum(tab.sum()))
+        print('Minimum number of reads in a sample= ', min(tab.sum()))
+    if 'tax' in obj.keys():
+        print('Taxonomic levels:', obj['tax'].columns.tolist())
+    if 'meta' in obj.keys():
+        print('Column headings in meta data:')
+        print(list(obj['meta'].columns))
+        print('First row in meta data:')
+        print(list(obj['meta'].iloc[0, :]))
     return None
 
 # Prints file with number of different taxa at different taxonomic levels
@@ -27,7 +32,7 @@ def taxa(obj, savename='None'):
     samples = tab.columns.tolist() #List of samples in freq table
 
     # Make output file
-    output = [['Sample', 'SVs', 'Reads'] + taxlevels]
+    output = [['Sample', 'ASVs', 'Reads'] + taxlevels]
     for smp in ['Total'] + samples:
         templist = [smp]
         if smp == 'Total':  # For the whole freq table

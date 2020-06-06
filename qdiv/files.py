@@ -7,11 +7,10 @@ pd.options.mode.chained_assignment = None  # default='warn'
 
 # Returns dictionary object containing data as pandas dataframes ('tab', 'ra', 'tax', 'seq', and 'meta')
 # path is path to input files
-# tab is frequency table is frequency table. SV names should be in first column, taxa should be in the final columns and start with Kingdom or Domain
-# fasta is fasta file with sequences. SV names should correspond to those in tab
+# tab is frequency table is frequency table. OTU/ASV names should be in first column, taxa should be in the final columns and start with Kingdom or Domain
+# fasta is fasta file with sequences. OTU/ASV names should correspond to those in tab
 # meta is meta data
 # sep specifies separator used in input files e.g. ',' or '\t'
-
 def load(path='', tab='None', fasta='None', meta='None', sep=','):  # Import file and convert them to suitable format
     #Prepare tab and tax
     if tab != 'None':
@@ -19,14 +18,14 @@ def load(path='', tab='None', fasta='None', meta='None', sep=','):  # Import fil
         readtab = pd.read_csv(path + tab, sep=sep, header=0, index_col=0)
 
         #Check if taxa information is in table
-        taxaavailable = 1
-        if 'Kingdom' in readtab.columns:
-            taxpos = readtab.columns.get_loc('Kingdom')
-        elif 'Domain' in readtab.columns:
-            taxpos = readtab.columns.get_loc('Domain')
-        else:
-            taxpos = len(readtab.columns)
-            taxaavailable = 0
+        taxaavailable = 0
+        taxpos = len(readtab.columns)
+        for level in ['Domain', 'Kingdom', 'Phylum', 'Class', 'Order', 'Family', 'Genus', 'Speces']:
+            if level in readtab.columns:
+                pos = readtab.columns.get_loc(level)
+                if pos < taxpos:
+                    taxpos = pos
+                    taxaavailable = 1
 
         readtab.index.name = 'ASV'
         ctab = readtab.iloc[:, :taxpos]
@@ -39,26 +38,21 @@ def load(path='', tab='None', fasta='None', meta='None', sep=','):  # Import fil
         if taxaavailable == 1:
             taxtab = readtab.iloc[:, taxpos:]
             taxtab = taxtab.sort_index()
-            for name in taxtab.columns.tolist()[:-1]: #Remove items containing unknowns or only one letter
-                taxtab[name][taxtab[name].str.contains('nknown', na=False)] = np.nan
-                taxtab[name][taxtab[name].str.contains('uncult', na=False)] = np.nan
-                taxtab[name][taxtab[name].str.len() == 1] = np.nan
+            for name in taxtab.columns: #Remove items containing only one letter
+                mask = taxtab[name][taxtab[name].notna()]
+                if len(mask) > 0:
+                    taxtab[name][mask][taxtab[name][mask].str.len() == 1] = np.nan
 
             #Check if __ is in taxa names
-            correct_taxa_format = 0
-            checktax = taxtab.iloc[:, 0][taxtab.iloc[:, 0].notna()]
-            for i in range(len(checktax.index)):
-                if '__' in checktax.iloc[i]:
-                    correct_taxa_format = 1
-                    break
-            if correct_taxa_format == 0:
-                tax_prefix = ['k__', 'p__', 'c__', 'o__', 'f__', 'g__', 's__']
-                taxatab_col_len = len(taxtab.columns)
-                for nr, bokstav in enumerate(tax_prefix[:taxatab_col_len]):
-                    checktax = taxtab.iloc[:, nr][taxtab.iloc[:, nr].notna()]
-                    for ix in checktax.index:
-                        checktax.loc[ix] = bokstav + checktax.loc[ix]
-                    taxtab.loc[checktax.index, taxtab.columns[nr]] = checktax
+            prefixdict = {'D':'d__', 'K':'k__', 'P':'p__','C':'c__', 'O':'o__',
+                          'F':'f__', 'G':'g__', 'S':'s__'}
+            for c in taxtab.columns.tolist():
+                mask = taxtab[c][taxtab[c].notna()]
+                if len(mask) > 0:
+                    mask2 = mask[~mask.str.contains('__', na=False)]
+                    if len(mask2) > 0:
+                        prefix = prefixdict[c[0]]
+                        taxtab.loc[mask2.index, c] = prefix + taxtab.loc[mask2.index, c]
 
     ##Read fasta file with ASV sequences
     if fasta != 'None':

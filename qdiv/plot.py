@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 from matplotlib import colors as mcolors
 import tkinter as tk
 import pickle
+import math
 from . import subset
 from . import diversity
 
@@ -89,7 +90,7 @@ def groupbytaxa(obj, levels=['Phylum', 'Genus'], nameType='ASV'):
         currentname = indexlist[0][:2]
         startpos = 2
     else:
-        print('Error in groupbyTaxa, SV/OTU name not known')
+        print('Error in groupbyTaxa, ASV/OTU name not known')
         return 0
 
     # If incorrect name is in tax, make column with correct name
@@ -99,7 +100,7 @@ def groupbytaxa(obj, levels=['Phylum', 'Genus'], nameType='ASV'):
             newnames.append(nameType+indexlist[i][startpos:])
         indexlist = newnames
 
-    # Put the SV/OTU name in all empty spots in taxSV
+    # Put the ASV/OTU name in all empty spots in taxSV
     for col in range(len(taxSV.columns)):
         for row in range(len(taxSV.index)):
             if taxSV.iloc[row, col] == '0':
