@@ -441,6 +441,7 @@ def pcoa(dist, meta, biplot=[], var1='None', var2='None', var1_title='', var2_ti
         vals, vects = np.linalg.eig(dist2_cent)
         return [vals, vects]
 
+    dist.fillna(0, inplace=True)
     ev_ev = get_eig(dist)
     #Correction method for negative eigenvalues
     if min(ev_ev[0]) < 0: #From Legendre 1998, method 1 (derived from Lingoes 1971) chapter 9, page 502

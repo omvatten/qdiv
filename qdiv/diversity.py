@@ -68,20 +68,20 @@ def rao(tab, distmat):
 def beta2dist(beta, q=1, N=2, divType='naive', viewpoint='local'):
     if isinstance(beta, pd.DataFrame):
         beta = beta.applymap(float)
-        beta = beta[beta > 0]
+        mask = beta > 0
         dist = beta.copy()
 
     if q == 1:
-        dist = np.log(beta) / math.log(N)
+        dist[mask] = np.log(beta[mask]) / math.log(N)
     else:
         if divType == 'naive' and viewpoint == 'local':
-            dist = 1 - (N**(1 - q) - beta**(1 - q)) / (N**(1 - q) - 1)
+            dist[mask] = 1 - (N**(1 - q) - beta[mask]**(1 - q)) / (N**(1 - q) - 1)
         elif divType == 'phyl' and viewpoint == 'local':
-            dist = 1 - ((N**(2 * (1 - q)) - beta**(1 - q)) / (N**(2 * (1 - q)) - 1))
+            dist[mask] = 1 - ((N**(2 * (1 - q)) - beta[mask]**(1 - q)) / (N**(2 * (1 - q)) - 1))
         elif divType == 'naive' and viewpoint == 'regional':
-            dist = 1 - ((1 / beta)**(1 - q) - (1 / N)**(1 - q)) / (1 - (1 / N)**(1 - q))
+            dist[mask] = 1 - ((1 / beta[mask])**(1 - q) - (1 / N)**(1 - q)) / (1 - (1 / N)**(1 - q))
         elif divType == 'phyl' and viewpoint == 'regional':
-            dist = 1 - ((1 / beta)**(1 - q) - (1 / N)**(2 * (1 - q))) / (1 - (1 / N)**(2 * (1 - q)))
+            dist[mask] = 1 - ((1 / beta[mask])**(1 - q) - (1 / N)**(2 * (1 - q))) / (1 - (1 / N)**(2 * (1 - q)))
     return dist
 
 # Returns taxonomic (naive) alpha diversity of order q for all samples
