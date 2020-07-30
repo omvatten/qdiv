@@ -4,6 +4,7 @@
 <html>
   <head>
     <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Subset and manipulate data &#8212; qdiv  documentation</title>
     <link rel="stylesheet" href="_static/alabaster.css" type="text/css" />
     <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
@@ -50,7 +51,7 @@
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">subset</span><span class="o">.</span><span class="n">sequences</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">svlist</span><span class="p">)</span>
 </pre></div>
 </div>
-<p>Returns and object subsetted to the selected OTUs/ASVs.</p>
+<p>Returns an object subsetted to the selected OTUs/ASVs.</p>
 <p><em>obj</em> is the object generated with files.load</p>
 <p><em>svlist</em> is a list of OTU or ASV names that should be kept in the data set.</p>
 </div>
@@ -71,7 +72,7 @@ If <em>method</em> =’max’, they are ranked based on the max relative abundan
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">subset</span><span class="o">.</span><span class="n">text_patterns</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">subsetLevels</span><span class="o">=</span><span class="p">[],</span> <span class="n">subsetPatterns</span><span class="o">=</span><span class="p">[]):</span>
 </pre></div>
 </div>
-<p>Search for specific text patterns among the taxonomic classifications. Returns an object subsetted to OTUs/ASVs matching those text patterns.</p>
+<p>Searches for specific text patterns among the taxonomic classifications. Returns an object subsetted to OTUs/ASVs matching those text patterns.</p>
 <p><em>subsetLevels</em> is a list taxonomic levels in which text patterns are searched for, e.g. [‘Family’, ‘Genus’]</p>
 <p><em>subsetPatterns</em> is a list of text patterns to search for, e.g. [‘Nitrosom’, ‘Brochadia’]</p>
 </div>
@@ -92,12 +93,12 @@ If <em>method</em> =’max’, they are ranked based on the max relative abundan
 <span class="n">subset</span><span class="o">.</span><span class="n">rarefy_object</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">depth</span><span class="o">=</span><span class="s1">&#39;min&#39;</span><span class="p">,</span> <span class="n">seed</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">replacement</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
 </pre></div>
 </div>
-<p>Rarefies a frequency table to a specific number of reads per sample. The function subset.rarefy_table() operates only on the frequency table and returns only a rarefied table.
+<p>Rarefies a count table to a specific number of reads per sample. The function subset.rarefy_table() operates only on the count table and returns only a rarefied table.
 The function subset.rarefy_object() operates on the whole object and returns a whole object.
-This means that samples and OTUs/ASVs which might have been dropped from the frequency table during rarefaction
+This means that samples and OTUs/ASVs which might have been dropped from the count table during rarefaction
 are also dropped from the ‘ra’, ‘tax’, ‘seq’, and ‘meta’ dataframes of the object.</p>
-<p><em>tab</em> is the frequency table to be rarefied</p>
-<p><em>object</em> is the object containing the frequency table to be rarefied</p>
+<p><em>tab</em> is the count table to be rarefied</p>
+<p><em>object</em> is the object containing the count table to be rarefied</p>
 <p>if <em>depth</em> =’min’, the minimum number of reads in a sample is used as rarefaction depth, otherwise a number can be specified</p>
 <p><em>seed</em> sets a random state for reproducible results, use an integer.</p>
 <p>if <em>replacement</em> =False, the function is similar to rarefaction without replacement, if <em>replacement</em> =True, it does rarefaction with replacement.</p>
@@ -109,8 +110,8 @@ are also dropped from the ‘ra’, ‘tax’, ‘seq’, and ‘meta’ datafra
 </div>
 <p>Takes a list of objects and returns a consensus object based on ASVs found in all. Information about the fraction of reads retained from the original objects is also provided.</p>
 <p><em>objlist</em> is a list of objects</p>
-<p><em>keepObj</em> makes it possible to specify which object in objlist that should be kept after filtering based on common SVs, specify with integer
-(0 is the first object, 1 is the second, etc), ‘best’ means that the object which has the highest fraction of its reads mapped to the common SVs is kept;</p>
+<p><em>keepObj</em> makes it possible to specify which object in objlist that should be kept after filtering based on common ASVs, specify with integer
+(0 is the first object, 1 is the second, etc), ‘best’ means that the object which has the highest fraction of its reads mapped to the common ASVs is kept</p>
 <p><em>taxa</em> makes it possible to specify with an integer the object having taxa information that should be kept
 (0 is the first object, 1 is the second, etc), if ‘None’, the taxa information in the kept object is used</p>
 <p>if <em>alreadyAligned</em> =True, the subset.align_sequences function has already been run on the objects to make sure the same sequences in different objects have the same names</p>
@@ -210,7 +211,7 @@ are also dropped from the ‘ra’, ‘tax’, ‘seq’, and ‘meta’ datafra
       &copy;2019, Oskar Modin.
       
       |
-      Powered by <a href="http://sphinx-doc.org/">Sphinx 3.0.3</a>
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 3.1.2</a>
       &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.12</a>
       
       |

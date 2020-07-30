@@ -27,7 +27,7 @@ The sample with the smallest number will be placed to the left in the heatmap.
 - 'max_sample' uses the maximum relative abundance in a sample
 - 'mean_all' uses the mean relative abundance across all samples to rank the taxa
 
-*nameType* is the label used for unclassified sequences (e.g. SV or OTU) 
+*nameType* is the label used for unclassified sequences (e.g. ASV or OTU) 
 
 *figSize* is the width and height of the figure in inches
 
@@ -162,7 +162,7 @@ Calculates a rarefaction curve based on subsampling without replacement.
 
 *step* is the step size used during subsampling, if 'flexible' the total reads are divided by 20.
 
-*figsize* is width and height of the figure in inches.
+*figSize* is width and height of the figure in inches.
 
 *fontSize* is size of text in figure.
 
@@ -197,11 +197,11 @@ Octave plot according to Edgar and Flyvbjerg, DOI:10.1101/38983
 
 *nrows* and *ncols* are the number of rows and columns in the plot; nrows*ncols must be equal to or more than the number of samples plotted.
 
-if xlabels=True, k is shown for the bins on the x-axis
+if *xlabels* =True, k is shown for the bins on the x-axis
 
-if ylabels=True, ASV counts are shown on the y-axis
+if *ylabels* =True, ASV counts are shown on the y-axis
 
-if title=True, sample name is shown as title for each panel
+if *title* =True, sample name is shown as title for each panel
 
 *color* determines color of bars
 

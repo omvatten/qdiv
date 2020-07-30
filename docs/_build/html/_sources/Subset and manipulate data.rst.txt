@@ -25,7 +25,7 @@ Subset to specific OTUs/ASVs
 
    subset.sequences(obj, svlist)
 
-Returns and object subsetted to the selected OTUs/ASVs.
+Returns an object subsetted to the selected OTUs/ASVs.
 
 *obj* is the object generated with files.load
 
@@ -55,7 +55,7 @@ Subset based on taxonomic classification
 
    subset.text_patterns(obj, subsetLevels=[], subsetPatterns=[]):
 
-Search for specific text patterns among the taxonomic classifications. Returns an object subsetted to OTUs/ASVs matching those text patterns.
+Searches for specific text patterns among the taxonomic classifications. Returns an object subsetted to OTUs/ASVs matching those text patterns.
 
 *subsetLevels* is a list taxonomic levels in which text patterns are searched for, e.g. ['Family', 'Genus']
 
@@ -86,14 +86,14 @@ Rarefy
    
    subset.rarefy_object(obj, depth='min', seed='None', replacement=False):
 
-Rarefies a frequency table to a specific number of reads per sample. The function subset.rarefy_table() operates only on the frequency table and returns only a rarefied table. 
+Rarefies a count table to a specific number of reads per sample. The function subset.rarefy_table() operates only on the count table and returns only a rarefied table. 
 The function subset.rarefy_object() operates on the whole object and returns a whole object. 
-This means that samples and OTUs/ASVs which might have been dropped from the frequency table during rarefaction
+This means that samples and OTUs/ASVs which might have been dropped from the count table during rarefaction
 are also dropped from the 'ra', 'tax', 'seq', and 'meta' dataframes of the object.
 
-*tab* is the frequency table to be rarefied
+*tab* is the count table to be rarefied
 
-*object* is the object containing the frequency table to be rarefied
+*object* is the object containing the count table to be rarefied
 
 if *depth* ='min', the minimum number of reads in a sample is used as rarefaction depth, otherwise a number can be specified 
 
@@ -112,8 +112,8 @@ Takes a list of objects and returns a consensus object based on ASVs found in al
 
 *objlist* is a list of objects 
 
-*keepObj* makes it possible to specify which object in objlist that should be kept after filtering based on common SVs, specify with integer 
-(0 is the first object, 1 is the second, etc), ‘best’ means that the object which has the highest fraction of its reads mapped to the common SVs is kept; 
+*keepObj* makes it possible to specify which object in objlist that should be kept after filtering based on common ASVs, specify with integer 
+(0 is the first object, 1 is the second, etc), ‘best’ means that the object which has the highest fraction of its reads mapped to the common ASVs is kept
 
 *taxa* makes it possible to specify with an integer the object having taxa information that should be kept 
 (0 is the first object, 1 is the second, etc), if 'None', the taxa information in the kept object is used 

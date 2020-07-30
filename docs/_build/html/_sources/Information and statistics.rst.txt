@@ -8,7 +8,7 @@ Get information
 
    stats.print_info(obj)
 
-Opens a dialogue box with information about the number of samples, number of reads, minimum and maximum number of reads in a samples, meta data, etc.
+Prints information about the number of samples, number of reads, minimum and maximum number of reads in a samples, meta data, etc.
 
 .. code-block:: python
 
@@ -27,7 +27,7 @@ Mantel test
 
    stats.mantel(dis1, dis2, method='spearman', getOnlyStat=False, permutations=99)
 
-Carries out a mantel tests and return a list containing the test statistic and the p value.
+Carries out a mantel tests and returns a list containing the test statistic and the p value.
 
 *dis1* and *dis2* are two dissimilarity matrices. 
 
@@ -42,13 +42,13 @@ If *getOnlyStat* =True, only the test statistic will be returned, no permutation
 *permutations* is the number of randomizations carried out. 
 
 Permanova
-###########
+#########
 
 .. code-block:: python
 
    stats.permanova(dis, meta, var, permutations=99)
 
-Carries out a permanova tests and return a list containing the test statistic and the p value.
+Carries out a permanova tests and returns a list containing the test statistic and the p value.
 
 *dis* is a dissimilarity matrix. 
 

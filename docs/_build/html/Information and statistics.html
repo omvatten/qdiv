@@ -4,6 +4,7 @@
 <html>
   <head>
     <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Information and statistics &#8212; qdiv  documentation</title>
     <link rel="stylesheet" href="_static/alabaster.css" type="text/css" />
     <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
@@ -39,7 +40,7 @@
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">stats</span><span class="o">.</span><span class="n">print_info</span><span class="p">(</span><span class="n">obj</span><span class="p">)</span>
 </pre></div>
 </div>
-<p>Opens a dialogue box with information about the number of samples, number of reads, minimum and maximum number of reads in a samples, meta data, etc.</p>
+<p>Prints information about the number of samples, number of reads, minimum and maximum number of reads in a samples, meta data, etc.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">stats</span><span class="o">.</span><span class="n">taxa</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">savename</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">)</span>
 </pre></div>
 </div>
@@ -52,7 +53,7 @@
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">stats</span><span class="o">.</span><span class="n">mantel</span><span class="p">(</span><span class="n">dis1</span><span class="p">,</span> <span class="n">dis2</span><span class="p">,</span> <span class="n">method</span><span class="o">=</span><span class="s1">&#39;spearman&#39;</span><span class="p">,</span> <span class="n">getOnlyStat</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">permutations</span><span class="o">=</span><span class="mi">99</span><span class="p">)</span>
 </pre></div>
 </div>
-<p>Carries out a mantel tests and return a list containing the test statistic and the p value.</p>
+<p>Carries out a mantel tests and returns a list containing the test statistic and the p value.</p>
 <p><em>dis1</em> and <em>dis2</em> are two dissimilarity matrices.</p>
 <p><em>method</em> is the test statistic used. ‘spearman’, ‘pearson’, or ‘absDist’ can be chosen. The methods converts each dissimilarity matrix to an array of numbers and investigates the correlation between the two arrays.</p>
 <ul class="simple">
@@ -68,7 +69,7 @@
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">stats</span><span class="o">.</span><span class="n">permanova</span><span class="p">(</span><span class="n">dis</span><span class="p">,</span> <span class="n">meta</span><span class="p">,</span> <span class="n">var</span><span class="p">,</span> <span class="n">permutations</span><span class="o">=</span><span class="mi">99</span><span class="p">)</span>
 </pre></div>
 </div>
-<p>Carries out a permanova tests and return a list containing the test statistic and the p value.</p>
+<p>Carries out a permanova tests and returns a list containing the test statistic and the p value.</p>
 <p><em>dis</em> is a dissimilarity matrix.</p>
 <p><em>meta</em> is the meta data, e.g. obj[‘meta’].</p>
 <p><em>var</em> is the column in the meta data that holds the categories of samples being compared.</p>
@@ -144,7 +145,7 @@
       &copy;2019, Oskar Modin.
       
       |
-      Powered by <a href="http://sphinx-doc.org/">Sphinx 3.0.3</a>
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 3.1.2</a>
       &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.12</a>
       
       |

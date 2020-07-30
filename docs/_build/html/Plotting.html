@@ -4,6 +4,7 @@
 <html>
   <head>
     <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Plotting &#8212; qdiv  documentation</title>
     <link rel="stylesheet" href="_static/alabaster.css" type="text/css" />
     <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
@@ -52,7 +53,7 @@ The sample with the smallest number will be placed to the left in the heatmap.</
 <li><p>‘max_sample’ uses the maximum relative abundance in a sample</p></li>
 <li><p>‘mean_all’ uses the mean relative abundance across all samples to rank the taxa</p></li>
 </ul>
-<p><em>nameType</em> is the label used for unclassified sequences (e.g. SV or OTU)</p>
+<p><em>nameType</em> is the label used for unclassified sequences (e.g. ASV or OTU)</p>
 <p><em>figSize</em> is the width and height of the figure in inches</p>
 <p><em>fontSize</em> refers to the axis text font size</p>
 <p><em>sepCol</em> is a list of column numbers between which to include a separator, i.e. to clarify grouping of samples</p>
@@ -130,7 +131,7 @@ between the meta data categories specified present under compareVar.</p>
 <p>Calculates a rarefaction curve based on subsampling without replacement.</p>
 <p><em>obj</em> is the object.</p>
 <p><em>step</em> is the step size used during subsampling, if ‘flexible’ the total reads are divided by 20.</p>
-<p><em>figsize</em> is width and height of the figure in inches.</p>
+<p><em>figSize</em> is width and height of the figure in inches.</p>
 <p><em>fontSize</em> is size of text in figure.</p>
 <p><em>var</em> is the column in the meta data used to color code lines in plot.</p>
 <p><em>order</em> is the column in the meta data used to order the samples.</p>
@@ -150,9 +151,9 @@ between the meta data categories specified present under compareVar.</p>
 <p><em>var</em> is the column heading in metadata used to select samples to include. The counts for all samples with the same text in var column will be merged.</p>
 <p><em>slist</em> is a list of names in meta data column which specify samples to keep. If slist=’None’ (default), the whole meta data column is used.</p>
 <p><em>nrows</em> and <em>ncols</em> are the number of rows and columns in the plot; nrows*ncols must be equal to or more than the number of samples plotted.</p>
-<p>if xlabels=True, k is shown for the bins on the x-axis</p>
-<p>if ylabels=True, ASV counts are shown on the y-axis</p>
-<p>if title=True, sample name is shown as title for each panel</p>
+<p>if <em>xlabels</em> =True, k is shown for the bins on the x-axis</p>
+<p>if <em>ylabels</em> =True, ASV counts are shown on the y-axis</p>
+<p>if <em>title</em> =True, sample name is shown as title for each panel</p>
 <p><em>color</em> determines color of bars</p>
 <p><em>savename</em> is path and name of file.</p>
 </div>
@@ -245,7 +246,7 @@ between the meta data categories specified present under compareVar.</p>
       &copy;2019, Oskar Modin.
       
       |
-      Powered by <a href="http://sphinx-doc.org/">Sphinx 3.0.3</a>
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 3.1.2</a>
       &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.12</a>
       
       |

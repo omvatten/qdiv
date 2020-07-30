@@ -355,7 +355,7 @@ def alpha_diversity(obj, distmat='None', var='None', slist='All', order='None', 
     elif slist == 'All':
         smplist = meta[var].index.tolist()
     else:
-        smplist = meta.loc[slist, var].index.tolist()
+        smplist = meta[meta[var].isin(slist)].index.tolist()
 
     #Dataframe for holding results
     xvalues = np.arange(0, 2.01, 0.05)
@@ -516,6 +516,7 @@ def pcoa(dist, meta, biplot=[], var1='None', var2='None', var1_title='', var2_ti
     pcoadf = pd.DataFrame({xn: coords[0], yn: coords[1]}, index=smplist)
 
     # Combine pcoa results with meta data
+    meta = meta.copy()
     meta[xn] = pcoadf[xn]
     meta[yn] = pcoadf[yn]
     metaPlot = meta[meta[xn].notnull()]

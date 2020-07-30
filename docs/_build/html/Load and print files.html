@@ -4,6 +4,7 @@
 <html>
   <head>
     <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Load and print files &#8212; qdiv  documentation</title>
     <link rel="stylesheet" href="_static/alabaster.css" type="text/css" />
     <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
@@ -41,7 +42,7 @@
 </div>
 <p>Loads files into an object, which is used for further analysis.</p>
 <p><em>path</em> is the path to the directory holding the input files, <em>tab</em> is the name of the count table file,</p>
-<p><em>fasta</em> is the name of the fasta file, <em>meta</em> is the name of meta data file, <em>sep</em> is the separator used in the count table and meta data files (, or ; or t).</p>
+<p><em>fasta</em> is the name of the fasta file, <em>meta</em> is the name of meta data file, <em>sep</em> is the separator used in the count table and meta data files (, or ; or \t).</p>
 <p>Example</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">qdiv</span>
 
@@ -50,22 +51,22 @@
 </div>
 <p>obj is now a python dictionary containing five pandas dataframes ‘tab’, ‘ra’, ‘tax’, ‘seq’, and ‘meta’.</p>
 <ul class="simple">
-<li><p>‘tab’ holds the counts associated with each OTU/SV (rows) and sample (columns).</p></li>
-<li><p>‘ra’ holds the percentage relative abundance of reads per sample associated with each OTU/SV (rows) and sample (columns).</p></li>
-<li><p>‘tax’ holds the taxonomic classification for each OTU/SV. The row indices are OTU/SV names, the column names are ‘Kingdom’, ‘Phylum’, ‘Class’, ‘Order’, ‘Family’, ‘Genus’, ‘Species’.</p></li>
-<li><p>‘seq’ holds the sequences. The row indices are the OTU/SV names, the column ‘seq’ holds the sequences.</p></li>
+<li><p>‘tab’ holds the counts associated with each OTU/ASV (rows) and sample (columns).</p></li>
+<li><p>‘ra’ holds the percentage relative abundance of reads per sample associated with each OTU/ASV (rows) and sample (columns).</p></li>
+<li><p>‘tax’ holds the taxonomic classification for each OTU/ASV. The row indices are OTU/ASV names, the column names are ‘Domain’, ‘Kingdom’, ‘Phylum’, ‘Class’, ‘Order’, ‘Family’, ‘Genus’, ‘Species’.</p></li>
+<li><p>‘seq’ holds the sequences. The row indices are the OTU/ASV names, the column ‘seq’ holds the sequences.</p></li>
 <li><p>‘meta’ holds the meta data. The row indices are the samples names (the same as the column headings in ‘tab’). The columns are variables that define each sample as determined by the user in the meta data input file.</p></li>
 </ul>
 </div>
-<div class="section" id="printing-files">
-<h2>Printing files<a class="headerlink" href="#printing-files" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="save-files">
+<h2>Save files<a class="headerlink" href="#save-files" title="Permalink to this headline">¶</a></h2>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">files</span><span class="o">.</span><span class="n">printout</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">path</span><span class="o">=</span><span class="s1">&#39;&#39;</span><span class="p">,</span> <span class="n">savename</span><span class="o">=</span><span class="s1">&#39;&#39;</span><span class="p">,</span> <span class="n">sep</span><span class="o">=</span><span class="s1">&#39;,&#39;</span><span class="p">)</span>
 </pre></div>
 </div>
-<p>Prints the python object as files or the same type as the input files.</p>
+<p>Saves the python object as files of the same type as the input files.</p>
 <p><em>obj</em> is the object to be printed.</p>
 <p><em>path</em> is the path to the directory holding the printed files.</p>
-<p><em>savename</em> is the name used for the printed files, <em>sep</em> is the separator to be used in the printed count table and meta data files (‘,’ or ‘;’ or ‘t’).</p>
+<p><em>savename</em> is the name used for the printed files, <em>sep</em> is the separator to be used in the printed count table and meta data files (‘,’ or ‘;’ or ‘\t’).</p>
 <p>Example</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">qdiv</span>
 
@@ -97,7 +98,7 @@
 <li class="toctree-l1"><a class="reference internal" href="Input files.html">Input files</a></li>
 <li class="toctree-l1 current"><a class="current reference internal" href="#">Load and print files</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="#loading-files">Loading files</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#printing-files">Printing files</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#save-files">Save files</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="Information and statistics.html">Information and statistics</a></li>
@@ -142,7 +143,7 @@
       &copy;2019, Oskar Modin.
       
       |
-      Powered by <a href="http://sphinx-doc.org/">Sphinx 3.0.3</a>
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 3.1.2</a>
       &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.12</a>
       
       |
