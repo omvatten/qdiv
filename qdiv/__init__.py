@@ -1,4 +1,4 @@
-import qdiv_dev.files, qdiv_dev.subset, qdiv_dev.stats, qdiv_dev.diversity, qdiv_dev.plot, qdiv_dev.null
+import qdiv.files, qdiv.subset, qdiv.stats, qdiv.diversity, qdiv.plot, qdiv.null
 
 def citations(f='all'):
     if f == 'all' or f == 'qdiv':
