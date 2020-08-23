@@ -8,7 +8,7 @@ Get information
 
    stats.print_info(obj)
 
-Prints information about the number of samples, number of reads, minimum and maximum number of reads in a samples, meta data, etc.
+Prints information about the number of samples, number of reads, minimum and maximum number of reads in a samples, meta data, taxonomy, etc.
 
 .. code-block:: python
 
@@ -57,3 +57,19 @@ Carries out a permanova tests and returns a list containing the test statistic a
 *var* is the column in the meta data that holds the categories of samples being compared. 
 
 *permutations* is the number of randomizations carried out.
+
+Distance between sequences
+##########################
+
+.. code-block:: python
+
+   stats.sequence_comparison(obj, inputType='seq', savename='DistMat')
+
+Returns a pandas dataframe with pairwise distances between OTUs/ASVs in the data set. The data is also saved as a csv file at the location specified by savename.
+
+*obj* is the qdiv object.
+
+*inputType* can be either 'seq' or 'tree'. If it is 'seq', the distance is calculated as the Levenshtein distance dividied by the length of the longest distance in the pair.
+If it is 'tree', the distances are calculated as branch distances in the phylogenetic tree.
+
+*savename* specifies path and name of output file.

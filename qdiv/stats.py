@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+import Levenshtein as Lv
 import random
 
 # Returns some information about an object, e.g. number of samples, reads, headings in meta data etc.
@@ -8,11 +9,13 @@ def print_info(obj):
     if 'tab' in obj.keys():
         tab = obj['tab']
         print('Total number of samples= ', len(tab.columns))
-        print('Total number of SVs= ', len(tab.index))
+        print('Total number of ASVs= ', len(tab.index))
         print('Total reads= ', sum(tab.sum()))
         print('Minimum number of reads in a sample= ', min(tab.sum()))
     if 'tax' in obj.keys():
         print('Taxonomic levels:', obj['tax'].columns.tolist())
+    if 'tree' in obj.keys():
+        print('Branches in tree:', len(obj['tree']))
     if 'meta' in obj.keys():
         print('Column headings in meta data:')
         print(list(obj['meta'].columns))
@@ -150,3 +153,90 @@ def permanova(dis, meta, var, permutations=99):
     p_val = (p_val + 1) / (len(null_F) + 1)
     return [real_F, p_val]
 
+# Returns matrix for pairwise distances between ASVs.
+# The inputType can either be seq or tree.
+# If the input is seq, pairwise Levenshtein/Hamming distances (uses Levenshtein package) are calculated.
+# If the input is tree, the distances between end nodes in the phylogenetic tree are calculated.
+# Results are saved as csv file at location specified in savename.
+# The output distance matrix can be used as input for functional diversity index calculations (func_alpha, func_beta)
+# or for phylogenetic-based null models (nriq, ntiq, beta_nriq, beta_ntiq)
+def sequence_comparison(obj, inputType='seq', savename='DistMat'):
+    if inputType == 'seq':
+        seq = obj['seq']
+
+        svnames = list(seq.index)
+        # For showing progress
+        total_comp = (len(svnames)**2)/2
+        show_after = int(total_comp / 50) + 1
+        counter = 0
+        print('Progress in sequence_comparison.. 0%.. ')
+    
+        df = pd.DataFrame(0, index=svnames, columns=svnames)
+        for i in range(len(svnames) - 1):
+            for j in range(i + 1, len(svnames)):
+    
+                # For showing progress
+                counter += 1
+                if counter%show_after == 0:
+                    print(int(100*counter/total_comp), end='%.. ')
+    
+                n1 = svnames[i]
+                n2 = svnames[j]
+                s1 = seq.loc[n1, 'seq']
+                s2 = seq.loc[n2, 'seq']
+    
+                if len(s1) == len(s2):
+                    dist = Lv.hamming(s1, s2) / len(s1)
+                else:
+                    maxlen = max(len(s1), len(s2))
+                    dist = Lv.distance(s1, s2) / maxlen
+    
+                df.loc[n1, n2] = dist; df.loc[n2, n1] = dist
+        print('100%')
+        df.to_csv(savename+'.csv')
+        return df
+
+    elif inputType == 'tree':
+        tree = obj['tree'].copy()
+
+        #Sort out end nodes and internal nodes
+        tree['asv_count'] = np.nan
+        for ix in tree.index:
+            tree.loc[ix, 'asv_count'] = len(tree.loc[ix, 'ASVs'])
+        tree_endN = tree[tree['asv_count'] == 1]
+        
+        #Get list of asvs
+        svnames = sorted(tree_endN['nodes'].tolist())
+        df = pd.DataFrame(0, index=svnames, columns=svnames)
+
+        # For showing progress
+        total_comp = (len(svnames)**2 / 2)
+        show_after = int(total_comp / 50) + 1
+        counter = 0
+        print('Progress in sequence_comparison.. 0%.. ', end='')
+        
+        #Go through branchL and add total branch length for each, df will thus give branchL to root
+        for ix in tree.index:
+            BL = tree.loc[ix, 'branchL']
+            asvlist = tree.loc[ix, 'ASVs']
+            df.loc[asvlist, asvlist] = df.loc[asvlist, asvlist] + BL
+
+        df_dist = pd.DataFrame(0, index=svnames, columns=svnames)
+        for i in range(len(svnames)-1):
+            sv1 = svnames[i]
+            sv1_toroot = df.loc[sv1, sv1]
+            for j in range(i+1, len(svnames)):
+                counter += 1
+                if counter%show_after == 0:
+                    print(int(100*counter/total_comp), end='%.. ')
+
+                sv2 = svnames[j]
+                sv2_toroot = df.loc[sv2, sv2]
+                total_dist = sv1_toroot + sv2_toroot
+                shared_dist = df.loc[sv1, sv2]
+                df_dist.loc[sv1, sv2] = total_dist - 2 * shared_dist
+                df_dist.loc[sv2, sv1] = total_dist - 2 * shared_dist
+        
+        print('100%')
+        df_dist.to_csv(savename+'.csv')
+        return df_dist

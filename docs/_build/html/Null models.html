@@ -1,0 +1,220 @@
+
+<!DOCTYPE html>
+
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Null models &#8212; qdiv  documentation</title>
+    <link rel="stylesheet" href="_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    <script id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
+    <script src="_static/jquery.js"></script>
+    <script src="_static/underscore.js"></script>
+    <script src="_static/doctools.js"></script>
+    <script src="_static/language_data.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Plotting" href="Plotting.html" />
+    <link rel="prev" title="Diversity calculations" href="Diversity%20calculations.html" />
+   
+  <link rel="stylesheet" href="_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <div class="section" id="null-models">
+<h1>Null models<a class="headerlink" href="#null-models" title="Permalink to this headline">¶</a></h1>
+<div class="section" id="raup-crick">
+<h2>Raup-Crick<a class="headerlink" href="#raup-crick" title="Permalink to this headline">¶</a></h2>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">null</span><span class="o">.</span><span class="n">rcq</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">constrainingVar</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">randomization</span><span class="o">=</span><span class="s1">&#39;frequency&#39;</span><span class="p">,</span> <span class="n">weightingVar</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">weight</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">iterations</span><span class="o">=</span><span class="mi">99</span><span class="p">,</span> <span class="n">divType</span><span class="o">=</span><span class="s1">&#39;naive&#39;</span><span class="p">,</span> <span class="n">distmat</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">q</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">compareVar</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">):</span>
+</pre></div>
+</div>
+<p>The observed dissimilarities between samples are compared to a null distribution.
+The null model randomizes the count table to calculate a null expectation of the pairwise dissimilarities between samples. This is repeated several times (iterations) to get a null distribution.
+During the randomization, the total number of OTUs/ASVs and read count for each sample are kept constant, but the identity of the OTUs/ASVs and the distribution of reads between them are randomized.
+The function returns a python dictionary with several items:</p>
+<ul class="simple">
+<li><p>‘divType’ is information about the diversity type used in the calculations;</p></li>
+<li><p>‘obs_d’ is the actually observed dissimilarity values;</p></li>
+<li><p>‘null_mean’ is the mean values of the null dissimilarities (i.e. the dissimilarities of the randomized tables);</p></li>
+<li><p>‘null_std’ is the standard devation;</p></li>
+<li><p>‘p_index’ is the Raup-Crick measure constained between 0 and 1 (i.e. the fraction of times the observed dissimilarities are higher than the null expectation).</p></li>
+<li><p>‘ses’ is the standardized effect size (ses=(null_mean - obs_d)/null_std). A postive value means that the compared communities are more similar than expected and a negative value means they are more dissimilar.</p></li>
+</ul>
+<p><em>obj</em> is the qdiv object.</p>
+<p><em>constrainingVar</em> is a column heading in the meta data that can be used to constrain the randomizations so that read counts are only randomized with a certain category of samples.</p>
+<p><em>randomization</em> specifies the randomization procedure:</p>
+<ul class="simple">
+<li><p>‘abundance’ means that ASVs are drawn to each sample based on the total read counts in the frequency table (or part of the table defined by <em>constrainingVar</em> )</p></li>
+<li><p>‘frequency’ means that ASVs are drawn based on the number of samples in which they are detected. This method is the same as in Stegen et al. (2013). <em>ISME Journal,</em> 7(11), 2069-2079.</p></li>
+<li><p>‘weighting’ uses the abundance method but a meta data column (<em>weightingVar</em> ) can be used to categorize samples and the <em>weight</em> parameter decide the importance of the category of samples with the lowest richness. A <em>weight</em> of 0 means that the low-richness samples are not considered in the regional community used to populate the samples with read counts while a weight of 1 means that all sample groups have equal weighting.</p></li>
+</ul>
+<p><em>iterations</em> specifies the number of randomizations, 999 is the normal but could take several hours for large count tables.</p>
+<p><em>divType</em> specifies the dissimilarity index to calculate: ‘naive’, ‘phyl’, ‘func’, ‘Jaccard’, and ‘Bray’,  are available choices. For ‘func’, distmat must be specified.</p>
+<p><em>q</em> is the diversity order if divType is ‘naive’, ‘phyl’, or ‘func’.</p>
+<p><em>compareVar</em> is a column heading in the meta data. If compareVar is not None, the mean and standard deviation of obs_d, p_index, and ses are returned in the output as obs_d_mean, obs_d_std, etc.
+They represent the mean and standard deviation of all pairwise comparison between the meta data categories specified under compareVar.</p>
+<p>The index is inspired by the articles: Raup and Crick (1979), <em>J Paleontology,</em> 53(5), 1213-1227 and Chase et al. (2011), <em>Ecosphere,</em> 2(2), 24.</p>
+</div>
+<div class="section" id="phylogenetic-null-models">
+<h2>Phylogenetic null models<a class="headerlink" href="#phylogenetic-null-models" title="Permalink to this headline">¶</a></h2>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">null</span><span class="o">.</span><span class="n">nriq</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">distmat</span><span class="p">,</span> <span class="n">q</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">iterations</span><span class="o">=</span><span class="mi">99</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Calculates the Net Relatedness Index (NRI). This is done by calculating the Mean Phylogenetic Distance (MPD) between OTUs/ASVs in a sample,
+then randomizing the positions of the OTUs/ASVs at the end nodes in the phylogenetic tree and generating a null distribution of the MPD based on a large number of randomizations.
+See Webb et al. (2002) <em>Annu. Rev. Ecol. Sys.</em> 33, 475-505 (DOI: 10.1146/annurev.ecolsys.33.010802.150448). The NRI is defined as the standardized effect size:</p>
+<ul class="simple">
+<li><p>NRI=(MPDnull_mean-MPDobs)/MPDnull_stdev.</p></li>
+</ul>
+<p>Here, we have generalized NRI and MPD to all diversity orders (q). The function returns a dataframe with the following column headings: ‘MPDq’, ‘null_mean’, ‘null_std’, ‘p_index’, ‘ses’.</p>
+<ul class="simple">
+<li><p>‘p_index’ is a probability index constrained between 0 and 1. If it is close to 0, the sample is more phylogenetically clustered than expected by the null model. If it is close to 1, the sample is more phylogenetically disperse than expected by the null model.</p></li>
+<li><p>‘ses’ is the NRI index. If it is positive, the sample is more phylogenetically clustered than expected by null model. If it is negative, the sample is more phylogenetically disperse than expected by the null model.</p></li>
+</ul>
+<p><em>obj</em> is a qdiv object.</p>
+<p><em>distmat</em> is a pandas dataframe with pairwise distances between OTUs/ASVs. It can be generated by stats.sequence_comparison(obj, inputType=’tree’).</p>
+<p><em>q</em> is the diversity order.</p>
+<p><em>iterations</em> is the number of randomizations in the null model.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">null</span><span class="o">.</span><span class="n">ntiq</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">distmat</span><span class="p">,</span> <span class="n">q</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">iterations</span><span class="o">=</span><span class="mi">99</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Calculates the Nearest Taxon Index (NTI). This is done by calculating the Mean Nearest Taxon Distance (MNTD) between OTUs/ASVs in a sample,
+then randomizing the positions of the OTUs/ASVs at the end nodes in the phylogenetic tree and generating a null distribution of the MNTD based on a large number of randomizations.
+See Webb et al. (2002) <em>Annu. Rev. Ecol. Sys.</em> 33, 475-505 (DOI: 10.1146/annurev.ecolsys.33.010802.150448). The NTI is defined as the standized effect size:</p>
+<ul class="simple">
+<li><p>NTI=(MNTDnull_mean-MNTDobs)/MNTDnull_stdev.</p></li>
+</ul>
+<p>Here, we have generalized NTI and MNTD to all diversity orders (q). The function returns a dataframe with the following column headings: ‘MNTDq’, ‘null_mean’, ‘null_std’, ‘p_index’, ‘ses’.</p>
+<ul class="simple">
+<li><p>‘p_index’ is a probability index constrained between 0 and 1. If it is close to 0, the sample is more phylogenetically clustered than expected by null model. If it is close to 1, the sample is more phylogenetically disperse than expected by the null model.</p></li>
+<li><p>‘ses’ is the NTI index. If it is positive, the sample is more phylogenetically clustered than expected by null model. If it is negative, the sample is more phylogenetically disperse than expected by the null model.</p></li>
+</ul>
+<p><em>obj</em> is a qdiv object.</p>
+<p><em>distmat</em> is a pandas dataframe with pairwise distances between OTUs/ASVs. It can be generated by stats.sequence_comparison(obj, inputType=’tree’).</p>
+<p><em>q</em> is the diversity order.</p>
+<p><em>iterations</em> is the number of randomizations in the null model.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">null</span><span class="o">.</span><span class="n">beta_nriq</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">distmat</span><span class="p">,</span> <span class="n">q</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">iterations</span><span class="o">=</span><span class="mi">99</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Calculates the Net Relatedness Index between samples (beta NRI). This is done by calculating the Mean Phylogenetic Distance (beta MPD) between OTUs/ASVs in pairs of samples,
+then randomizing the positions of the OTUs/ASVs at the end nodes in the phylogenetic tree and generating a null distribution of the beta MPD based on a large number of randomizations.
+The beta NRI is defined as the standized effect size the same way as the NRI index is defined above. See Fine and Kembel (2011) <em>Ecography</em> 34, 552-565 (DOI: 10.1111/j.1600-0587.2010.06548.x).
+Here, we have generalized beta NRI and beta MPD to all diversity orders (q). The function returns a dictionary with the following dataframes: ‘beta_MPDq’, ‘null_mean’, ‘null_std’, ‘p_index’, ‘ses’. The dataframes have pairwise values between samples.</p>
+<ul class="simple">
+<li><p>‘p_index’ is a probability index constrained between 0 and 1. If it is close to 0, the sample is more phylogenetically clustered than expected by null model. If it is close to 1, the sample is more phylogenetically disperse than expected by the null model.</p></li>
+<li><p>‘ses’ is the beta NRI index. If it is positive, the sample is more phylogenetically clustered than expected by null model. If it is negative, the sample is more phylogenetically disperse than expected by the null model.</p></li>
+</ul>
+<p><em>obj</em> is a qdiv object.</p>
+<p><em>distmat</em> is a pandas dataframe with pairwise distances between OTUs/ASVs. It can be generated by stats.sequence_comparison(obj, inputType=’tree’).</p>
+<p><em>q</em> is the diversity order.</p>
+<p><em>iterations</em> is the number of randomizations in the null model.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">null</span><span class="o">.</span><span class="n">beta_ntiq</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">distmat</span><span class="p">,</span> <span class="n">q</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">iterations</span><span class="o">=</span><span class="mi">99</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Calculates the Nearest Taxon Index between samples (beta NTI). This is done by calculating the Mean Nearest Taxon Distance (beta MNTD) between OTUs/ASVs in pairs of samples,
+then randomizing the positions of the OTUs/ASVs at the end nodes in the phylogenetic tree and generating a null distribution of the beta MNTD based on a large number of randomizations.
+The beta NTI is defined as the standized effect size the same way as the NTI index is defined above. See Fine and Kembel (2011) <em>Ecography</em> 34, 552-565 (DOI: 10.1111/j.1600-0587.2010.06548.x).
+Here, we have generalized beta NTI and beta MNTD to all diversity orders (q). The function returns a dictionary with the following dataframes: ‘beta_MNTDq’, ‘null_mean’, ‘null_std’, ‘p_index’, ‘ses’. The dataframes have pairwise values between samples.</p>
+<ul class="simple">
+<li><p>‘p_index’ is a probability index constrained between 0 and 1. If it is close to 0, the sample is more phylogenetically clustered than expected by null model. If it is close to 1, the sample is more phylogenetically disperse than expected by the null model.</p></li>
+<li><p>‘ses’ is the beta NTI index. If it is positive, the sample is more phylogenetically clustered than expected by null model. If it is negative, the sample is more phylogenetically disperse than expected by the null model.</p></li>
+</ul>
+<p><em>obj</em> is a qdiv object.</p>
+<p><em>distmat</em> is a pandas dataframe with pairwise distances between OTUs/ASVs. It can be generated by stats.sequence_comparison(obj, inputType=’tree’).</p>
+<p><em>q</em> is the diversity order.</p>
+<p><em>iterations</em> is the number of randomizations in the null model.</p>
+</div>
+</div>
+
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="index.html">qdiv</a></h1>
+
+
+
+
+
+
+
+
+<h3>Navigation</h3>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="Installation.html">Installation instructions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="Input%20files.html">Input files</a></li>
+<li class="toctree-l1"><a class="reference internal" href="Load%20and%20print%20files.html">Load and print files</a></li>
+<li class="toctree-l1"><a class="reference internal" href="Information%20and%20statistics.html">Information and statistics</a></li>
+<li class="toctree-l1"><a class="reference internal" href="Subset%20and%20manipulate%20data.html">Subset and manipulate data</a></li>
+<li class="toctree-l1"><a class="reference internal" href="Diversity%20calculations.html">Diversity calculations</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Null models</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#raup-crick">Raup-Crick</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#phylogenetic-null-models">Phylogenetic null models</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="Plotting.html">Plotting</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="index.html">Documentation overview</a><ul>
+      <li>Previous: <a href="Diversity%20calculations.html" title="previous chapter">Diversity calculations</a></li>
+      <li>Next: <a href="Plotting.html" title="next chapter">Plotting</a></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" />
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script>$('#searchbox').show(0);</script>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2019, Oskar Modin.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 3.2.1</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.12</a>
+      
+      |
+      <a href="_sources/Null models.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>

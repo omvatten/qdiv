@@ -4,7 +4,7 @@
 <html>
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Plotting &#8212; qdiv  documentation</title>
     <link rel="stylesheet" href="_static/alabaster.css" type="text/css" />
     <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
@@ -15,8 +15,7 @@
     <script src="_static/language_data.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
-    <link rel="next" title="GUI" href="GUI.html" />
-    <link rel="prev" title="Diversity calculations" href="Diversity calculations.html" />
+    <link rel="prev" title="Null models" href="Null%20models.html" />
    
   <link rel="stylesheet" href="_static/custom.css" type="text/css" />
   
@@ -37,7 +36,7 @@
 <h1>Plotting<a class="headerlink" href="#plotting" title="Permalink to this headline">¶</a></h1>
 <div class="section" id="heatmap">
 <h2>Heatmap<a class="headerlink" href="#heatmap" title="Permalink to this headline">¶</a></h2>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">plot</span><span class="o">.</span><span class="n">heatmap</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">xAxis</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">levels</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;Phylum&#39;</span><span class="p">,</span> <span class="s1">&#39;Genus&#39;</span><span class="p">],</span> <span class="n">levelsShown</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">subsetLevels</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">subsetPatterns</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">numberToPlot</span><span class="o">=</span><span class="mi">20</span><span class="p">,</span> <span class="n">method</span><span class="o">=</span><span class="s1">&#39;max_sample&#39;</span><span class="p">,</span> <span class="n">nameType</span><span class="o">=</span><span class="s1">&#39;SV&#39;</span><span class="p">,</span> <span class="n">figSize</span><span class="o">=</span><span class="p">(</span><span class="mi">14</span><span class="p">,</span> <span class="mi">10</span><span class="p">),</span> <span class="n">fontSize</span><span class="o">=</span><span class="mi">15</span><span class="p">,</span> <span class="n">sepCol</span> <span class="o">=</span> <span class="p">[],</span> <span class="n">labels</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">labelSize</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span> <span class="n">cThreshold</span><span class="o">=</span><span class="mi">8</span><span class="p">,</span> <span class="n">cMap</span><span class="o">=</span><span class="s1">&#39;Reds&#39;</span><span class="p">,</span> <span class="n">cLinear</span><span class="o">=</span><span class="mf">0.5</span><span class="p">,</span> <span class="n">cBar</span><span class="o">=</span><span class="p">[],</span> <span class="n">savename</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">)</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">plot</span><span class="o">.</span><span class="n">heatmap</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">xAxis</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">levels</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;Phylum&#39;</span><span class="p">,</span> <span class="s1">&#39;Genus&#39;</span><span class="p">],</span> <span class="n">levelsShown</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">subsetLevels</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">subsetPatterns</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">numberToPlot</span><span class="o">=</span><span class="mi">20</span><span class="p">,</span> <span class="n">method</span><span class="o">=</span><span class="s1">&#39;max_sample&#39;</span><span class="p">,</span> <span class="n">nameType</span><span class="o">=</span><span class="s1">&#39;SV&#39;</span><span class="p">,</span> <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">14</span><span class="p">,</span> <span class="mi">10</span><span class="p">),</span> <span class="n">fontsize</span><span class="o">=</span><span class="mi">15</span><span class="p">,</span> <span class="n">sepCol</span> <span class="o">=</span> <span class="p">[],</span> <span class="n">labels</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">labelsize</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span> <span class="n">cThreshold</span><span class="o">=</span><span class="mi">8</span><span class="p">,</span> <span class="n">cMap</span><span class="o">=</span><span class="s1">&#39;Reds&#39;</span><span class="p">,</span> <span class="n">cLinear</span><span class="o">=</span><span class="mf">0.5</span><span class="p">,</span> <span class="n">cBar</span><span class="o">=</span><span class="p">[],</span> <span class="n">savename</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">)</span>
 </pre></div>
 </div>
 <p>Plots a heatmap showing the relative abundance of different taxa in different samples.</p>
@@ -54,11 +53,11 @@ The sample with the smallest number will be placed to the left in the heatmap.</
 <li><p>‘mean_all’ uses the mean relative abundance across all samples to rank the taxa</p></li>
 </ul>
 <p><em>nameType</em> is the label used for unclassified sequences (e.g. ASV or OTU)</p>
-<p><em>figSize</em> is the width and height of the figure in inches</p>
-<p><em>fontSize</em> refers to the axis text font size</p>
+<p><em>figsize</em> is the width and height of the figure in inches</p>
+<p><em>fontsize</em> refers to the axis text font size</p>
 <p><em>sepCol</em> is a list of column numbers between which to include a separator, i.e. to clarify grouping of samples</p>
 <p><em>labels</em> =True means that relative abundance values are shown in the plot.</p>
-<p><em>labelSize</em> is the font size of the relative abundance labels.</p>
+<p><em>labelsize</em> is the font size of the relative abundance labels.</p>
 <p><em>cThreshold</em> is the percentage relative abundance threshold at which the label color switches from black to white (for clarity).</p>
 <p><em>cMap</em> is the color map used in the heatmap.</p>
 <p><em>cLinear</em> is a parameter determining how the color intensity changes with relative abundance. A value of 1 means the change is linear.</p>
@@ -67,32 +66,32 @@ The sample with the smallest number will be placed to the left in the heatmap.</
 </div>
 <div class="section" id="alpha-diversity">
 <h2>Alpha diversity<a class="headerlink" href="#alpha-diversity" title="Permalink to this headline">¶</a></h2>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">plot</span><span class="o">.</span><span class="n">alpha_diversity</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">distmat</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">var</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">slist</span><span class="o">=</span><span class="s1">&#39;All&#39;</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">ylog</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">figSize</span><span class="o">=</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span> <span class="mi">6</span><span class="p">),</span> <span class="n">fontSize</span><span class="o">=</span><span class="mi">18</span><span class="p">,</span> <span class="n">colorlist</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">savename</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">)</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">plot</span><span class="o">.</span><span class="n">alpha_diversity</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">distmat</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">var</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">slist</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">ylog</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span> <span class="mi">6</span><span class="p">),</span> <span class="n">fontsize</span><span class="o">=</span><span class="mi">18</span><span class="p">,</span> <span class="n">colorlist</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">savename</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">)</span>
 </pre></div>
 </div>
 <p>Visualizes how alpha diversity depends on diversity order.</p>
 <p><em>obj</em> is the object.</p>
 <p>If <em>distmat</em> is specified, the diversity.phyl_alpha function is used, otherwise diversity.naive_alpha is used. A <em>distmat</em> dataframe can be generated with the diversity.sequence_comparison() function.</p>
-<p><em>var</em> refers to column heading in meta data used to color code samples; slist is a list of samples from the var column to include (default is all).</p>
+<p><em>var</em> refers to column heading in meta data used to color code samples; <em>slist</em> is a list of samples from the var column to include (default is to include all).</p>
 <p><em>order</em> refers to column heading in meta data used to order the samples.</p>
 <p>If <em>ylog</em> =True, the y-axis of the plot will be logarithmic.</p>
-<p><em>figSize</em> is the width and height of the figure in inches</p>
-<p><em>fontSize</em> refers to the axis text font size</p>
+<p><em>figsize</em> is the width and height of the figure in inches</p>
+<p><em>fontsize</em> refers to the axis text font size</p>
 <p><em>colorlist</em> is a list of colors used for the lines in the plot, if colorlist=’None’, qdiv will decide the colors.</p>
 <p><em>savename</em> is the name (also include path) of the saved png file, if ‘None’ no figure is saved.</p>
 </div>
 <div class="section" id="pcoa">
 <h2>PCoA<a class="headerlink" href="#pcoa" title="Permalink to this headline">¶</a></h2>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">plot</span><span class="o">.</span><span class="n">pcoa</span><span class="p">(</span><span class="n">dist</span><span class="p">,</span> <span class="n">meta</span><span class="p">,</span> <span class="n">biplot</span><span class="o">=</span><span class="p">[],</span> <span class="n">var1</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">var2</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">var1_title</span><span class="o">=</span><span class="s1">&#39;&#39;</span><span class="p">,</span> <span class="n">var2_title</span><span class="o">=</span><span class="s1">&#39;&#39;</span><span class="p">,</span> <span class="n">whitePad</span><span class="o">=</span><span class="mf">1.1</span><span class="p">,</span> <span class="n">var2pos</span><span class="o">=</span><span class="mf">0.4</span><span class="p">,</span> <span class="n">tag</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">title</span><span class="o">=</span><span class="s1">&#39;&#39;</span><span class="p">,</span> <span class="n">connectPoints</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">figSize</span><span class="o">=</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span> <span class="mi">14</span><span class="p">),</span> <span class="n">fontSize</span><span class="o">=</span><span class="mi">18</span><span class="p">,</span> <span class="n">markerSize</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span> <span class="n">markerscale</span><span class="o">=</span><span class="mf">1.1</span><span class="p">,</span> <span class="n">hideAxisValues</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">showLegend</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">colorlist</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">markerlist</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">savename</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">)</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">plot</span><span class="o">.</span><span class="n">pcoa</span><span class="p">(</span><span class="n">dist</span><span class="p">,</span> <span class="n">meta</span><span class="p">,</span> <span class="n">var1</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">var2</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">var1_title</span><span class="o">=</span><span class="s1">&#39;&#39;</span><span class="p">,</span> <span class="n">var2_title</span><span class="o">=</span><span class="s1">&#39;&#39;</span><span class="p">,</span> <span class="n">biplot</span><span class="o">=</span><span class="p">[],</span> <span class="n">whitePad</span><span class="o">=</span><span class="mf">1.1</span><span class="p">,</span> <span class="n">var2pos</span><span class="o">=</span><span class="mf">0.4</span><span class="p">,</span> <span class="n">tag</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">title</span><span class="o">=</span><span class="s1">&#39;&#39;</span><span class="p">,</span> <span class="n">connectPoints</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span> <span class="mi">14</span><span class="p">),</span> <span class="n">fontsize</span><span class="o">=</span><span class="mi">18</span><span class="p">,</span> <span class="n">markersize</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span> <span class="n">markerscale</span><span class="o">=</span><span class="mf">1.1</span><span class="p">,</span> <span class="n">hideAxisValues</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">showLegend</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">colorlist</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">markerlist</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">savename</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">)</span>
 </pre></div>
 </div>
 <p>Visualizes dissimilarities between samples in principal coordinate analysis plot.</p>
 <p><em>dist</em> is a distance matrix with pairwise dissimilarities. This can be generated using the beta diversity functions, i.e. naive_beta, phyl_beta, jaccard, bray.</p>
 <p><em>meta</em> is the meta data, typically object[‘meta’].</p>
-<p><em>biplot</em> is a list of columns in meta data containing numeric data that should be plotted as a biplot in the PCoA. The arrows associated with each column are scaled to the plot area of the PCoA.</p>
 <p><em>var1</em> is a column heading in the meta used to color code (required input!).</p>
 <p><em>var2</em> is a column heading in the meta used to code by marker type (optional).</p>
 <p><em>var1_title</em> and <em>var_2 title</em> are the titles used in the legend.</p>
+<p><em>biplot</em> is a list of columns in meta data containing numeric data that should be plotted as a biplot in the PCoA. The arrows associated with each column are scaled to the plot area of the PCoA.</p>
 <p><em>whitePad</em> sets the space between the outermost points and the plot limits (1.0=no space).</p>
 <p><em>rightSpace</em> is the space for the legend on the right.</p>
 <p><em>var2pos</em> is the vertical position of the var2 legend.</p>
@@ -115,7 +114,7 @@ The sample with the smallest number will be placed to the left in the heatmap.</
 <p><em>compareVar</em> is a column heading in the meta data. If compareVar is not None, the dissimilarity values represent all pairwise comparisons
 between the meta data categories specified present under compareVar.</p>
 <p><em>spairs</em> is a list of pairs to compare, each item in the list is another list of two samples names or categories to compare, e.g. [[sample_group_1, sample_group_2],[sample_group_X, sample_group_Y],[sample_group_3, sample_group_4]].</p>
-<p>if <em>nullModel</em> =True, the diversity.rcq function will be run. <em>randomization,</em> <em>weight,</em> and <em>iterations</em> are all input to the diversity.rcq function (see documentation there).</p>
+<p>if <em>nullModel</em> =True, the null.rcq function will be run. <em>randomization,</em> <em>weight,</em> and <em>iterations</em> are all input to the null.rcq function (see documentation there).</p>
 <p><em>qrange</em> is a list containing the min, max, tick mark space on the diversity order x-axis of the figure.</p>
 <p><em>colorlist</em> is a list of colors used for the lines, if <em>colorlist</em> =’None’, qdiv will decide the colors.</p>
 <p>If <em>onlyPlotData</em> is a dictionary containing data, the function will only plot the data in that dictionary and no further calculations with be carried out.</p>
@@ -125,14 +124,14 @@ between the meta data categories specified present under compareVar.</p>
 </div>
 <div class="section" id="rarefaction-curve">
 <h2>Rarefaction curve<a class="headerlink" href="#rarefaction-curve" title="Permalink to this headline">¶</a></h2>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">plot</span><span class="o">.</span><span class="n">rarefactioncurve</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">step</span><span class="o">=</span><span class="s1">&#39;flexible&#39;</span><span class="p">,</span> <span class="n">figSize</span><span class="o">=</span><span class="p">(</span><span class="mi">14</span><span class="p">,</span> <span class="mi">10</span><span class="p">),</span> <span class="n">fontSize</span><span class="o">=</span><span class="mi">18</span><span class="p">,</span> <span class="n">var</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">tag</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">colorlist</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">onlyReturnData</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">onlyPlotData</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">savename</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">)</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">plot</span><span class="o">.</span><span class="n">rarefactioncurve</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">step</span><span class="o">=</span><span class="s1">&#39;flexible&#39;</span><span class="p">,</span> <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">14</span><span class="p">,</span> <span class="mi">10</span><span class="p">),</span> <span class="n">fontsize</span><span class="o">=</span><span class="mi">18</span><span class="p">,</span> <span class="n">var</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">tag</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">colorlist</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">onlyReturnData</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">onlyPlotData</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">savename</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">)</span>
 </pre></div>
 </div>
 <p>Calculates a rarefaction curve based on subsampling without replacement.</p>
 <p><em>obj</em> is the object.</p>
 <p><em>step</em> is the step size used during subsampling, if ‘flexible’ the total reads are divided by 20.</p>
-<p><em>figSize</em> is width and height of the figure in inches.</p>
-<p><em>fontSize</em> is size of text in figure.</p>
+<p><em>figsize</em> is width and height of the figure in inches.</p>
+<p><em>fontsize</em> is size of text in figure.</p>
 <p><em>var</em> is the column in the meta data used to color code lines in plot.</p>
 <p><em>order</em> is the column in the meta data used to order the samples.</p>
 <p><em>tag</em> is the column in the meta data used to name lines in plot, if tag=’index’, the sample names are used.</p>
@@ -143,7 +142,7 @@ between the meta data categories specified present under compareVar.</p>
 </div>
 <div class="section" id="octave-frequency-histogram">
 <h2>Octave (frequency histogram)<a class="headerlink" href="#octave-frequency-histogram" title="Permalink to this headline">¶</a></h2>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">plot</span><span class="o">.</span><span class="n">octave</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">var</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">slist</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">nrows</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">ncols</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">fontSize</span><span class="o">=</span><span class="mi">11</span><span class="p">,</span> <span class="n">figSize</span><span class="o">=</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span> <span class="mi">6</span><span class="p">),</span> <span class="n">xlabels</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">ylabels</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">title</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s1">&#39;blue&#39;</span><span class="p">,</span> <span class="n">savename</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">)</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">plot</span><span class="o">.</span><span class="n">octave</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">var</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">slist</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">nrows</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">ncols</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">fontsize</span><span class="o">=</span><span class="mi">11</span><span class="p">,</span> <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span> <span class="mi">6</span><span class="p">),</span> <span class="n">xlabels</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">ylabels</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">title</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s1">&#39;blue&#39;</span><span class="p">,</span> <span class="n">savename</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">)</span>
 </pre></div>
 </div>
 <p>Octave plot according to Edgar and Flyvbjerg, DOI:10.1101/38983</p>
@@ -159,10 +158,10 @@ between the meta data categories specified present under compareVar.</p>
 </div>
 <div class="section" id="dissimilarity-contributions-of-taxa">
 <h2>Dissimilarity contributions of taxa<a class="headerlink" href="#dissimilarity-contributions-of-taxa" title="Permalink to this headline">¶</a></h2>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">plot</span><span class="o">.</span><span class="n">dissimilarity_contributions</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">var</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">q</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">index</span><span class="o">=</span><span class="s1">&#39;local&#39;</span><span class="p">,</span> <span class="n">numberToPlot</span><span class="o">=</span><span class="mi">20</span><span class="p">,</span> <span class="n">levels</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;Genus&#39;</span><span class="p">],</span> <span class="n">fromFile</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">figSize</span><span class="o">=</span><span class="p">(</span><span class="mi">18</span><span class="o">/</span><span class="mf">2.54</span><span class="p">,</span> <span class="mi">14</span><span class="o">/</span><span class="mf">2.54</span><span class="p">),</span> <span class="n">fontSize</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span> <span class="n">savename</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">)</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">plot</span><span class="o">.</span><span class="n">dissimilarity_contributions</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">var</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">q</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">index</span><span class="o">=</span><span class="s1">&#39;local&#39;</span><span class="p">,</span> <span class="n">numberToPlot</span><span class="o">=</span><span class="mi">20</span><span class="p">,</span> <span class="n">levels</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;Genus&#39;</span><span class="p">],</span> <span class="n">fromFile</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">18</span><span class="o">/</span><span class="mf">2.54</span><span class="p">,</span> <span class="mi">14</span><span class="o">/</span><span class="mf">2.54</span><span class="p">),</span> <span class="n">fontsize</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span> <span class="n">savename</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">)</span>
 </pre></div>
 </div>
-<p>Plot showing contribution of each taxon to observed naive dissimilarity.</p>
+<p>Plot showing contribution of each taxon to observed dissimilarity between multiple samples.</p>
 <p><em>obj</em> is the qdiv object.</p>
 <p><em>var</em> is the column heading in the meta data used to categorize the samples. If a category has two or more samples, dissimilarity samples within that category is calculated.</p>
 <p><em>q</em> is the diversity order.</p>
@@ -193,11 +192,12 @@ between the meta data categories specified present under compareVar.</p>
 <h3>Navigation</h3>
 <ul class="current">
 <li class="toctree-l1"><a class="reference internal" href="Installation.html">Installation instructions</a></li>
-<li class="toctree-l1"><a class="reference internal" href="Input files.html">Input files</a></li>
-<li class="toctree-l1"><a class="reference internal" href="Load and print files.html">Load and print files</a></li>
-<li class="toctree-l1"><a class="reference internal" href="Information and statistics.html">Information and statistics</a></li>
-<li class="toctree-l1"><a class="reference internal" href="Subset and manipulate data.html">Subset and manipulate data</a></li>
-<li class="toctree-l1"><a class="reference internal" href="Diversity calculations.html">Diversity calculations</a></li>
+<li class="toctree-l1"><a class="reference internal" href="Input%20files.html">Input files</a></li>
+<li class="toctree-l1"><a class="reference internal" href="Load%20and%20print%20files.html">Load and print files</a></li>
+<li class="toctree-l1"><a class="reference internal" href="Information%20and%20statistics.html">Information and statistics</a></li>
+<li class="toctree-l1"><a class="reference internal" href="Subset%20and%20manipulate%20data.html">Subset and manipulate data</a></li>
+<li class="toctree-l1"><a class="reference internal" href="Diversity%20calculations.html">Diversity calculations</a></li>
+<li class="toctree-l1"><a class="reference internal" href="Null%20models.html">Null models</a></li>
 <li class="toctree-l1 current"><a class="current reference internal" href="#">Plotting</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="#heatmap">Heatmap</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#alpha-diversity">Alpha diversity</a></li>
@@ -208,15 +208,13 @@ between the meta data categories specified present under compareVar.</p>
 <li class="toctree-l2"><a class="reference internal" href="#dissimilarity-contributions-of-taxa">Dissimilarity contributions of taxa</a></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="GUI.html">GUI</a></li>
 </ul>
 
 <div class="relations">
 <h3>Related Topics</h3>
 <ul>
   <li><a href="index.html">Documentation overview</a><ul>
-      <li>Previous: <a href="Diversity calculations.html" title="previous chapter">Diversity calculations</a></li>
-      <li>Next: <a href="GUI.html" title="next chapter">GUI</a></li>
+      <li>Previous: <a href="Null%20models.html" title="previous chapter">Null models</a></li>
   </ul></li>
 </ul>
 </div>
@@ -246,7 +244,7 @@ between the meta data categories specified present under compareVar.</p>
       &copy;2019, Oskar Modin.
       
       |
-      Powered by <a href="http://sphinx-doc.org/">Sphinx 3.1.2</a>
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 3.2.1</a>
       &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.12</a>
       
       |

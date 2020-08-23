@@ -1,19 +1,18 @@
 Diversity calculations
 **********************
 
-Distance between sequences
-##########################
+*Alpha diversity* refers to diversity of OTUs/ASVs within a sample. *Beta diversity* refers to differences in community composition between different sampes. 
+We have three ways of measuring diversity: 
 
-.. code-block:: python
+- *naive* diversity considers all OTUs/ASVs to be equally differerent from each (this is also called taxonomic diversity);
+- *phylogenetic* diversity takes evolutionary distances between OTUs/ASVs in a phylogenetic tree into account;
+- *functional* diversity takes pairwise distances between OTUs/ASVs in a distance matrix into account.
+ 
+In the Hill-based framework used to calculate the naive-, phylogenetic-, and functional diversity measures, the importance of the relative abundance of OTUs/ASVs can be tuned by the diversity order (q). 
 
-   diversity.sequence_comparison(seq, savename='PhylDistMat')
-
-Returns a csv file with pairwise distances between sequences in the data set. 
-The distance is calculated as the Levenshtein distance dividied by the length of the longest distance in the pair.
-
-*seq* is a dataframe holding the sequences, typically obj[‘seq’] 
-
-*savename* specifies path and name of output file. 
+- A q of 0 means that relative abundance is not considered and OTUs/ASVs are treated as either present or absent in the samples.
+- A q of 1 means that that each OTU/ASV is weighted exactly according to its relative abundance in the sample.
+- A q > 1 means that more weight is given to OTUs/ASVs with high relative abundance.
 
 Alpha diversity
 ###############
@@ -24,31 +23,56 @@ Alpha diversity
 
 Returns taxonomic (or naive) alpha diversity values (i.e. Hill numbers) for all samples.
 
-*tab* is a frequency table holding the read counts, typically object['tab']
+*tab* is a frequency table holding the read counts, typically obj['tab']
 
-*q* is the diversity order for the Hill numbers.
+*q* is the diversity order.
 
 .. code-block:: python
    
-   diversity.phyl_alpha(tab, distmat, q=0):
+   diversity.phyl_alpha(tab, tree, q=1, index='PD'):
 
-Returns alpha diversity values that takes the pairwise distances between sequences into account. 
-The values are the same as the functional diversity measures described by Chiu et al. (2014), *PLOS ONE,* 9(7), e100014.
+Returns alpha diversity values that takes phylogenetic tree distances between sequences into account. 
 
-*tab* is a frequency table holding the read counts, typically object['tab']
+*tab* is a count table holding the read counts, typically obj['tab']
 
-*distmat* is a dataframe with pairwise distances between the sequences of OTUs/SVs. The file can be generated wit the diversity.sequence_comparison() function.
+*tree* is the tree dataframe, typically obj['tree'].
+
+*q* is the diversity order.
+
+*index* can be: 'PD', 'D', or 'H'. 'PD' is the phylogenetic diversity, 'D' is the Hill diversity number corrected for phylogenetic relationships, and 'H' is the phylogenetic entropy.
+See Chao et al. (2010). *Phil. Trans. R. Soc. B,* 365, 3599-3609 (DOI: 10.1098/rstb.2010.0272).
+
+.. code-block:: python
+   
+   diversity.func_alpha(tab, distmat, q=0, index='FD'):
+
+Returns alpha diversity values that takes the pairwise distances from between sequences into account. 
+The values are the same as the functional diversity measures described by Chiu et al. (2014), *PLOS ONE,* 9(7), e100014 (DOI: 10.1371/journal.pone.0100014).
+
+*tab* is a count table holding the read counts, typically obj['tab']
+
+*distmat* is a dataframe with pairwise distances between the sequences of OTUs/SVs. The file can be generated wit the stats.sequence_comparison() function.
 
 *q* is the diversity order for the Hill numbers.
 
+*index* can be: 'FD', 'MD', or 'D'. 'FD' is the functional diversity ("the effective total distance between species"), 'MD' is the mean functional diversity ("the effective sum of pairwise distances between a species and all other species"),
+and 'D' is the functional Hill number ("the effective number of equally abundant and equally distinct species"). See Chiu et al. (2014), *PLOS ONE,* 9(7), e100014 (DOI: 10.1371/journal.pone.0100014), the descriptions in quotations marks are from that paper.
+
 Beta diversity (dissimilarity)
 ##############################
+
+The difference in community composition between different samples can be expressed as *beta diversity* or *dissimilarity*. Beta diversity takes a value between 1 (if the compared samples are identical to each) and N (which is the number of samples being compared.
+For functional beta diversity it goes between 1 and NxN.
+Dissimilarity takes a value between 0 (if the compared samples are identical) and 1 (if the compared samples are completely different). Dissimilarity can be calculated with a *local* or *regional* viewpoint. 
+The local viewpoint quantifies the effective proportion of OTUs/ASVs in a sample that is not shared across all samples. 
+The regional viewpoint quantifies the effective proportion of OTUs/ASVs in the pooled samples that is not shared across all samples.
+See Chao and Chiu (2016), *Methods in Ecology and Evolution,* 7, 919-928.
 
 .. code-block:: python
 
    diversity.naive_beta(tab, q=1, dis=True, viewpoint='local'):
 
-Returns a dataframe of pairwise dissimilarities between samples. Taxonomic Hill-based dissimilarities of order q are calculated. 
+Returns a dataframe of pairwise dissimilarities between samples. Taxonomic (or naive) Hill-based dissimilarities of order q are calculated. 
 
 *tab* is a frequency table holding the read counts, typically object['tab']
 
@@ -61,20 +85,38 @@ if *dis* =False, beta diversity constrained between 1 and 2 are calculated.
 
 .. code-block:: python
 
-   diversity.phyl_beta(tab, distmat, q=1, dis=True, viewpoint='local'):
+   diversity.phyl_beta(tab, tree, q=1, dis=True, viewpoint='local'):
 
-Returns a dataframe of pairwise dissimilarities, which take sequence distances into account. The values are the functional beta diversity measures described by Chiu et al. (2014), *PLOS ONE,* 9(7), e100014.
+Returns a dataframe of pairwise dissimilarities, which take a phylogenetic tree into account. 
+The values are the phylogenetic beta diversity measures described by Chiu et al. (2014), *Ecological Monographs,* 84(1), 21-44.
 
-*tab* is a frequency table holding the read counts, typically object['tab']
+*tab* is a frequency table holding the read counts, typically obj['tab']
 
-*distmat* is a dataframe with pairwise distances between the sequences of OTUs/SVs. The file can be generated wit the diversity.sequence_comparison() function.
+*tree* is a dataframe with phylogenetic tree information, typically obj['tree'].
+
+*q* is the diversity order.
+
+If *dis* =True, dissimilarities constrained between 0 and 1 are calculated, 
+if *dis* =False, beta diversity constrained between 1 and 2 are calculated.
+
+*viewpoint* can ‘local’ or ‘regional’.
+
+.. code-block:: python
+
+   diversity.func_beta(tab, distmat, q=1, dis=True, viewpoint='local'):
+
+Returns a dataframe of pairwise dissimilarities, which take pairwise sequence distances into account. The values are the functional beta diversity measures described by Chiu et al. (2014), *PLOS ONE,* 9(7), e100014.
+
+*tab* is a frequency table holding the read counts, typically obj['tab'].
+
+*distmat* is a dataframe with pairwise distances between the sequences of OTUs/ASVs. The file can be generated with the stats.sequence_comparison() function.
 
 *q* is the diversity order.
 
 If *dis* =True, dissimilarities constrained between 0 and 1 are calculated, 
 if *dis* =False, beta diversity constrained between 1 and 4 are calculated.
 
-*viewpoint* can ‘local’ or ‘regional’, the difference is described in Chao et al. (2014), *Annual Review of Ecology, Evolution, and Systematics,* 45, 297-324.
+*viewpoint* can ‘local’ or ‘regional’.
 
 .. code-block:: python
 
@@ -82,7 +124,9 @@ if *dis* =False, beta diversity constrained between 1 and 4 are calculated.
 
 Returns a dataframe of pairwise Jaccard dissimilarities between samples.
 
-*tab* is a frequency table holding the read counts, typically object['tab']
+*tab* is a count table holding the read counts, typically object['tab']
+
+Note that Jaccard dissimilarity is the same as naive_beta(tab, q=0, dis=True, viewpoint='regional')
 
 .. code-block:: python
 
@@ -90,13 +134,13 @@ Returns a dataframe of pairwise Jaccard dissimilarities between samples.
    
 Returns a dataframe of pairwise Bray-Curtis dissimilarities between samples.
 
-*tab* is a frequency table holding the read counts, typically object['tab']
+*tab* is a count table holding the read counts, typically obj['tab']
 
 .. code-block:: python
 
    diversity.naive_multi_beta(obj, var='None', q=1)
 
-Returns a pandas dataframe containing beta diversity, and local- and regional dissimilarity values for categories of samples.
+Returns a pandas dataframe containing taxonomic (naive) beta diversity, and local- and regional dissimilarity values for categories of samples.
 
 *obj* is the qdiv object.
 
@@ -106,7 +150,33 @@ Returns a pandas dataframe containing beta diversity, and local- and regional di
 
 .. code-block:: python
 
-   diversity.naive_dissimilarity_contributions(obj, var='None', q=1, index='local')
+   diversity.phyl_multi_beta(obj, var='None', q=1)
+
+Returns a pandas dataframe containing phylogenetic beta diversity, and local- and regional dissimilarity values for categories of samples.
+
+*obj* is the qdiv object.
+
+*var* is the column heading in the meta data used to categorize the samples. If a category has two or more samples, beta diversity for that category is calculated.
+
+*q* is the diversity order. 
+
+.. code-block:: python
+
+   diversity.func_multi_beta(obj, distmat, var='None', q=1)
+
+Returns a pandas dataframe containing phylogenetic beta diversity, and local- and regional dissimilarity values for categories of samples.
+
+*obj* is the qdiv object.
+
+*distmat* is a distance matrix with pairwise distances between OTUs/ASVs, typically generated by the stats.sequence_comparison() function.
+
+*var* is the column heading in the meta data used to categorize the samples. If a category has two or more samples, beta diversity for that category is calculated.
+
+*q* is the diversity order. 
+
+.. code-block:: python
+
+   diversity.dissimilarity_contributions(obj, var='None', q=1, divType='naive', index='local')
 
 Returns a pandas dataframe with information about dissimilarity, number of samples, and the percentage contribution of each OTU/ASV to the observed dissimilarity.
 
@@ -116,6 +186,8 @@ Returns a pandas dataframe with information about dissimilarity, number of sampl
 
 *q* is the diversity order. 
 
+*divType* is the type of diversity: 'naive' or 'phyl'.
+
 *index* is the type of dissimilarity index (either local or regional)
 
 Evenness
@@ -123,54 +195,21 @@ Evenness
 
 .. code-block:: python
 
-   diversity.evenness(tab, q=1, index='local', perspective='samples')
+   diversity.evenness(tab, tree='None', distmat='None', q=1, divType='naive', index='local', perspective='samples')
 
-Returns evenness calculated according to Chao and Ricotta (2019) Ecology 100(12), e02852.
+Returns evenness calculated according to Chao and Ricotta (2019) *Ecology,* 100(12), e02852. If q is 1, divType is 'naive', and index is either 'CR1', 'CR2', 'local' or 'regional', the evenness is identical to Pielou's evenness. 
 
-*tab* is count table and *q* is diversity order.
+*tab* is a count table, typically obj['tab'] 
 
-*index* can be Chao1, Chao2, Chao3, Chao4, or Chao5. These refer to the indices described in Table 1 in Chao and Ricotta (2019).
+*tree* would typically be obj['tree']. It must be specified only if divType='phyl'.
 
-index can also be local, which is equal to Chao2, or regional, which is equal to Chao1.
+*distmat* is a distance matrix. It must be specified only if divType='func'.
 
-*perspective* can be samples, which means an evenness value is calculated for each sample (column) in the count table
+*q* is diversity order.
 
-*perspective* can also taxa, which means an evenness value is calculated for each OTU/ASV (row) in the count table
+*divType* is 'naive', 'phyl', or 'func'.
 
-Null model analysis based on Raup-Crick
-#######################################
+*index* can be 'CR1', 'CR2', 'CR3', 'CR4', or 'CR5'. These refer to the indices described in Table 1 in Chao and Ricotta (2019). *index* can also be 'local', which is equal to CR2, or 'regional', which is equal to CR1.
 
-.. code-block:: python
-
-   diversity.rcq(obj, constrainingVar='None', randomization='frequency', weightingVar='None', weight=1, iterations=9, disIndex='Hill', distmat='None', q=1, compareVar='None', RCrange='Raup'):
-
-The observed dissimilarities between samples are compared to a null distribution. 
-The null model randomizes the frequency table to calculate a null expectation of the pairwise dissimilarities between samples. The is repeated several times (iterations) to get a null distribution.
-During the randomization, the total OTU/ASV count and read count for each sample are kept constant, but the distribution of reads between OTUs/ASVs are randomized. 
-The function returns a python dictionary with several items: 
-
-- 'Obs' is the actually observed dissimilarity values.
-- 'Nullmean' is the mean values of the null dissimilarities (i.e. the dissimilarities of the randomized tables); 
-- 'Nullstd' is the standard devation; 
-- 'RC' is the Raup-Crick measure (i.e. the number of times the actual dissimilarities are higher than the null expectation).
-
-*obj* is the object. 
-
-*constrainingVar* is a column heading in the meta data that can be used to constrain the randomizations so that read counts are only randomized with a certain category of samples. 
-
-*randomization* specifies the randomization procedure: 
-
-- 'abundance' means that SVs are drawn to each sample based on the total read counts in the frequency table (or part of the table defined by *constrainingVar* ) 
-- 'frequency' means that SVs are drawn based on the number of samples in which they are detected. This method is the same as in Stegen et al. (2013). *ISME Journal,* 7(11), 2069-2079. 
-- 'weighting' uses the abundance method but a meta data column (*weightingVar* ) can be used to categorize samples and the *weight* parameter decide the importance of the category of samples with the lowest richness. A *weight* of 0 means that the low-richness samples are not considered in the regional community used to populate the samples with read counts while a weight of 1 means that all sample groups have equal weighting.
-
-*iterations* specifies the number of randomizations, 999 is the normal but could take several hours for large frequency tables. 
-
-*disIndex* specifies the dissimilarity index to calculate: 'Jaccard', 'Bray', and 'Hill' are available choices, 
-'Hill' refers to naive or phylogenetic dissimilarities of order q. If distmat is specified, diversity.phyl_beta are calculated.
-
-*compareVar* is a column heading in the meta data. If compareVar is not None, 'RCmean' and 'RCstd' are returned 
-and represents the mean and standard deviation of all pairwise comparison between the meta data categories specified present under compareVar 
-
-If *RCrange* ='Raup' the range for the index will be 0 to 1, if it is 'Chase' it will -1 to 1. The names refer to Raup and Crick (1979), *J Paleontology,* 53(5), 1213-1227 and
-Chase et al. (2011), *Ecosphere,* 2(2), 24.
+*perspective* can be 'samples', which means an evenness value is calculated for each sample (column) in the count table.
+*perspective* can also be 'taxa', which means an evenness value is calculated for each OTU/ASV (row) in the count table.

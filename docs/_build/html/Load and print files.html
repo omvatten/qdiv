@@ -4,7 +4,7 @@
 <html>
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Load and print files &#8212; qdiv  documentation</title>
     <link rel="stylesheet" href="_static/alabaster.css" type="text/css" />
     <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
@@ -15,8 +15,8 @@
     <script src="_static/language_data.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
-    <link rel="next" title="Information and statistics" href="Information and statistics.html" />
-    <link rel="prev" title="Input files" href="Input files.html" />
+    <link rel="next" title="Information and statistics" href="Information%20and%20statistics.html" />
+    <link rel="prev" title="Input files" href="Input%20files.html" />
    
   <link rel="stylesheet" href="_static/custom.css" type="text/css" />
   
@@ -37,24 +37,25 @@
 <h1>Load and print files<a class="headerlink" href="#load-and-print-files" title="Permalink to this headline">¶</a></h1>
 <div class="section" id="loading-files">
 <h2>Loading files<a class="headerlink" href="#loading-files" title="Permalink to this headline">¶</a></h2>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">files</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">path</span><span class="o">=</span><span class="s1">&#39;&#39;</span><span class="p">,</span> <span class="n">tab</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">fasta</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">meta</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">sep</span><span class="o">=</span><span class="s1">&#39;,&#39;</span><span class="p">)</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">files</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">path</span><span class="o">=</span><span class="s1">&#39;&#39;</span><span class="p">,</span> <span class="n">tab</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">fasta</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">tree</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">meta</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">sep</span><span class="o">=</span><span class="s1">&#39;,&#39;</span><span class="p">)</span>
 </pre></div>
 </div>
 <p>Loads files into an object, which is used for further analysis.</p>
-<p><em>path</em> is the path to the directory holding the input files, <em>tab</em> is the name of the count table file,</p>
-<p><em>fasta</em> is the name of the fasta file, <em>meta</em> is the name of meta data file, <em>sep</em> is the separator used in the count table and meta data files (, or ; or \t).</p>
+<p><em>path</em> is the path to the directory holding the input files, <em>tab</em> is the name of the count table file,
+<em>fasta</em> is the name of the fasta file, <em>tree</em> is a Newick-formatted tree file, <em>meta</em> is the name of meta data file, <em>sep</em> is the separator used in the count table and meta data files (‘,’ or ‘;’ or ‘\t’).</p>
 <p>Example</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">qdiv</span>
 
-<span class="n">obj</span> <span class="o">=</span> <span class="n">qdiv</span><span class="o">.</span><span class="n">files</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">path</span><span class="o">=</span><span class="s1">&#39;&#39;</span><span class="p">,</span> <span class="n">tab</span><span class="o">=</span><span class="s1">&#39;example_tab.csv&#39;</span><span class="p">,</span> <span class="n">fasta</span><span class="o">=</span><span class="s1">&#39;example_fasta.fa&#39;</span><span class="p">,</span> <span class="n">meta</span><span class="o">=</span><span class="s1">&#39;example_meta.csv&#39;</span><span class="p">,</span> <span class="n">sep</span><span class="o">=</span><span class="s1">&#39;,&#39;</span><span class="p">)</span>
+<span class="n">obj</span> <span class="o">=</span> <span class="n">qdiv</span><span class="o">.</span><span class="n">files</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">path</span><span class="o">=</span><span class="s1">&#39;&#39;</span><span class="p">,</span> <span class="n">tab</span><span class="o">=</span><span class="s1">&#39;example_tab.csv&#39;</span><span class="p">,</span> <span class="n">fasta</span><span class="o">=</span><span class="s1">&#39;example_fasta.fa&#39;</span><span class="p">,</span> <span class="n">tree</span><span class="o">=</span><span class="s1">&#39;example_tree.txt&#39;</span><span class="p">,</span> <span class="n">meta</span><span class="o">=</span><span class="s1">&#39;example_meta.csv&#39;</span><span class="p">,</span> <span class="n">sep</span><span class="o">=</span><span class="s1">&#39;,&#39;</span><span class="p">)</span>
 </pre></div>
 </div>
-<p>obj is now a python dictionary containing five pandas dataframes ‘tab’, ‘ra’, ‘tax’, ‘seq’, and ‘meta’.</p>
+<p>obj is now a python dictionary containing six pandas dataframes ‘tab’, ‘ra’, ‘tax’, ‘seq’, ‘tree’, and ‘meta’.</p>
 <ul class="simple">
 <li><p>‘tab’ holds the counts associated with each OTU/ASV (rows) and sample (columns).</p></li>
 <li><p>‘ra’ holds the percentage relative abundance of reads per sample associated with each OTU/ASV (rows) and sample (columns).</p></li>
 <li><p>‘tax’ holds the taxonomic classification for each OTU/ASV. The row indices are OTU/ASV names, the column names are ‘Domain’, ‘Kingdom’, ‘Phylum’, ‘Class’, ‘Order’, ‘Family’, ‘Genus’, ‘Species’.</p></li>
 <li><p>‘seq’ holds the sequences. The row indices are the OTU/ASV names, the column ‘seq’ holds the sequences.</p></li>
+<li><p>‘tree’ holds tree branches. The column ‘nodes’ holds the node names (end nodes are the same as OTU/ASV names), ‘ASVs’ holds a list of OTUs/ASVs connected to each node, and ‘branchL’ holds the lengths of the branches connected to each node.</p></li>
 <li><p>‘meta’ holds the meta data. The row indices are the samples names (the same as the column headings in ‘tab’). The columns are variables that define each sample as determined by the user in the meta data input file.</p></li>
 </ul>
 </div>
@@ -63,7 +64,7 @@
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">files</span><span class="o">.</span><span class="n">printout</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">path</span><span class="o">=</span><span class="s1">&#39;&#39;</span><span class="p">,</span> <span class="n">savename</span><span class="o">=</span><span class="s1">&#39;&#39;</span><span class="p">,</span> <span class="n">sep</span><span class="o">=</span><span class="s1">&#39;,&#39;</span><span class="p">)</span>
 </pre></div>
 </div>
-<p>Saves the python object as files of the same type as the input files.</p>
+<p>Saves the python object as files of the same type as the input files. (The Newick tree file is not returned.)</p>
 <p><em>obj</em> is the object to be printed.</p>
 <p><em>path</em> is the path to the directory holding the printed files.</p>
 <p><em>savename</em> is the name used for the printed files, <em>sep</em> is the separator to be used in the printed count table and meta data files (‘,’ or ‘;’ or ‘\t’).</p>
@@ -73,6 +74,30 @@
 <span class="n">qdiv</span><span class="o">.</span><span class="n">files</span><span class="o">.</span><span class="n">printout</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">path</span><span class="o">=</span><span class="s1">&#39;&#39;</span><span class="p">,</span> <span class="n">savename</span><span class="o">=</span><span class="s1">&#39;output&#39;</span><span class="p">,</span> <span class="n">sep</span><span class="o">=</span><span class="s1">&#39;,&#39;</span><span class="p">)</span>
 </pre></div>
 </div>
+</div>
+<div class="section" id="load-new-taxonomy">
+<h2>Load new taxonomy<a class="headerlink" href="#load-new-taxonomy" title="Permalink to this headline">¶</a></h2>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">files</span><span class="o">.</span><span class="n">read_rdp</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">filename</span><span class="p">,</span> <span class="n">cutoff</span><span class="o">=</span><span class="mi">70</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Reads taxonomy from a file generated using the RDP classifier (<a class="reference external" href="https://rdp.cme.msu.edu/classifier/classifier.jsp">https://rdp.cme.msu.edu/classifier/classifier.jsp</a>). Go to the website, upload your fasta file, click submit.
+When the sequences have been processed, click ‘show assignment detail for Root only’, then click ‘download allrank results’.</p>
+<p><em>obj</em> is the object to which the taxonomy should be added. If the object already contains taxonomy information, it will be replaced by the new taxonomy.</p>
+<p><em>filename</em> is the text file with the new taxonomy.</p>
+<p><em>cutoff</em> is the minimum percentage needed to include a taxonomic level.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">files</span><span class="o">.</span><span class="n">read_sintax</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">filename</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Reads taxonomy from a file generated using sintax in USEARCH or VSEARCH.</p>
+<p><em>obj</em> is the object to which the taxonomy should be added. If the object already contains taxonomy information, it will be replaced by the new taxonomy.</p>
+<p><em>filename</em> is the text file with the new taxonomy.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">files</span><span class="o">.</span><span class="n">read_sina</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">filename</span><span class="p">,</span> <span class="n">taxonomy</span><span class="o">=</span><span class="s1">&#39;silva&#39;</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Reads taxonomy from a file generated using the SINA classifier (<a class="reference external" href="https://www.arb-silva.de/aligner/">https://www.arb-silva.de/aligner/</a>).</p>
+<p><em>obj</em> is the object to which the taxonomy should be added. If the object already contains taxonomy information, this will be replaced by the new taxonomy.</p>
+<p><em>filename</em> is the text file with the new taxonomy.</p>
+<p><em>taxonomy</em> options are: ‘silva’, ‘ltp’, ‘rdp’, ‘gtdb’, ‘embl_ebi_ena’</p>
 </div>
 </div>
 
@@ -95,25 +120,27 @@
 <h3>Navigation</h3>
 <ul class="current">
 <li class="toctree-l1"><a class="reference internal" href="Installation.html">Installation instructions</a></li>
-<li class="toctree-l1"><a class="reference internal" href="Input files.html">Input files</a></li>
+<li class="toctree-l1"><a class="reference internal" href="Input%20files.html">Input files</a></li>
 <li class="toctree-l1 current"><a class="current reference internal" href="#">Load and print files</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="#loading-files">Loading files</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#save-files">Save files</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#load-new-taxonomy">Load new taxonomy</a></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="Information and statistics.html">Information and statistics</a></li>
-<li class="toctree-l1"><a class="reference internal" href="Subset and manipulate data.html">Subset and manipulate data</a></li>
-<li class="toctree-l1"><a class="reference internal" href="Diversity calculations.html">Diversity calculations</a></li>
+<li class="toctree-l1"><a class="reference internal" href="Information%20and%20statistics.html">Information and statistics</a></li>
+<li class="toctree-l1"><a class="reference internal" href="Subset%20and%20manipulate%20data.html">Subset and manipulate data</a></li>
+<li class="toctree-l1"><a class="reference internal" href="Diversity%20calculations.html">Diversity calculations</a></li>
+<li class="toctree-l1"><a class="reference internal" href="Null%20models.html">Null models</a></li>
 <li class="toctree-l1"><a class="reference internal" href="Plotting.html">Plotting</a></li>
-<li class="toctree-l1"><a class="reference internal" href="GUI.html">GUI</a></li>
+<li class="toctree-l1"><a class="reference internal" href="Citations.html">Citations</a></li>
 </ul>
 
 <div class="relations">
 <h3>Related Topics</h3>
 <ul>
   <li><a href="index.html">Documentation overview</a><ul>
-      <li>Previous: <a href="Input files.html" title="previous chapter">Input files</a></li>
-      <li>Next: <a href="Information and statistics.html" title="next chapter">Information and statistics</a></li>
+      <li>Previous: <a href="Input%20files.html" title="previous chapter">Input files</a></li>
+      <li>Next: <a href="Information%20and%20statistics.html" title="next chapter">Information and statistics</a></li>
   </ul></li>
 </ul>
 </div>
@@ -143,7 +170,7 @@
       &copy;2019, Oskar Modin.
       
       |
-      Powered by <a href="http://sphinx-doc.org/">Sphinx 3.1.2</a>
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 3.2.1</a>
       &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.12</a>
       
       |

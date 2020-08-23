@@ -2,165 +2,15 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib import colors as mcolors
-import tkinter as tk
 import pickle
 import math
 from . import subset
 from . import diversity
-
+from . import null
+from . import hfunc
 pd.options.mode.chained_assignment = None  # default='warn'
 
-# Returns color- or marker lists to use in figures
-# type is 'colors' or 'markers'. If plot=True a figure with available options will be shown else a list is returned
-def get_colors_markers(type='colors', plot=False):
-    # Sort colors by hue, saturation, value and name.
-    colors = dict(mcolors.BASE_COLORS, **mcolors.CSS4_COLORS)
-    by_hsv = sorted((tuple(mcolors.rgb_to_hsv(mcolors.to_rgba(color)[:3])), name) for name, color in colors.items())
-    color_names = [name for hsv, name in by_hsv]
-
-    if type == 'colors' and not plot:
-        numberlist = [128, 24, 38, 79, 146, 49, 152, 117, 58, 80, 119, 20, 97, 57, 138, 120, 153, 60, 16]
-        outputlist = []
-        for i in numberlist:
-            outputlist.append(color_names[i])
-        return outputlist
-
-    elif type == 'colors' and plot:
-        n = len(color_names)
-        ncols = 4
-        nrows = n // ncols
-
-        fig, ax = plt.subplots(figsize=(12, 10))
-
-        # Get height and width
-        X, Y = fig.get_dpi() * fig.get_size_inches()
-        h = Y / (nrows + 1)
-        w = X / ncols
-
-        for i, name in enumerate(color_names):
-            row = i % nrows
-            col = i // nrows
-            y = Y - (row * h) - h
-
-            xi_line = w * (col + 0.05)
-            xf_line = w * (col + 0.25)
-            xi_text = w * (col + 0.3)
-
-            ax.text(xi_text, y, str(i)+':'+name, fontsize=(h * 0.6),
-                    horizontalalignment='left',
-                    verticalalignment='center')
-            ax.hlines(y + h * 0.1, xi_line, xf_line,
-                      color=colors[name], linewidth=(h * 0.8))
-
-        ax.set_xlim(0, X)
-        ax.set_ylim(0, Y)
-        ax.set_axis_off()
-
-        fig.subplots_adjust(left=0, right=1,
-                            top=1, bottom=0,
-                            hspace=0, wspace=0)
-        plt.show()
-
-    elif type == 'markers' and not plot:
-        return ['o', 's', 'v', 'X', '.', '*', 'P', 'D', '<', ',', '^', '>', '1', '2', '3', '4', '8', 'h', 'H', '+']
-
-    elif type == 'markers' and plot:
-        mlist = ['o', 's', 'v', 'X', '*', 'P', 'D', '<', '1', '^', '2', '>', '3', '4', '.']
-        for i in range(len(mlist)):
-            plt.scatter(i+1, i+1, marker=mlist[i], s=30)
-            plt.text(i+1, i+1.5, mlist[i])
-        plt.show()
-
-# Groups SVs based on taxa, returns object with grouped sequences
-# levels specifies taxonomic levels to use in the grouping
-# nameType specifies the abbreviation to be used for unclassified sequences
-def groupbytaxa(obj, levels=['Phylum', 'Genus'], nameType='ASV'):
-    # Clean up tax data frame
-    tax = obj['tax'].copy()
-    tax = tax.fillna('0')
-    taxSV = tax.copy() #df to hold nameTypes in undefined
-    taxNames = tax.copy() #df to hold lowest known taxaname in undefined
-
-    # Check which OTU or SV name is used in the index
-    indexlist = tax.index.tolist()
-    if indexlist[0][:3] in ['Otu', 'OTU', 'ASV', 'ESV']:
-        currentname = indexlist[0][:3]
-        startpos = 3
-    elif indexlist[0][:2] in ['SV']:
-        currentname = indexlist[0][:2]
-        startpos = 2
-    else:
-        print('Error in groupbyTaxa, ASV/OTU name not known')
-        return 0
-
-    # If incorrect name is in tax, make column with correct name
-    if nameType != currentname:
-        newnames = []
-        for i in range(len(indexlist)):
-            newnames.append(nameType+indexlist[i][startpos:])
-        indexlist = newnames
-
-    # Put the ASV/OTU name in all empty spots in taxSV
-    for col in range(len(taxSV.columns)):
-        for row in range(len(taxSV.index)):
-            if taxSV.iloc[row, col] == '0':
-                taxSV.iloc[row, col] = indexlist[row]
-    taxSV[nameType] = indexlist
-
-    # Change all 0 in tax to lowest determined taxa level in taxNames
-    for ix_nr in range(len(taxNames.index)):
-        if taxNames.iloc[ix_nr, 0] == '0':
-            taxNames.iloc[ix_nr, 0] = taxSV.loc[taxNames.index[ix_nr], nameType]
-
-    taxanameslist = taxNames.columns.tolist() #List with Kingdom, Phylum .. SV
-    for s_nr in range(1, len(taxanameslist)):
-        s0 = taxanameslist[s_nr-1]
-        s1 = taxanameslist[s_nr]
-        taxNames[s1][tax[s1] == '0'] = taxNames[s0][tax[s1] == '0']
-
-    # Create names to use in output
-    if len(levels) == 1:
-        tax['Name'] = taxSV[levels[0]]
-        for ix in tax.index:
-            if tax.loc[ix, levels[0]] == '0':
-                tax.loc[ix, 'Name'] = taxNames.loc[ix, levels[0]] + '; ' + tax.loc[ix, 'Name']
-    elif len(levels) == 2:
-        tax['Name'] = taxNames[levels[0]]+'; '+taxSV[levels[1]]
-    else:
-        print('Error in GroupbyTaxa, levels should be a list with 1 or 2 items')
-        return 0
-
-    #Grouby Name and return object
-    out = {}
-    if 'tab' in obj.keys():
-        tab = obj['tab'].copy()
-        tab['Name'] = tax['Name']
-        tab = tab.set_index(['Name'])
-        tab = tab.groupby(tab.index).sum()
-        out['tab'] = tab
-    if 'ra' in obj.keys():
-        ra = obj['ra'].copy()
-        ra['Name'] = tax['Name']
-        ra = ra.set_index('Name')
-        ra = ra.groupby(ra.index).sum()
-        out['ra'] = ra
-    if 'meta' in obj.keys():
-        out['meta'] = obj['meta'].copy()
-    if 'tax' in obj.keys():
-        newtax = obj['tax'].copy()
-        newtax['Name'] = tax['Name']
-        newtax = newtax.set_index(['Name'])
-        newtax = newtax.groupby(newtax.index).first()
-        if len(levels) == 1:
-            lowest_level = levels[0]
-        else:
-            lowest_level = levels[-1]
-        position_nr = tax.columns.tolist().index(lowest_level)
-        for c_nr in range(len(newtax.columns)):
-            if c_nr > position_nr:
-                newtax.iloc[:, c_nr] = np.nan
-        out['tax'] = newtax
-    return out
+# PLOT FUNCTIONS
 
 ## Plots heatmap
     # xAxis specifies heading in meta data used to merge samples
@@ -170,12 +20,12 @@ def groupbytaxa(obj, levels=['Phylum', 'Genus'], nameType='ASV'):
     # numberToPlot refers to the number of taxa with highest abundance to include in the heatmap
     # method refers to the method used to define the taxa with highest abundance, 'max_sample' is max relative abundance in a sample,
     # 'mean_all' is the mean relative abundance across all samples
-    # nameType is nameType in groupbyTaxa function
-    # figSize is the width and height of the figure
-    # fontSize is refers to the axis text
+    # nameType specifies the abbreviation to be used for unclassified sequences
+    # figsize is the width and height of the figure
+    # fontsize is refers to the axis text
     # sepCol is a list of column numbers between which to include a separator, i.e. to clarify grouping of samples
     # if labels=True, include relative abundance values in heatmap, if False they are not included
-    # labelSize is the font size of the relative abundance lables in the heatmap
+    # labelsize is the font size of the relative abundance lables in the heatmap
     # cThreshold is the relative abundance % at which the label color switches from black to white (for clarity)
     # cMap is the color map used in the heatmap
     # cLinear is a parameter determining how the color change with relative abundance, a value of 1 means the change is linear
@@ -183,8 +33,8 @@ def groupbytaxa(obj, levels=['Phylum', 'Genus'], nameType='ASV'):
     # savename is the name (also include path) of the saved png file, if 'None' no figure is saved
 def heatmap(obj, xAxis='None', levels=['Phylum', 'Genus'], levelsShown='None', subsetLevels='None', subsetPatterns='None',
                 order='None', numberToPlot=20, method='max_sample', nameType='ASV',
-                 figSize=(14, 10), fontSize=15, sepCol = [],
-                labels=True, labelSize=10, cThreshold=8,
+                 figsize=(14, 10), fontsize=15, sepCol = [],
+                labels=True, labelsize=10, cThreshold=8,
                 cMap='Reds', cLinear=0.5, cBar=[], savename='None'):
 
     #Merge samples based on xAxis
@@ -216,8 +66,9 @@ def heatmap(obj, xAxis='None', levels=['Phylum', 'Genus'], levelsShown='None', s
         merged_obj = subset_obj
 
     ## Groupby taxa
-    taxa_obj = groupbytaxa(merged_obj, levels=levels, nameType=nameType)
-    ra = taxa_obj['ra']; table = ra.copy()
+    taxa_obj = hfunc.groupbytaxa(merged_obj, levels=levels, nameType=nameType)
+    ra = taxa_obj['ra']
+    table = ra.copy()
 
     # Subset for top taxa
     if method == 'max_sample':
@@ -242,25 +93,25 @@ def heatmap(obj, xAxis='None', levels=['Phylum', 'Genus'], levelsShown='None', s
         if ';' in n and '__' in n: #Check if there are two taxa names
             splitname = n.split(';')
             splitname1 = splitname[0].split('__')
-            newname1 = splitname1[0]+'__'+'$\it{'+splitname1[1]+'}$'
+            newname1 = splitname1[0]+'__'+'$\it{'+splitname1[1].replace('_',' ')+'}$'
             if '__' in splitname[1]:
                 splitname2 = splitname[1].split('__')
-                newname2 = splitname2[0]+'__'+'$\it{'+splitname2[1]+'}$'
+                newname2 = splitname2[0]+'__'+'$\it{'+splitname2[1].replace('_',' ')+'}$'
             else:
-                newname2 = splitname[1]
-            newname = newname1+';'+newname2
+                newname2 = splitname[1].replace('_',' ')
+            newname = newname1+'; '+newname2
         elif ';' in n and '__' not in n:
             splitname = n.split(';')
-            newname = splitname[0]
+            newname = splitname[0].replace('_', ' ')
         else: #If there is only one taxa name
             if '__' in n:
                 splitname = n.split('__')
-                newname = splitname[0]+'__'+'$\it{'+splitname[1]+'}$'
+                newname = splitname[0]+'__'+'$\it{'+splitname[1].replace('_', ' ')+'}$'
             else:
-                newname = n
+                newname = n.replace('_', ' ')
         new_taxa_list.append(newname)
-    table = pd.DataFrame(table.values, index=new_taxa_list, columns=table.columns)
-
+    table = pd.DataFrame(table.to_numpy(), index=new_taxa_list, columns=table.columns)
+    
     # Print heatmap
     table['avg'] = table.mean(axis=1)
     table = table.sort_values(by=['avg'], ascending=True)
@@ -270,7 +121,7 @@ def heatmap(obj, xAxis='None', levels=['Phylum', 'Genus'], levelsShown='None', s
         numbered_list = []
         for i in range(len(table.index), 0, -1):
             numbered_list.append(i)
-        table = pd.DataFrame(table.values, index=numbered_list, columns=table.columns)
+        table = pd.DataFrame(table.to_numpy(), index=numbered_list, columns=table.columns)
 
     #Fix datalabels
     if labels:
@@ -297,10 +148,9 @@ def heatmap(obj, xAxis='None', levels=['Phylum', 'Genus'], levelsShown='None', s
             if labels:
                 labelvalues.insert(loc=sepCol[i]+i, column=' '*(i+1), value='')
 
-
     #Plot
-    plt.rcParams.update({'font.size': fontSize})
-    fig, ax = plt.subplots(figsize=figSize)
+    plt.rcParams.update({'font.size': fontsize})
+    fig, ax = plt.subplots(figsize=figsize)
     im = ax.imshow(table, cmap=cMap, norm=mcolors.PowerNorm(gamma=cLinear), aspect='auto')
     if len(cBar) > 0:
         fig.colorbar(im, ticks=cBar)
@@ -329,13 +179,11 @@ def heatmap(obj, xAxis='None', levels=['Phylum', 'Genus'], levelsShown='None', s
                     textcolor = 'white'
                 else:
                     textcolor = 'black'
-                ax.text(c, r, labelvalues.iloc[r, c], fontsize=labelSize, ha='center', va='center', color=textcolor)
+                ax.text(c, r, labelvalues.iloc[r, c], fontsize=labelsize, ha='center', va='center', color=textcolor)
     fig.tight_layout()
-
     if savename != 'None':
         plt.savefig(savename+'.pdf', format='pdf')
         plt.savefig(savename)
-    plt.show()
 
 # Visualizes how alpha diversity depends on diversity order
 # If distmat is specified phylogenetic alpha diversity is calculated, else naive
@@ -343,8 +191,8 @@ def heatmap(obj, xAxis='None', levels=['Phylum', 'Genus'], levelsShown='None', s
 # slist is a list of samples from the var column to include (default is all)
 # order refers to column heading in meta data used to order the samples
 # If ylog=True, the y-axis of the plot will be logarithmic
-def alpha_diversity(obj, distmat='None', var='None', slist='All', order='None', ylog=False, 
-                    figSize=(10, 6), fontSize=18, colorlist='None', savename='None'):
+def alpha_diversity(obj, distmat='None', divType='naive', var='None', slist='None', order='None', ylog=False, 
+                    figsize=(10, 6), fontsize=18, colorlist='None', savename='None'):
     #Pick out samples to include based on var and slist
     meta = obj['meta']
     if order != 'None':
@@ -352,7 +200,7 @@ def alpha_diversity(obj, distmat='None', var='None', slist='All', order='None', 
 
     if var == 'None':
         smplist = meta.index.tolist()
-    elif slist == 'All':
+    elif slist == 'None':
         smplist = meta[var].index.tolist()
     else:
         smplist = meta[meta[var].isin(slist)].index.tolist()
@@ -364,18 +212,23 @@ def alpha_diversity(obj, distmat='None', var='None', slist='All', order='None', 
     #Put data in dataframe
     tab = obj['tab'][smplist]
     for x in xvalues:
-        if isinstance(distmat, str):
+        if divType == 'naive':
             alphadiv = diversity.naive_alpha(tab, q=x)
+        elif divType == 'phyl':
+            alphadiv = diversity.phyl_alpha(tab, tree=obj['tree'], q=x)
+        elif divType == 'func' and isinstance(distmat, pd.DataFrame):
+            alphadiv = diversity.func_alpha(tab, distmat=distmat, q=x)
         else:
-            alphadiv = diversity.phyl_alpha(tab, distmat, q=x)
+            print('Check divType and required input')
+            return None
         df.loc[x, smplist] = alphadiv
 
     #Plot data
-    plt.rcParams.update({'font.size': fontSize})
-    fig, ax = plt.subplots(figsize=figSize)
+    plt.rcParams.update({'font.size': fontsize})
+    fig, ax = plt.subplots(figsize=figsize)
 
     if colorlist == 'None':
-        colorlist = get_colors_markers('colors')
+        colorlist = hfunc.get_colors_markers('colors')
     else:
         colorlist = colorlist
     colorcheck = []
@@ -400,7 +253,13 @@ def alpha_diversity(obj, distmat='None', var='None', slist='All', order='None', 
         else:
             ax.plot(df.index, df[s], lw=1, color=col, label=lab)
 
-    ax.set_ylabel('Diversity number ($^q$D)')
+    if divType == 'naive':
+        ax.set_ylabel('Diversity number ($^q$D)')
+    elif divType == 'phyl':
+        ax.set_ylabel('Diversity number ($^q$PD)')
+    elif divType == 'func':
+        ax.set_ylabel('Diversity number ($^q$FD)')
+
     ax.set_xlabel('Diversity order (q)')
     ax.set_xticks([0.0, 0.5, 1.0, 1.5, 2.0])
     ax.set_xlim(0, 2)
@@ -414,6 +273,7 @@ def alpha_diversity(obj, distmat='None', var='None', slist='All', order='None', 
 
 # Visualizes dissimilarities in PCoA plot
 # dist is distance matrix and meta is meta data
+# biplot is list with meta data column headings used in biplot, the columns must contain numeric data
 # var1 is heading in meta used to color code, var2 is heading in meta used to code by marker type
 # var1_title and var_2 title are the titles used in the legend
 # whitePad sets the space between the outermost points and the plot limits (1.0=no space)
@@ -425,9 +285,9 @@ def alpha_diversity(obj, distmat='None', var='None', slist='All', order='None', 
 # if connectPoints is a metadata column header, it will use that data to connect the points
 # colorlist specifies colorlist to use for var1; same for markerlist and var2
 # savename is path and name to save png figure output
-def pcoa(dist, meta, biplot=[], var1='None', var2='None', var1_title='', var2_title='',
+def pcoa(dist, meta, var1='None', var2='None', var1_title='', var2_title='', biplot=[], 
              whitePad=1.1, var2pos=0.4, tag='None', order='None', title='', connectPoints='None',
-             figSize=(10, 14), fontSize=18, markerSize=100, markerscale=1.1,
+             figsize=(10, 14), fontsize=18, markersize=100, markerscale=1.1,
              hideAxisValues=False, showLegend=True,
              colorlist='None', markerlist='None', savename='None'):
     def get_eig(d): #Function for centering and eigen-decomposition of distance matrix
@@ -445,7 +305,7 @@ def pcoa(dist, meta, biplot=[], var1='None', var2='None', var1_title='', var2_ti
     ev_ev = get_eig(dist)
     #Correction method for negative eigenvalues
     if min(ev_ev[0]) < 0: #From Legendre 1998, method 1 (derived from Lingoes 1971) chapter 9, page 502
-        d2 = (dist[dist != 0]**2 + 2*abs(min(ev_ev[0])))**0.5
+        d2 = (dist[dist > 0].pow(2) + 2*abs(min(ev_ev[0])))**0.5
         d2 = d2.fillna(0)
         ev_ev = get_eig(d2)
 
@@ -523,8 +383,9 @@ def pcoa(dist, meta, biplot=[], var1='None', var2='None', var1_title='', var2_ti
     if order != 'None':
         meta = meta.sort_values(by=[order])
 
-    if var1 == 'None' and var2 == 'None':
-        return 'Error, no variables in input'
+    if var1 == 'None':
+        print('Error, var1 is not specified')
+        return None
     if var1 != 'None': #List of names used for different colors in legend
         smpcats1 = []
         [smpcats1.append(item) for item in meta[var1] if item not in smpcats1]
@@ -537,12 +398,12 @@ def pcoa(dist, meta, biplot=[], var1='None', var2='None', var1_title='', var2_ti
 
     # Create figure
     if colorlist == 'None':
-        colorlist = get_colors_markers('colors')
+        colorlist = hfunc.get_colors_markers('colors')
     if markerlist == 'None':
-        markerlist = get_colors_markers('markers')
+        markerlist = hfunc.get_colors_markers('markers')
 
-    plt.rcParams.update({'font.size': fontSize})
-    fig, ax = plt.subplots(figsize=figSize)
+    plt.rcParams.update({'font.size': fontsize})
+    fig, ax = plt.subplots(figsize=figsize)
 
     linesColor = [[], []]
     linesShape = [[], []]
@@ -566,7 +427,7 @@ def pcoa(dist, meta, biplot=[], var1='None', var2='None', var1_title='', var2_ti
                     metaPlot_ij = metaPlot_i[metaPlot_i[var2] == smpcats2[j]]
                     xlist = metaPlot_ij[xn]
                     ylist = metaPlot_ij[yn]
-                    ax.scatter(xlist, ylist, label=None, color=colorlist[i], marker=markerlist[jcounter], s=markerSize)
+                    ax.scatter(xlist, ylist, label=None, color=colorlist[i], marker=markerlist[jcounter], s=markersize)
 
                     if jcounter not in shapeTracker:
                         linesShape[0].append(ax.scatter([], [], label=str(smpcats2[j]), color='black', marker=markerlist[jcounter]))
@@ -576,9 +437,9 @@ def pcoa(dist, meta, biplot=[], var1='None', var2='None', var1_title='', var2_ti
 
             # Here set both legends for color and marker
             if showLegend:
-                ax.legend(linesColor[0], linesColor[1], ncol=1, bbox_to_anchor=(1, 1), title=var1_title, frameon=False, markerscale=markerscale, fontsize=fontSize, loc=2)
+                ax.legend(linesColor[0], linesColor[1], ncol=1, bbox_to_anchor=(1, 1), title=var1_title, frameon=False, markerscale=markerscale, fontsize=fontsize, loc=2)
                 from matplotlib.legend import Legend
-                leg = Legend(ax, linesShape[0], linesShape[1], ncol=1, bbox_to_anchor=(1, var2pos), title=var2_title, frameon=False, markerscale=markerscale, fontsize=fontSize, loc=2)
+                leg = Legend(ax, linesShape[0], linesShape[1], ncol=1, bbox_to_anchor=(1, var2pos), title=var2_title, frameon=False, markerscale=markerscale, fontsize=fontsize, loc=2)
                 ax.add_artist(leg)
 
         else: #If there is no var2, change both color and marker with each category in var1
@@ -587,9 +448,9 @@ def pcoa(dist, meta, biplot=[], var1='None', var2='None', var1_title='', var2_ti
 
             xlist = metaPlot_i[xn]
             ylist = metaPlot_i[yn]
-            ax.scatter(xlist, ylist, label=None, color=colorlist[i], marker=markerlist[i], s=markerSize)
+            ax.scatter(xlist, ylist, label=None, color=colorlist[i], marker=markerlist[i], s=markersize)
             if showLegend:
-                ax.legend(linesColor[0], linesColor[1], bbox_to_anchor=(1, 1), title=var1_title, frameon=False, markerscale=markerscale, fontsize=fontSize, loc='upper left')
+                ax.legend(linesColor[0], linesColor[1], bbox_to_anchor=(1, 1), title=var1_title, frameon=False, markerscale=markerscale, fontsize=fontsize, loc='upper left')
 
     ##Put tags at each point
     if tag != 'None':
@@ -622,8 +483,8 @@ def pcoa(dist, meta, biplot=[], var1='None', var2='None', var1_title='', var2_ti
     plt.show()
 
 # Plots dissimilarity between pairs of samples types
-def pairwise_beta(obj, distmat='None', compareVar='None', spairs=[],
-                nullModel=True, randomization='abundance', weight=0, iterations=10,
+def pairwise_beta(obj, distmat='None', divType='naive', compareVar='None', spairs=[],
+                nullModel=True, randomization='frequency', weight=0, iterations=10,
                 qrange=[0, 2, 0.5], colorlist='None',
                     onlyPlotData='None', skipJB=False, onlyReturnData=False,
                     savename='None'):
@@ -631,7 +492,7 @@ def pairwise_beta(obj, distmat='None', compareVar='None', spairs=[],
     ##Function for plotting data
     def plot_pairwiseDB(dd, colorlist=colorlist, savename=savename):
         if colorlist == 'None':
-            colorlist = get_colors_markers()
+            colorlist = hfunc.get_colors_markers()
 
         df = dd['Hill']
         dn = dd['Hill_Null']
@@ -694,7 +555,7 @@ def pairwise_beta(obj, distmat='None', compareVar='None', spairs=[],
 
     def plot_withoutNull(dd, colorlist=colorlist, savename=savename):
         if colorlist == 'None':
-            colorlist = get_colors_markers()
+            colorlist = hfunc.get_colors_markers()
 
         plt.rcParams.update({'font.size': 10})
         fig, ax = plt.subplots(figsize=(10/2.54, 5/2.54))
@@ -747,14 +608,6 @@ def pairwise_beta(obj, distmat='None', compareVar='None', spairs=[],
             plot_withoutNull(onlyPlotData, colorlist, savename)
 
     else:
-        #Window to show progress
-        rootpwdb = tk.Tk()
-        rootpwdb.title('Pairwise beta dissimilarity calculation')
-        calc_progress = tk.StringVar(rootpwdb, 'Start')
-        tk.Label(rootpwdb, text='Progress in calculation', width=30).pack()
-        tk.Label(rootpwdb, textvariable=calc_progress, width=50).pack()
-
-
         meta = obj['meta']
 
         # Make dataframe for holding results
@@ -789,6 +642,8 @@ def pairwise_beta(obj, distmat='None', compareVar='None', spairs=[],
             tab = obj2['tab'].copy()
 
             #Calculate Bray-Curtis and Jaccard
+            print('Processing ' + pairnames[pair_nr] + ' Jaccard & Bray')
+
             betabray = diversity.bray(tab)
             betajac = diversity.jaccard(tab)
             if compareVar != 'None':
@@ -809,10 +664,10 @@ def pairwise_beta(obj, distmat='None', compareVar='None', spairs=[],
                 df_BJ.loc['Jac', pairnames[pair_nr]] = betajac.loc[pair0, pair1]
 
             if nullModel:
-                braynull = diversity.rcq(obj2, randomization=randomization, weightingVar=compareVar, weight=weight,
-                                    compareVar=compareVar, iterations=iterations, disIndex='Bray')
-                jacnull = diversity.rcq(obj2, randomization=randomization, weightingVar=compareVar, weight=weight,
-                                   compareVar=compareVar, iterations=iterations, disIndex='Jaccard')
+                braynull = null.rcq(obj2, randomization=randomization, weightingVar=compareVar, weight=weight,
+                                    compareVar=compareVar, iterations=iterations, divType='Bray')
+                jacnull = null.rcq(obj2, randomization=randomization, weightingVar=compareVar, weight=weight,
+                                   compareVar=compareVar, iterations=iterations, divType='Jaccard')
 
                 df_BJ_Null.loc['Bray', pairnames[pair_nr]] = braynull['Nullmean'].loc[pair0, pair1]
                 df_BJ_Nullstd.loc['Bray', pairnames[pair_nr]] = braynull['Nullstd'].loc[pair0, pair1]
@@ -829,14 +684,18 @@ def pairwise_beta(obj, distmat='None', compareVar='None', spairs=[],
 
             #Calculate Hill, Iterate for different diversity orders, q
             for q in qvalues:
-                calc_progress.set('Processing ' + pairnames[pair_nr] + ' q=' + str(q))
-                rootpwdb.update()
+                print('Processing ' + pairnames[pair_nr] + ' q=' + str(q))
 
                 #Calculate dis for real tab
-                if isinstance(distmat, str):
+                if divType == 'naive':
                     betadiv = diversity.naive_beta(tab, q=q)
+                elif divType == 'phyl' and 'tree' in obj:
+                    betadiv = diversity.phyl_beta(tab, tree=obj['tree'], q=q)
+                elif divType == 'func' and isinstance(distmat, pd.DataFrame):
+                    betadiv = diversity.func_beta(tab, distmat=distmat, q=q)
                 else:
-                    betadiv = diversity.phyl_beta(tab, distmat=distmat, q=q)
+                    print('Check divType and required input')
+                    return None
 
                 if compareVar != 'None':
                     templistH = []
@@ -851,8 +710,8 @@ def pairwise_beta(obj, distmat='None', compareVar='None', spairs=[],
                     df_Hill.loc[q, pairnames[pair_nr]] = betadiv.loc[pair0, pair1]
 
                 if nullModel:
-                    Hillnull = diversity.rcq(obj2, randomization=randomization, weightingVar=compareVar, weight=weight, q=q,
-                                        compareVar=compareVar, disIndex='Hill', iterations=iterations)
+                    Hillnull = null.rcq(obj2, randomization=randomization, weightingVar=compareVar, weight=weight, q=q,
+                                        compareVar=compareVar, divType='naive', iterations=iterations)
 
                     df_Hill_Null.loc[q, pairnames[pair_nr]] = Hillnull['Nullmean'].loc[pair0, pair1]
                     df_Hill_Nullstd.loc[q, pairnames[pair_nr]] = Hillnull['Nullstd'].loc[pair0, pair1]
@@ -861,7 +720,6 @@ def pairwise_beta(obj, distmat='None', compareVar='None', spairs=[],
                     else:
                         df_Hill_RC.loc[q, pairnames[pair_nr]] = Hillnull['RCmean'].loc[pair0, pair1]
                         df_Hill_RCstd.loc[q, pairnames[pair_nr]] = Hillnull['RCstd'].loc[pair0, pair1]
-
 
         # Make dictionary holding all data frames
         output = {}
@@ -879,8 +737,6 @@ def pairwise_beta(obj, distmat='None', compareVar='None', spairs=[],
         output['BJ_RC'] = df_BJ_RC
         output['BJ_RCstd'] = df_BJ_RCstd
 
-        rootpwdb.destroy()
-
         if savename != 'None':
             with open(savename+'.pickle', 'wb') as f:
                 pickle.dump(output, f)
@@ -895,7 +751,7 @@ def pairwise_beta(obj, distmat='None', compareVar='None', spairs=[],
 # Calculate and plot rarefaction curve
 # step is the step size used during subsampling, if 'flexible' the total reads are divided by 20
 # figsize is with ahd height of figure in inches
-# fontSize is size of text in figure
+# fontsize is size of text in figure
 # var is column in meta data used to color code lines in plot
 # order is column in meta data used to order sample
 # tag is column in meta data used to name lines in plot, if 'index', sample names are used
@@ -903,7 +759,8 @@ def pairwise_beta(obj, distmat='None', compareVar='None', spairs=[],
 # if onlyReturnData=True, function will return a dictionary with data
 # if onlyPlotData is a dictionary with data, it will be plotted and no calculations will be carried out
 # is savename is specified, plots will be saved and data will be saved as pickle file
-def rarefactioncurve(obj, step='flexible', figSize=(14, 10), fontSize=18, 
+def rarefactioncurve(obj, step='flexible', divType='naive', q=0, distmat='None',
+                     figsize=(14, 10), fontsize=18, 
                      var='None', order='None', tag='None', colorlist='None',
                      onlyReturnData=False, onlyPlotData='None', savename='None'):
     # Function for plotting
@@ -912,14 +769,14 @@ def rarefactioncurve(obj, step='flexible', figSize=(14, 10), fontSize=18,
             meta = meta.sort_values(by=[order])
         nonlocal colorlist
         if colorlist == 'None':
-            colorlist = get_colors_markers('colors')
+            colorlist = hfunc.get_colors_markers('colors')
         if var != 'None': #List of names used for different colors in legend
             smpcats = []
             [smpcats.append(item) for item in meta[var] if item not in smpcats]
 
         # Create figure
-        plt.rcParams.update({'font.size': fontSize})
-        fig, ax = plt.subplots(figsize=figSize)
+        plt.rcParams.update({'font.size': fontsize})
+        fig, ax = plt.subplots(figsize=figsize)
 
         # If special colorcoding (var) plot like this
         if var != 'None':
@@ -947,18 +804,20 @@ def rarefactioncurve(obj, step='flexible', figSize=(14, 10), fontSize=18,
         if var != 'None':
             ax.legend(bbox_to_anchor=(1, 1), loc='upper left', frameon=False)
         ax.set_xlabel('Reads')
-        ax.set_ylabel('Richness')
+        ax.set_ylabel('$^{'+str(q)+'}$D')
         plt.tight_layout()
         if savename != 'None':
             plt.savefig(savename)
             plt.savefig(savename + '.pdf', format='pdf')
         plt.show()
 
-    # Function for getting the data
-    def get_dictionary(tab):
+    # Getting the data
+    if onlyPlotData == 'None':
+        tab = obj['tab']
         res_di = {} #Dictionary holding x and y for each samples   
-        for smp in tab.columns:
-            print('Working on rarefaction curve for sample:', smp)
+        print('Working on rarefaction curve for sample: ', end='')
+        for smp in tab.columns: #Start going through the samples
+            print(smp, end='.. ')
             smp_series = tab[smp][tab[smp] > 0]
             totalreads = smp_series.sum()
             
@@ -973,32 +832,45 @@ def rarefactioncurve(obj, step='flexible', figSize=(14, 10), fontSize=18,
             np.random.shuffle(ind_reads_arr) #Shuffle the SVs
     
             #Make x- and y values for rarefaction curve    
-            nonlocal step
             if step == 'flexible':
                 step = int(totalreads/20)
             xvals = np.arange(step, totalreads, step)
             yvals = np.zeros(len(xvals))
-            for i, depth in enumerate(xvals):
-                bins_counts = np.unique(ind_reads_arr[:depth], return_counts=True)[1]
-                yvals[i] = len(bins_counts[bins_counts > 0])
+            for i, depth in enumerate(xvals): #Go through each step
+                bin_counts = np.unique(ind_reads_arr[:depth], return_counts=True)
+                temp_tab = pd.DataFrame(bin_counts[1], index=bin_counts[0], columns=[smp])
+                if divType == 'naive':
+                    div_val = diversity.naive_alpha(temp_tab, q=q)
+                elif divType == 'phyl':
+                    div_val = diversity.phyl_alpha(temp_tab, obj['tree'], q=q)
+                elif divType == 'func':
+                    div_val = diversity.func_alpha(temp_tab, distmat, q=q)
+                yvals[i] = div_val[smp]
+            #Add true value to the end and 0 to beginning
+            if divType == 'naive':
+                div_val = diversity.naive_alpha(tab[smp], q=q)
+            elif divType == 'phyl':
+                div_val = diversity.phyl_alpha(tab[smp], obj['tree'], q=q)
+            elif divType == 'func':
+                div_val = diversity.func_alpha(tab[smp], distmat, q=q)
             xvals = np.append(xvals, totalreads)
-            yvals = np.append(yvals, len(smp_series))
+            yvals = np.append(yvals, div_val[smp])
             xvals = np.insert(xvals, 0, [0, 1])        
             yvals = np.insert(yvals, 0, [0, 1])        
             res_di[smp] = [xvals, yvals]
+        print('Done') #Done going through the samples
 
         if savename != 'None':
             with open(savename + '.pickle', 'wb') as f:
                 pickle.dump(res_di, f)
-        return res_di
 
-    if onlyReturnData:
-        return get_dictionary(obj['tab'])
     elif onlyPlotData != 'None':
         plot_rarefactioncurve(obj['meta'], onlyPlotData)
+
+    if not onlyReturnData:
+        plot_rarefactioncurve(obj['meta'], res_di)
     else:
-        rd = get_dictionary(obj['tab'])
-        plot_rarefactioncurve(obj['meta'], rd)
+        return res_di
 
 # Octave plot according to Edgar and Flyvbjerg, DOI: https://doi.org/10.1101/38983
 # var is the column heading in metadata used to select samples to include. The counts for all samples with the same text in var column will be merged.
@@ -1010,7 +882,7 @@ def rarefactioncurve(obj, step='flexible', figSize=(14, 10), fontSize=18,
 # if title=True, sample name is shown as title for each panel
 # color determines color of bars
 # savename is path and name of file
-def octave(obj, var='None', slist='None', nrows=2, ncols=2, fontSize=11, figSize=(10, 6), 
+def octave(obj, var='None', slist='None', nrows=2, ncols=2, fontsize=11, figsize=(10, 6), 
            xlabels=True, ylabels=True, title=True, color='blue', savename='None'):
     if var == 'None':
         tab = obj['tab'].copy()
@@ -1032,8 +904,8 @@ def octave(obj, var='None', slist='None', nrows=2, ncols=2, fontSize=11, figSize
     df['min_count'] = 2**k_index
     df['max_count'] = 2**(k_index+1)-1
 
-    plt.rcParams.update({'font.size': fontSize})
-    fig = plt.figure(figsize=figSize, constrained_layout=True)
+    plt.rcParams.update({'font.size': fontsize})
+    fig = plt.figure(figsize=figsize, constrained_layout=True)
     gs = fig.add_gridspec(nrows, ncols)
     gs.update(wspace=0, hspace=0)
 
@@ -1079,13 +951,16 @@ def octave(obj, var='None', slist='None', nrows=2, ncols=2, fontSize=11, figSize
 # levels are taxonomic levels to include on y-axis
 # fromFile could be that path to a file generated with the output from diversity.naive_dissimilarity_contributions()
 # savename is path and name of files to be saved
-def dissimilarity_contributions(obj, var='None', q=1, index='local', numberToPlot=20, 
-                                levels=['Genus'], fromFile='None',
-                                figSize=(18/2.54, 14/2.54), fontSize=10,
-                                savename='None'):
+def dissimilarity_contributions(obj, var='None', q=1, divType='naive', index='local', 
+                                numberToPlot=20, levels=['Genus'], fromFile='None',
+                                figsize=(18/2.54, 14/2.54), fontsize=10, savename='None'):
+    if not isinstance(levels, list):
+        print('levels must be a list [], either empty or containing taxonomic levels to include in the plot.')
+        return None
+
     #Get dissimilarity file
     if fromFile == 'None': #Generate the data
-        dis_data = diversity.naive_dissimilarity_contributions(obj, var=var, q=q, index=index)
+        dis_data = diversity.dissimilarity_contributions(obj, var=var, q=q, divType=divType, index=index)
     else: #Read the data from file
         dis_data = pd.read_csv(fromFile, index_col=0)
     
@@ -1097,7 +972,7 @@ def dissimilarity_contributions(obj, var='None', q=1, index='local', numberToPlo
     catlist = dis_data.columns.tolist()
     ylist = range(len(df.index))
     taxlist = df.index.tolist()          
-    if 'tax' in obj.keys(): #Fix taxonomy names
+    if len(levels) > 0 and 'tax' in obj and divType == 'naive': #Fix taxonomy names
         tax = obj['tax']
         tax_df = tax.loc[df.index]
         tax_df.fillna('', inplace=True)
@@ -1109,8 +984,49 @@ def dissimilarity_contributions(obj, var='None', q=1, index='local', numberToPlo
                     taxname = taxname + tn + '; '
             taxlist[i] = taxname + taxlist[i]
 
-    plt.rcParams.update({'font.size': fontSize})
-    fig = plt.figure(figsize=figSize, constrained_layout=True)
+    elif len(levels) > 0 and 'tax' in obj and 'tree' in obj and divType == 'phyl': #Fix taxonomy names
+        tree = obj['tree']
+        tree_df = tree.loc[df.index]
+        tax = obj['tax'].copy()
+        tax.fillna('', inplace=True)
+        for i, ix in enumerate(tree_df.index):
+            asvlist = tree_df.loc[ix, 'ASVs']
+            if len(asvlist) == 1:
+                taxname = ''
+                for taxlevel in levels:
+                    tn = tax.loc[asvlist[0], taxlevel]
+                    if len(tn) > 3:
+                        taxname = taxname + tn + '; '
+                taxlist[i] = taxname + asvlist[0]
+            elif len(asvlist) == 2:
+                taxname = '(' + '-'.join(asvlist) + ')'
+                tn = ''
+                for taxlevel in tax.columns:
+                    col_list = tax.loc[asvlist, taxlevel].to_numpy()
+                    if len(col_list[0]) > 3 and (col_list[0] == col_list).all():
+                        tn = col_list[0]
+                if len(tn) > 3:
+                    taxname = tn + '; ' + taxname
+                taxlist[i] = taxname
+            else:
+                taxname = tree_df.loc[ix, 'nodes']
+                tn = ''
+                for taxlevel in tax.columns:
+                    col_list = tax.loc[asvlist, taxlevel].to_numpy()
+                    if len(col_list[0]) > 3 and (col_list[0] == col_list).all():
+                        tn = col_list[0]
+                if len(tn) > 3:
+                    taxname = tn + '; ' + taxname
+                taxlist[i] = taxname
+
+    elif len(levels) == 0 and divType == 'phyl': #Fix taxonomy names
+        tree = obj['tree']
+        tree_df = tree.loc[df.index]
+        for i, ix in enumerate(tree_df.index):
+            taxlist[i] = tree.loc[ix, 'nodes']
+
+    plt.rcParams.update({'font.size': fontsize})
+    fig = plt.figure(figsize=figsize, constrained_layout=True)
     gs = fig.add_gridspec(1, len(catlist))
     gs.update(wspace=0, hspace=0)
 
@@ -1131,7 +1047,120 @@ def dissimilarity_contributions(obj, var='None', q=1, index='local', numberToPlo
         else:
             ax.set_title(cat + '\nN=' + str(int(dis_data.loc['N', cat])) + 
                      '\n$^{'+str(q)+'}$d='+str(round(dis_data.loc['dis', cat], 2)))
-
     if savename != 'None':
         plt.savefig(savename)
         plt.savefig(savename+'.pdf', format='pdf')
+ 
+#Plot phylogram from tree dataframe
+#width is the width of the plot (height is set automatically)
+#if nameInternalNodes=True, labels are put on the internal nodes
+#if abundanceInfo='index' or a column heading the meta data, a bar chart with relative abundance info for each ASV is plotted to the right of the tree
+#if xlog=True, the relative abundance bar chart has a log axis
+#savename is path and name of the file to be saved
+def phyl_tree(obj, width=12, nameInternalNodes=False, abundanceInfo='None', xlog=False, savename='None'):
+    if 'tree' not in obj:
+        print('Tree not in object')
+        return None
+    df = obj['tree'].copy()
+    
+    #Sort out end nodes and internal nodes
+    df['asv_count'] = np.nan
+    for ix in df.index:
+        df.loc[ix, 'asv_count'] = len(df.loc[ix, 'ASVs'])
+    df_endN = df[df['asv_count'] == 1]
+    df_intN = df[df['asv_count'] > 1]
+
+    #Set starting xpos and ypos for endnodes
+    df_endN = df_endN.set_index('nodes')
+    df_endN['ypos'] = range(len(df_endN.index))
+    df_endN['xpos'] = df_endN['branchL']
+    for ix in df_intN.index:
+        asvlist = df_intN.loc[ix, 'ASVs']
+        BL = df_intN.loc[ix, 'branchL']
+        df_endN.loc[asvlist, 'xpos'] += BL
+    
+    #Sort internal nodes based on number of connected endnodes
+    df_intN = df_intN.sort_values('asv_count', ascending=True)
+
+    #If abundanceInfo
+    if abundanceInfo != 'None' and 'tab' in obj and 'meta' in obj:
+        catlist = []
+        if abundanceInfo != 'index':
+            metalist = obj['meta'][abundanceInfo].tolist()
+            [catlist.append(item) for item in metalist if item not in catlist]
+        elif abundanceInfo == 'index':
+            catlist = obj['meta'].index.tolist()
+        for cat in catlist:
+            df_endN['ra:'+cat] = 0
+            temp_obj = subset.samples(obj, var=abundanceInfo, slist=[cat])
+            ra = temp_obj['ra'].mean(axis=1)
+            df_endN.loc[ra.index, 'ra:'+cat] = ra
+
+    #Plot
+    textspacing = df_endN['xpos'].max() / 50
+    plt.rcParams.update({'font.size': 10})
+    fig = plt.figure(figsize=(width/2.54, 0.7*len(df_endN.index)/2.54), constrained_layout=True)
+    gs = fig.add_gridspec(1, 10)
+    gs.update(wspace=0, hspace=0)
+
+    if abundanceInfo != 'None':
+        ax = fig.add_subplot(gs[0, :9], frame_on=True)
+    else:
+        ax = fig.add_subplot(gs[0, :10], frame_on=True)
+
+    # First, plot endnodes and their end branches    
+    for node in df_endN.index:
+        ypos = df_endN.loc[node, 'ypos']
+        xpos = df_endN.loc[node, 'xpos']    
+        ax.text(xpos+textspacing, ypos, node, verticalalignment='center', color='red')
+        node_BL = df_endN.loc[node, 'branchL']
+        ax.plot([xpos-node_BL, xpos], [ypos, ypos], lw=1, color='black')
+        df_endN.loc[node, 'xpos'] = xpos - node_BL
+
+    # Then go through the internal nodes
+    for intN in df_intN.index:
+        asvlist = df_intN.loc[intN, 'ASVs']
+        xpos = df_endN.loc[asvlist, 'xpos'].mean()
+        ymax = df_endN.loc[asvlist, 'ypos'].max()
+        ymin = df_endN.loc[asvlist, 'ypos'].min()
+        ax.plot([xpos, xpos], [ymin, ymax], lw=1, color='black')
+        ymean = (ymax + ymin) / 2
+        xmin = xpos - df_intN.loc[intN, 'branchL']
+        ax.plot([xmin, xpos], [ymean, ymean], lw=1, color='black')
+        df_endN.loc[asvlist, 'ypos'] = ymean      
+        df_endN.loc[asvlist, 'xpos'] = xmin
+        if nameInternalNodes:
+            ax.text(xpos, ymean, df_intN.loc[intN, 'nodes'], verticalalignment='center', color='red')
+
+    ax.plot([0, 0], [df_endN['ypos'].min(), df_endN['ypos'].max()], lw=1, color='black')
+    ax.set_ylim(-1, len(df_endN.index))
+    ax.axis('off')
+
+    if abundanceInfo != 'None':
+        bars_leg1 = []
+        bars_leg2 = []
+        orig_ypos = range(len(df_endN.index))
+        ax2 = fig.add_subplot(gs[0, 9], frame_on=True)
+        for cat_nr in range(len(catlist)):
+            bar_thickness = 0.8 / len(catlist)
+            bar_yoffset = bar_thickness * (cat_nr - (len(catlist)-1)/2)
+
+            cat = catlist[cat_nr]
+            ylist = np.array(orig_ypos) + bar_yoffset
+            xlist = df_endN['ra:'+cat]
+            bl = ax2.barh(ylist, xlist, height=0.95*bar_thickness, label=cat)
+            bars_leg1.append(bl)
+            bars_leg2.append(cat)
+
+        if xlog:
+            ax2.set_xscale('log')
+        ax2.set_ylim(-1, len(df_endN.index))
+        ax2.set_xticks([])
+        ax2.set_yticks(range(len(df_endN.index)))
+        plt.setp(ax2.get_yticklabels(), visible=False)
+        plt.setp(ax2.get_xticklabels(), visible=False)
+        ax.legend(bars_leg1, bars_leg2, loc='lower right', bbox_to_anchor=(1,1), ncol=4, frameon=False)
+
+    if savename != 'None':
+        plt.savefig(savename)
+        plt.savefig(savename + '.pdf', format='pdf')

@@ -1,8 +1,6 @@
 import pandas as pd
 import numpy as np
 import copy
-import tkinter as tk
-
 pd.options.mode.chained_assignment = None  # default='warn'
 
 # FUNCTIONS FOR SUBSETTING DATA
@@ -12,62 +10,77 @@ pd.options.mode.chained_assignment = None  # default='warn'
 # slist is a list of names in meta data column (or index) which specify samples to keep
 # if keep0 is false, all SVs with 0 counts after the subsetting will be discarded from the data
 def samples(obj, var='index', slist='None', keep0=False):
-    if 'meta' not in obj.keys():
-        print('Metadata missing')
-        return 0
-    if slist == 'None':
-        print('slist must be specified')
-        return 0
+    if not isinstance(slist, list):
+        print('slist must be specified as a [list]')
+        return None
 
-    meta = obj['meta']
-    if var in meta.columns.tolist():
-        meta = meta[meta[var].isin(slist)]
-    elif var == 'index':
+    #Correct meta
+    if 'meta' in obj and var != 'index':
+        meta = obj['meta']
+        if var in meta.columns.tolist():
+            meta = meta[meta[var].isin(slist)]
+        else:
+            print('var not found')
+            return 0
+    elif 'meta' in obj and var == 'index':
+        meta = obj['meta']
         meta = meta.loc[slist, :]
-    else:
-        print('var not found')
-        return 0
 
-    tab = obj['tab']
-    tab = tab[meta.index]
-    if 'ra' in obj.keys():
+    if 'tab' in obj:
+        tab = obj['tab']
+        if 'meta' in obj:
+            tab = tab[meta.index]
+        else:
+            tab = tab[slist]
+    if 'ra' in obj:
         ra = obj['ra']
-        ra = ra[meta.index]
-    if 'seq' in obj.keys():
+        if 'meta' in obj:
+            ra = ra[meta.index]
+        else:
+            ra = ra[slist]
+    if 'seq' in obj:
         seq = obj['seq']
-    if 'tax' in obj.keys():
+    if 'tax' in obj:
         tax = obj['tax']
+
     out = {}  # Dictionary object to return, dataframes and dictionaries
 
     # Remove SV with zero count
-    if not keep0:
+    if not keep0 and 'tab' in obj:
         tab['sum'] = tab.sum(axis=1)
         tab2 = tab[tab['sum'] > 0]
-        keepSVs = list(tab2.index)
+        keepSVs = tab2.index
         tab2 = tab2.drop('sum', axis=1)
         out['tab'] = tab2
-        if 'ra' in obj.keys():
+        if 'ra' in obj:
             ra2 = ra.loc[keepSVs, :]
             out['ra'] = ra2
-        if 'seq' in obj.keys():
+        if 'seq' in obj:
             seq2 = seq.loc[keepSVs, :]
             out['seq'] = seq2
-        if 'tax' in obj.keys():
+        if 'tax' in obj:
             tax2 = tax.loc[keepSVs, :]
             out['tax'] = tax2
-        out['meta'] = meta
+        if 'tree' in obj:
+            out['tree'] = obj['tree']
+        if 'meta' in obj:
+            out['meta'] = meta
     else:
-        out['meta'] = meta
-        out['tab'] = tab
-        if 'ra' in obj.keys():
+        if 'tab' in obj:
+            out['tab'] = tab
+        if 'ra' in obj:
             out['ra'] = ra
-        if 'seq' in obj.keys():
+        if 'seq' in obj:
             out['seq'] = seq
-        if 'tax' in obj.keys():
+        if 'tax' in obj:
             out['tax'] = tax
+        if 'tree' in obj:
+            out['tree'] = obj['tree']
+        if 'meta' in obj:
+            out['meta'] = meta
     return out
 
-# Subsets object based on list of OTUs/SVs to keep
+# Subsets object based on list of OTUs/ASVs to keep
 def sequences(obj, svlist):
     out = {}
     tab = obj['tab']
@@ -85,20 +98,22 @@ def sequences(obj, svlist):
         seq = obj['seq']
         seq = seq.loc[svlist, :]
         out['seq'] = seq
+    if 'tree' in obj:
+        out['tree'] = obj['tree']
     if 'meta' in obj:
         out['meta'] = obj['meta']
     return out
 
 # Subsets object to the most abundant OTUs/SVs 
 # number specifies the number of SVs to keep
-# if method='sum', the OTUs/SVs are ranked based on the sum of the relative abundances in all samples
+# if method='sum' or method='mean', the OTUs/SVs are ranked based on the sum of the relative abundances in all samples
 # if method='max', they are ranked based on the max relative abundance in a sample
 def abundant_sequences(obj, number=25, method='sum'):
     out = {}
     tab = obj['tab']
     ra = tab/tab.sum()
 
-    if method=='sum':
+    if method in ['sum', 'mean']:
         ra['rank'] = ra.sum(axis=1)
         ra = ra.sort_values(by='rank', ascending=False)
     elif method=='max':
@@ -120,6 +135,8 @@ def abundant_sequences(obj, number=25, method='sum'):
         seq = obj['seq']
         seq = seq.loc[svlist, :]
         out['seq'] = seq
+    if 'tree' in obj:
+        out['tree'] = obj['tree']
     if 'meta' in obj:
         out['meta'] = obj['meta']
     return out
@@ -130,7 +147,7 @@ def abundant_sequences(obj, number=25, method='sum'):
 def text_patterns(obj, subsetLevels=[], subsetPatterns=[]):
     if len(subsetLevels) == 0 or len(subsetPatterns) == 0:
         print('No taxlevels or pattern')
-        return 0
+        return None
     else:
         taxPatternCheck = obj['tax'].applymap(str)
         keepIX = []
@@ -140,15 +157,17 @@ def text_patterns(obj, subsetLevels=[], subsetPatterns=[]):
                     if ptrn in taxPatternCheck.loc[ix, col] and ix not in keepIX:
                         keepIX.append(ix)
     out = {}
-    if 'tab' in obj.keys():
+    if 'tab' in obj:
         out['tab'] = obj['tab'].loc[keepIX]
-    if 'ra' in obj.keys():
+    if 'ra' in obj:
         out['ra'] = obj['ra'].loc[keepIX]
-    if 'tax' in obj.keys():
+    if 'tax' in obj:
         out['tax'] = obj['tax'].loc[keepIX]
-    if 'seq' in obj.keys():
+    if 'seq' in obj:
         out['seq'] = obj['seq'].loc[keepIX]
-    if 'meta' in obj.keys():
+    if 'tree' in obj:
+        out['tree'] = obj['tree']
+    if 'meta' in obj:
         out['meta'] = obj['meta']
     return out
 
@@ -158,8 +177,8 @@ def text_patterns(obj, subsetLevels=[], subsetPatterns=[]):
 # if keep0 is false, all SVs with 0 counts after the subsetting will be discarded from the data
 def merge_samples(obj, var='None', slist='None', keep0=False):
     if 'meta' not in obj.keys():
-        print('Metadata missing')
-        return 0
+        print('Meta data missing')
+        return None
     if var != 'None' and slist == 'None':
         slist = obj['meta'][var]
 
@@ -199,6 +218,8 @@ def merge_samples(obj, var='None', slist='None', keep0=False):
             out['tax'] = obj['tax']
     out['tab'] = tab2
     out['ra'] = ra2
+    if 'tree' in obj:
+        out['tree'] = obj['tree']
 
     meta = obj['meta']
     meta2 = meta.groupby(var).first()
@@ -276,7 +297,6 @@ def rarefy_object(obj, depth='min', seed='None', replacement=False):
     robj = samples(robj, slist=rtab.columns.tolist())
     return robj
 
-
 # ANALYSING AND COMBINING OBJECTS
 
 # Function that makes sure different objects have the same SV names. Returns a list of objects with aligned names
@@ -285,23 +305,8 @@ def rarefy_object(obj, depth='min', seed='None', replacement=False):
 def align_sequences(objectlist, differentLengths=False):
     objlist = copy.deepcopy(objectlist)
 
-    # Keep track of progress
-    rootAlign = tk.Tk()
-    rootAlign.title('Aligning SVs in objects')
-    Check_objects = tk.StringVar(rootAlign, 'Checking objects for duplicate seqs: ')
-    SV_progress = tk.StringVar(rootAlign, 'Aligning SVs in object: ')
-    Name_change = tk.StringVar(rootAlign, 'Changing SV names in object: ')
-    tk.Label(rootAlign, textvariable=Check_objects, width=60).pack()
-    tk.Label(rootAlign, textvariable=SV_progress, width=60).pack()
-    tk.Label(rootAlign, textvariable=Name_change, width=60).pack()
-    rootAlign.update()
-
-
     # Make sure no duplicate sequences within objects
     for i in range(len(objlist)):
-        Check_objects.set('Checking objects for duplicate seqs: ' + str(i+1) + ' out of ' + str(len(objectlist)))
-        rootAlign.update()
-
         obj = objlist[i]
         seq = obj['seq']
         seq['sequence'] = seq['seq']
@@ -349,10 +354,9 @@ def align_sequences(objectlist, differentLengths=False):
         seqdict[SVname] = s_check
 
     # Go through the rest of the objects
+    print('Aligning ASVs in ' + str(len(objectlist)) + ' objects: 1.. ', end='')
     for i in range(1, len(objlist)):
-        SV_progress.set('Aligning SVs in object: ' + str(i+1) + ' out of ' + str(len(objectlist)))
-        rootAlign.update()
-
+        print(str(i+1), end='.. ')
         this_obj_s_list = objlist[i]['seq']['seq'].tolist()
         temp_s_list = []
         for s_check in this_obj_s_list:
@@ -381,9 +385,9 @@ def align_sequences(objectlist, differentLengths=False):
         s_list = s_list + temp_s_list
 
     # Change the name of all SVs
+    print('\nChanging ASV names in ' + str(len(objlist)) + ' objects: ', end='')
     for i in range(len(objlist)):
-        Name_change.set('Changing SV names in object: ' + str(i+1) + ' out of ' + str(len(objlist)))
-        rootAlign.update()
+        print(str(i+1), end='.. ')
 
         seq = objlist[i]['seq']
         seq['newSV'] = np.nan
@@ -423,7 +427,7 @@ def align_sequences(objectlist, differentLengths=False):
             objlist[i]['ra'] = ra
         if 'tax' in objlist[i].keys():
             objlist[i]['tax'] = tax
-    rootAlign.destroy()
+    print('\nDone with subset.align_sequences')
     return objlist
 
 # Function that takes a list of objects and return a consensus object based on ASVs found in all
@@ -435,6 +439,7 @@ def align_sequences(objectlist, differentLengths=False):
 # taxa makes it possible to specify with an integer the object having taxa information that should be kept (0 is the first object, 1 is the second, etc). If 'None', the taxa information in the kept Obj is used
 # if onlyReturnSeqs=True, only a dataframe with the shared ASVs is returned
 def consensus(objlist, keepObj='best', taxa='None', alreadyAligned=False, differentLengths=False, onlyReturnSeqs=False):
+    print('Running subset.consensus..')
     if alreadyAligned:
         aligned_objects = objlist.copy()
     else:
@@ -511,7 +516,5 @@ def consensus(objlist, keepObj='best', taxa='None', alreadyAligned=False, differ
 
     info = {'Kept obj pos': ra_max_pos, 'Relative abundance (%) of reads associated with retained ASVs': ra_in_tab, 
             'Maximum relative abundance (%) of lost reads in a sample': ra_sample_max}
-
+    print('Done with subset.consensus (note that this function does not keep tree in the object).')
     return cons_obj, info
-
-

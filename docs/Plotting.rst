@@ -6,7 +6,7 @@ Heatmap
 
 .. code-block:: python
 
-   plot.heatmap(obj, xAxis='None', levels=['Phylum', 'Genus'], levelsShown='None', subsetLevels='None', subsetPatterns='None', order='None', numberToPlot=20, method='max_sample', nameType='SV', figSize=(14, 10), fontSize=15, sepCol = [], labels=True, labelSize=10, cThreshold=8, cMap='Reds', cLinear=0.5, cBar=[], savename='None')
+   plot.heatmap(obj, xAxis='None', levels=['Phylum', 'Genus'], levelsShown='None', subsetLevels='None', subsetPatterns='None', order='None', numberToPlot=20, method='max_sample', nameType='SV', figsize=(14, 10), fontsize=15, sepCol = [], labels=True, labelsize=10, cThreshold=8, cMap='Reds', cLinear=0.5, cBar=[], savename='None')
 
 Plots a heatmap showing the relative abundance of different taxa in different samples.
 
@@ -29,15 +29,15 @@ The sample with the smallest number will be placed to the left in the heatmap.
 
 *nameType* is the label used for unclassified sequences (e.g. ASV or OTU) 
 
-*figSize* is the width and height of the figure in inches
+*figsize* is the width and height of the figure in inches
 
-*fontSize* refers to the axis text font size
+*fontsize* refers to the axis text font size
 
 *sepCol* is a list of column numbers between which to include a separator, i.e. to clarify grouping of samples 
 
 *labels* =True means that relative abundance values are shown in the plot. 
 
-*labelSize* is the font size of the relative abundance labels.
+*labelsize* is the font size of the relative abundance labels.
 
 *cThreshold* is the percentage relative abundance threshold at which the label color switches from black to white (for clarity). 
 
@@ -54,7 +54,7 @@ Alpha diversity
 
 .. code-block:: python
 
-   plot.alpha_diversity(obj, distmat='None', var='None', slist='All', order='None', ylog=False, figSize=(10, 6), fontSize=18, colorlist='None', savename='None')
+   plot.alpha_diversity(obj, distmat='None', var='None', slist='None', order='None', ylog=False, figsize=(10, 6), fontsize=18, colorlist='None', savename='None')
 
 Visualizes how alpha diversity depends on diversity order.
 
@@ -62,26 +62,26 @@ Visualizes how alpha diversity depends on diversity order.
 
 If *distmat* is specified, the diversity.phyl_alpha function is used, otherwise diversity.naive_alpha is used. A *distmat* dataframe can be generated with the diversity.sequence_comparison() function.
 
-*var* refers to column heading in meta data used to color code samples; slist is a list of samples from the var column to include (default is all).
+*var* refers to column heading in meta data used to color code samples; *slist* is a list of samples from the var column to include (default is to include all).
 
 *order* refers to column heading in meta data used to order the samples. 
 
 If *ylog* =True, the y-axis of the plot will be logarithmic.
 
-*figSize* is the width and height of the figure in inches
+*figsize* is the width and height of the figure in inches
 
-*fontSize* refers to the axis text font size
+*fontsize* refers to the axis text font size
 
 *colorlist* is a list of colors used for the lines in the plot, if colorlist=’None’, qdiv will decide the colors. 
 
 *savename* is the name (also include path) of the saved png file, if 'None' no figure is saved.
 
 PCoA
-####################
+####
 
 .. code-block:: python
 
-   plot.pcoa(dist, meta, biplot=[], var1='None', var2='None', var1_title='', var2_title='', whitePad=1.1, var2pos=0.4, tag='None', order='None', title='', connectPoints='None', figSize=(10, 14), fontSize=18, markerSize=100, markerscale=1.1, hideAxisValues=False, showLegend=True, colorlist='None', markerlist='None', savename='None')
+   plot.pcoa(dist, meta, var1='None', var2='None', var1_title='', var2_title='', biplot=[], whitePad=1.1, var2pos=0.4, tag='None', order='None', title='', connectPoints='None', figsize=(10, 14), fontsize=18, markersize=100, markerscale=1.1, hideAxisValues=False, showLegend=True, colorlist='None', markerlist='None', savename='None')
 
 Visualizes dissimilarities between samples in principal coordinate analysis plot.
 
@@ -89,13 +89,13 @@ Visualizes dissimilarities between samples in principal coordinate analysis plot
 
 *meta* is the meta data, typically object['meta'].
 
-*biplot* is a list of columns in meta data containing numeric data that should be plotted as a biplot in the PCoA. The arrows associated with each column are scaled to the plot area of the PCoA.
-
 *var1* is a column heading in the meta used to color code (required input!).
 
 *var2* is a column heading in the meta used to code by marker type (optional). 
 
 *var1_title* and *var_2 title* are the titles used in the legend.
+
+*biplot* is a list of columns in meta data containing numeric data that should be plotted as a biplot in the PCoA. The arrows associated with each column are scaled to the plot area of the PCoA.
 
 *whitePad* sets the space between the outermost points and the plot limits (1.0=no space).
 
@@ -135,7 +135,7 @@ between the meta data categories specified present under compareVar.
 
 *spairs* is a list of pairs to compare, each item in the list is another list of two samples names or categories to compare, e.g. [[sample_group_1, sample_group_2],[sample_group_X, sample_group_Y],[sample_group_3, sample_group_4]]. 
 
-if *nullModel* =True, the diversity.rcq function will be run. *randomization,* *weight,* and *iterations* are all input to the diversity.rcq function (see documentation there).
+if *nullModel* =True, the null.rcq function will be run. *randomization,* *weight,* and *iterations* are all input to the null.rcq function (see documentation there).
 
 *qrange* is a list containing the min, max, tick mark space on the diversity order x-axis of the figure.
 
@@ -154,7 +154,7 @@ Rarefaction curve
 
 .. code-block:: python
 
-   plot.rarefactioncurve(obj, step='flexible', figSize=(14, 10), fontSize=18, var='None', order='None', tag='None', colorlist='None', onlyReturnData=False, onlyPlotData='None', savename='None')
+   plot.rarefactioncurve(obj, step='flexible', figsize=(14, 10), fontsize=18, var='None', order='None', tag='None', colorlist='None', onlyReturnData=False, onlyPlotData='None', savename='None')
 
 Calculates a rarefaction curve based on subsampling without replacement.
 
@@ -162,9 +162,9 @@ Calculates a rarefaction curve based on subsampling without replacement.
 
 *step* is the step size used during subsampling, if 'flexible' the total reads are divided by 20.
 
-*figSize* is width and height of the figure in inches.
+*figsize* is width and height of the figure in inches.
 
-*fontSize* is size of text in figure.
+*fontsize* is size of text in figure.
 
 *var* is the column in the meta data used to color code lines in plot.
 
@@ -185,7 +185,7 @@ Octave (frequency histogram)
 
 .. code-block:: python
 
-   plot.octave(obj, var='None', slist='None', nrows=2, ncols=2, fontSize=11, figSize=(10, 6), xlabels=True, ylabels=True, title=True, color='blue', savename='None')
+   plot.octave(obj, var='None', slist='None', nrows=2, ncols=2, fontsize=11, figsize=(10, 6), xlabels=True, ylabels=True, title=True, color='blue', savename='None')
 
 Octave plot according to Edgar and Flyvbjerg, DOI:10.1101/38983
 
@@ -212,9 +212,9 @@ Dissimilarity contributions of taxa
 
 .. code-block:: python
 
-   plot.dissimilarity_contributions(obj, var='None', q=1, index='local', numberToPlot=20, levels=['Genus'], fromFile='None', figSize=(18/2.54, 14/2.54), fontSize=10, savename='None')
+   plot.dissimilarity_contributions(obj, var='None', q=1, index='local', numberToPlot=20, levels=['Genus'], fromFile='None', figsize=(18/2.54, 14/2.54), fontsize=10, savename='None')
 
-Plot showing contribution of each taxon to observed naive dissimilarity.
+Plot showing contribution of each taxon to observed dissimilarity between multiple samples.
 
 *obj* is the qdiv object.
 
