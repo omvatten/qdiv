@@ -42,6 +42,7 @@ def load(path='', tab='None', fasta='None', meta='None', tree='None', sep=','): 
         if taxaavailable == 1:
             taxtab = readtab.iloc[:, taxpos:]
             taxtab = taxtab.sort_index()
+            taxtab = taxtab.applymap(str)
             for name in taxtab.columns: #Remove items containing only one letter
                 taxtab[name][taxtab[name].str.len() == 1] = np.nan
 

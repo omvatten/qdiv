@@ -15,6 +15,7 @@
     <script src="_static/language_data.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Citations" href="Citations.html" />
     <link rel="prev" title="Null models" href="Null%20models.html" />
    
   <link rel="stylesheet" href="_static/custom.css" type="text/css" />
@@ -105,12 +106,13 @@ The sample with the smallest number will be placed to the left in the heatmap.</
 </div>
 <div class="section" id="pairwise-dissimilarity">
 <h2>Pairwise dissimilarity<a class="headerlink" href="#pairwise-dissimilarity" title="Permalink to this headline">¶</a></h2>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">plot</span><span class="o">.</span><span class="n">pairwise_beta</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">distmat</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">compareVar</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">spairs</span><span class="o">=</span><span class="p">[],</span> <span class="n">nullModel</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">randomization</span><span class="o">=</span><span class="s1">&#39;abundance&#39;</span><span class="p">,</span> <span class="n">weight</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">iterations</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span> <span class="n">qrange</span><span class="o">=</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">],</span> <span class="n">colorlist</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">onlyPlotData</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">skipJB</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">onlyReturnData</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">savename</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">)</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">plot</span><span class="o">.</span><span class="n">pairwise_beta</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">divType</span><span class="o">=</span><span class="s1">&#39;naive&#39;</span><span class="p">,</span> <span class="n">distmat</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">compareVar</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">spairs</span><span class="o">=</span><span class="p">[],</span> <span class="n">nullModel</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">randomization</span><span class="o">=</span><span class="s1">&#39;abundance&#39;</span><span class="p">,</span> <span class="n">weight</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">iterations</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span> <span class="n">qrange</span><span class="o">=</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">],</span> <span class="n">colorlist</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">onlyPlotData</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">skipJB</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">onlyReturnData</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">savename</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">)</span>
 </pre></div>
 </div>
 <p>Calculate and/or plots dissimilarity between pairs of samples or sample types.</p>
 <p><em>obj</em> is the object.</p>
-<p>If <em>distmat</em> is specified, the diversity.phyl_alpha function is used, otherwise diversity.naive_alpha is used. A <em>distmat</em> dataframe can be generated with the diversity.sequence_comparison() function.</p>
+<p><em>divType</em> is the type of beta diversity to calculate: ‘naive’, ‘phyl’, or ‘func’.</p>
+<p><em>distmat</em> is distance matrix file that must be provided if divType=’func’. A <em>distmat</em> dataframe can be generated with the stats.sequence_comparison() function.</p>
 <p><em>compareVar</em> is a column heading in the meta data. If compareVar is not None, the dissimilarity values represent all pairwise comparisons
 between the meta data categories specified present under compareVar.</p>
 <p><em>spairs</em> is a list of pairs to compare, each item in the list is another list of two samples names or categories to compare, e.g. [[sample_group_1, sample_group_2],[sample_group_X, sample_group_Y],[sample_group_3, sample_group_4]].</p>
@@ -208,6 +210,7 @@ between the meta data categories specified present under compareVar.</p>
 <li class="toctree-l2"><a class="reference internal" href="#dissimilarity-contributions-of-taxa">Dissimilarity contributions of taxa</a></li>
 </ul>
 </li>
+<li class="toctree-l1"><a class="reference internal" href="Citations.html">Citations</a></li>
 </ul>
 
 <div class="relations">
@@ -215,6 +218,7 @@ between the meta data categories specified present under compareVar.</p>
 <ul>
   <li><a href="index.html">Documentation overview</a><ul>
       <li>Previous: <a href="Null%20models.html" title="previous chapter">Null models</a></li>
+      <li>Next: <a href="Citations.html" title="next chapter">Citations</a></li>
   </ul></li>
 </ul>
 </div>

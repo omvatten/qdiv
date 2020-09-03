@@ -483,7 +483,7 @@ def pcoa(dist, meta, var1='None', var2='None', var1_title='', var2_title='', bip
     plt.show()
 
 # Plots dissimilarity between pairs of samples types
-def pairwise_beta(obj, distmat='None', divType='naive', compareVar='None', spairs=[],
+def pairwise_beta(obj, divType='naive', distmat='None', compareVar='None', spairs=[],
                 nullModel=True, randomization='frequency', weight=0, iterations=10,
                 qrange=[0, 2, 0.5], colorlist='None',
                     onlyPlotData='None', skipJB=False, onlyReturnData=False,
@@ -669,18 +669,18 @@ def pairwise_beta(obj, distmat='None', divType='naive', compareVar='None', spair
                 jacnull = null.rcq(obj2, randomization=randomization, weightingVar=compareVar, weight=weight,
                                    compareVar=compareVar, iterations=iterations, divType='Jaccard')
 
-                df_BJ_Null.loc['Bray', pairnames[pair_nr]] = braynull['Nullmean'].loc[pair0, pair1]
-                df_BJ_Nullstd.loc['Bray', pairnames[pair_nr]] = braynull['Nullstd'].loc[pair0, pair1]
-                df_BJ_Null.loc['Jac', pairnames[pair_nr]] = jacnull['Nullmean'].loc[pair0, pair1]
-                df_BJ_Nullstd.loc['Jac', pairnames[pair_nr]] = jacnull['Nullstd'].loc[pair0, pair1]
+                df_BJ_Null.loc['Bray', pairnames[pair_nr]] = braynull['null_mean'].loc[pair0, pair1]
+                df_BJ_Nullstd.loc['Bray', pairnames[pair_nr]] = braynull['null_std'].loc[pair0, pair1]
+                df_BJ_Null.loc['Jac', pairnames[pair_nr]] = jacnull['null_mean'].loc[pair0, pair1]
+                df_BJ_Nullstd.loc['Jac', pairnames[pair_nr]] = jacnull['null_std'].loc[pair0, pair1]
                 if compareVar == 'None':
-                    df_BJ_RC.loc['Bray', pairnames[pair_nr]] = braynull['RC'].loc[pair0, pair1]
-                    df_BJ_RC.loc['Jac', pairnames[pair_nr]] = jacnull['RC'].loc[pair0, pair1]
+                    df_BJ_RC.loc['Bray', pairnames[pair_nr]] = braynull['p_index'].loc[pair0, pair1]
+                    df_BJ_RC.loc['Jac', pairnames[pair_nr]] = jacnull['p_index'].loc[pair0, pair1]
                 else:
-                    df_BJ_RC.loc['Bray', pairnames[pair_nr]] = braynull['RCmean'].loc[pair0, pair1]
-                    df_BJ_RCstd.loc['Bray', pairnames[pair_nr]] = braynull['RCstd'].loc[pair0, pair1]
-                    df_BJ_RC.loc['Jac', pairnames[pair_nr]] = jacnull['RCmean'].loc[pair0, pair1]
-                    df_BJ_RCstd.loc['Jac', pairnames[pair_nr]] = jacnull['RCstd'].loc[pair0, pair1]
+                    df_BJ_RC.loc['Bray', pairnames[pair_nr]] = braynull['p_index_mean'].loc[pair0, pair1]
+                    df_BJ_RCstd.loc['Bray', pairnames[pair_nr]] = braynull['p_index_std'].loc[pair0, pair1]
+                    df_BJ_RC.loc['Jac', pairnames[pair_nr]] = jacnull['p_index_mean'].loc[pair0, pair1]
+                    df_BJ_RCstd.loc['Jac', pairnames[pair_nr]] = jacnull['p_index_std'].loc[pair0, pair1]
 
             #Calculate Hill, Iterate for different diversity orders, q
             for q in qvalues:
@@ -710,16 +710,16 @@ def pairwise_beta(obj, distmat='None', divType='naive', compareVar='None', spair
                     df_Hill.loc[q, pairnames[pair_nr]] = betadiv.loc[pair0, pair1]
 
                 if nullModel:
-                    Hillnull = null.rcq(obj2, randomization=randomization, weightingVar=compareVar, weight=weight, q=q,
-                                        compareVar=compareVar, divType='naive', iterations=iterations)
+                    Hillnull = null.rcq(obj2, distmat=distmat, randomization=randomization, weightingVar=compareVar, weight=weight, q=q,
+                                        compareVar=compareVar, divType=divType, iterations=iterations)
 
-                    df_Hill_Null.loc[q, pairnames[pair_nr]] = Hillnull['Nullmean'].loc[pair0, pair1]
-                    df_Hill_Nullstd.loc[q, pairnames[pair_nr]] = Hillnull['Nullstd'].loc[pair0, pair1]
+                    df_Hill_Null.loc[q, pairnames[pair_nr]] = Hillnull['null_mean'].loc[pair0, pair1]
+                    df_Hill_Nullstd.loc[q, pairnames[pair_nr]] = Hillnull['null_std'].loc[pair0, pair1]
                     if compareVar == 'None':
-                        df_Hill_RC.loc[q, pairnames[pair_nr]] = Hillnull['RC'].loc[pair0, pair1]
+                        df_Hill_RC.loc[q, pairnames[pair_nr]] = Hillnull['p_index'].loc[pair0, pair1]
                     else:
-                        df_Hill_RC.loc[q, pairnames[pair_nr]] = Hillnull['RCmean'].loc[pair0, pair1]
-                        df_Hill_RCstd.loc[q, pairnames[pair_nr]] = Hillnull['RCstd'].loc[pair0, pair1]
+                        df_Hill_RC.loc[q, pairnames[pair_nr]] = Hillnull['p_index_mean'].loc[pair0, pair1]
+                        df_Hill_RCstd.loc[q, pairnames[pair_nr]] = Hillnull['p_index_std'].loc[pair0, pair1]
 
         # Make dictionary holding all data frames
         output = {}

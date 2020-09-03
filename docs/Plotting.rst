@@ -122,13 +122,15 @@ Pairwise dissimilarity
 
 .. code-block:: python
 
-   plot.pairwise_beta(obj, distmat='None', compareVar='None', spairs=[], nullModel=True, randomization='abundance', weight=0, iterations=10, qrange=[0, 2, 0.5], colorlist='None', onlyPlotData='None', skipJB=False, onlyReturnData=False, savename='None')
+   plot.pairwise_beta(obj, divType='naive', distmat='None', compareVar='None', spairs=[], nullModel=True, randomization='abundance', weight=0, iterations=10, qrange=[0, 2, 0.5], colorlist='None', onlyPlotData='None', skipJB=False, onlyReturnData=False, savename='None')
 
 Calculate and/or plots dissimilarity between pairs of samples or sample types.
 
 *obj* is the object. 
 
-If *distmat* is specified, the diversity.phyl_alpha function is used, otherwise diversity.naive_alpha is used. A *distmat* dataframe can be generated with the diversity.sequence_comparison() function.
+*divType* is the type of beta diversity to calculate: 'naive', 'phyl', or 'func'.
+
+*distmat* is distance matrix file that must be provided if divType='func'. A *distmat* dataframe can be generated with the stats.sequence_comparison() function.
 
 *compareVar* is a column heading in the meta data. If compareVar is not None, the dissimilarity values represent all pairwise comparisons 
 between the meta data categories specified present under compareVar. 
