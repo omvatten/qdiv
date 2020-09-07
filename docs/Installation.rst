@@ -57,14 +57,15 @@ To make sure qdiv works, you can run the following code:
 
 Hopefully, this will run without error messages and print a value of 3.388
 
-A third option, if you are on a Windows computer, is to copy the qdiv_env.yml file from the `github pages <https://github.com/omvatten/qdiv>`_.
-In the Anaconda prompt (terminal window) go to the folder containing the file (use cd path-to-folder). Then write:
+A third option is to copy the file qdiv_env_win.yml (if you are on a Windows computer) or qdiv_env_linux.yml (if you are on a Linux computer) from the `github pages <https://github.com/omvatten/qdiv>`_.
+In the Anaconda prompt (terminal window) go to the folder containing the file (use cd path-to-folder). Then write one of the following:
 
 .. code-block:: guess
 
-   conda env create -f qdiv_env.yml
+   conda env create -f qdiv_env_win.yml
+   conda env create -f qdiv_env_linux.yml
 
-This will create an environment with qdiv and a lot of other useful packages. Activate the environment by typing:
+This will create a conda environment with qdiv and some other useful packages. Activate the environment by typing:
 
 .. code-block:: guess
 

@@ -73,12 +73,13 @@ If you downloaded Miniconda, you can install Spyder by the following command:</p
 </pre></div>
 </div>
 <p>Hopefully, this will run without error messages and print a value of 3.388</p>
-<p>A third option, if you are on a Windows computer, is to copy the qdiv_env.yml file from the <a class="reference external" href="https://github.com/omvatten/qdiv">github pages</a>.
-In the Anaconda prompt (terminal window) go to the folder containing the file (use cd path-to-folder). Then write:</p>
-<div class="highlight-guess notranslate"><div class="highlight"><pre><span></span>conda env create -f qdiv_env.yml
+<p>A third option is to copy the file qdiv_env_win.yml (if you are on a Windows computer) or qdiv_env_linux.yml (if you are on a Linux computer) from the <a class="reference external" href="https://github.com/omvatten/qdiv">github pages</a>.
+In the Anaconda prompt (terminal window) go to the folder containing the file (use cd path-to-folder). Then write one of the following:</p>
+<div class="highlight-guess notranslate"><div class="highlight"><pre><span></span>conda env create -f qdiv_env_win.yml
+conda env create -f qdiv_env_linux.yml
 </pre></div>
 </div>
-<p>This will create an environment with qdiv and a lot of other useful packages. Activate the environment by typing:</p>
+<p>This will create a conda environment with qdiv and some other useful packages. Activate the environment by typing:</p>
 <div class="highlight-guess notranslate"><div class="highlight"><pre><span></span>conda activate qdiv_env
 </pre></div>
 </div>
