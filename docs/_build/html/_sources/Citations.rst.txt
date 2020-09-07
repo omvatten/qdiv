@@ -9,7 +9,7 @@ To see the citations in qdiv, use:
 
    qdiv.citations(f='all')
 
-Prints a list of references used in the development of python. 
+Prints a list of references used in the development of qdiv. 
 
 *f* is the qdiv function. For example, f='diversity.naive_alpha' prints the references that were especially relevant for developing the diversity.naive_alpha algorithm.
 f='all' prints all references listed below.
