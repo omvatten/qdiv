@@ -1,6 +1,5 @@
 import pandas as pd
 import numpy as np
-import Levenshtein as Lv
 import random
 
 # Returns some information about an object, e.g. number of samples, reads, headings in meta data etc.
@@ -161,7 +160,8 @@ def permanova(dis, meta, var, permutations=99):
 # The output distance matrix can be used as input for functional diversity index calculations (func_alpha, func_beta)
 # or for phylogenetic-based null models (nriq, ntiq, beta_nriq, beta_ntiq)
 def sequence_comparison(obj, inputType='seq', savename='DistMat'):
-    if inputType == 'seq':
+
+    if inputType == 'seq': #Sequences as input
         seq = obj['seq']
 
         svnames = list(seq.index)
@@ -173,30 +173,37 @@ def sequence_comparison(obj, inputType='seq', savename='DistMat'):
     
         df = pd.DataFrame(0, index=svnames, columns=svnames)
         for i in range(len(svnames) - 1):
+            n1 = svnames[i]
+            s1 = seq.loc[n1, 'seq']
+
             for j in range(i + 1, len(svnames)):
-    
-                # For showing progress
-                counter += 1
+                counter += 1 #Showing progress
                 if counter%show_after == 0:
                     print(int(100*counter/total_comp), end='%.. ')
-    
-                n1 = svnames[i]
+   
                 n2 = svnames[j]
-                s1 = seq.loc[n1, 'seq']
                 s2 = seq.loc[n2, 'seq']
-    
-                if len(s1) == len(s2):
-                    dist = Lv.hamming(s1, s2) / len(s1)
-                else:
-                    maxlen = max(len(s1), len(s2))
-                    dist = Lv.distance(s1, s2) / maxlen
-    
-                df.loc[n1, n2] = dist; df.loc[n2, n1] = dist
+
+                matrix = np.empty((len(s1)+1, len(s2)+1))
+                matrix[:, 0] = range(len(s1)+1)
+                matrix[0, :] = range(len(s2)+1)
+                for pos1 in range(1, len(s1)+1):
+                    lowerbound = max(1, pos1-12)
+                    upperbound = min(pos1+12, len(s2)+1)
+                    matrix[pos1, :lowerbound] = matrix[pos1-1, :lowerbound]
+                    matrix[pos1, upperbound:] = matrix[pos1-1, upperbound:]
+                    for pos2 in range(lowerbound, upperbound):
+                        if s1[pos1-1] == s2[pos2-1]:
+                            matrix[pos1, pos2] = matrix[pos1-1, pos2-1]
+                        else:
+                            matrix[pos1, pos2] = min(matrix[pos1-1, pos2]+1, matrix[pos1, pos2-1]+1, matrix[pos1-1, pos2-1]+1)
+                df.loc[n1, n2] = matrix[-1, -1] / max(len(s1), len(s2))
+                df.loc[n2, n1] = df.loc[n1, n2]
         print('100%')
         df.to_csv(savename+'.csv')
         return df
 
-    elif inputType == 'tree':
+    elif inputType == 'tree': #Tree as input
         tree = obj['tree'].copy()
 
         #Sort out end nodes and internal nodes
