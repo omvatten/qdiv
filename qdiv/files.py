@@ -1,7 +1,6 @@
 import pandas as pd
 import numpy as np
 from . import hfunc
-pd.options.mode.chained_assignment = None  # default='warn'
 
 # FUNCTIONS FOR LOADING AND SAVING DATA FILES
 
@@ -14,6 +13,7 @@ pd.options.mode.chained_assignment = None  # default='warn'
 def load(path='', tab='None', fasta='None', meta='None', tree='None', sep=','):  # Import file and convert them to suitable format
     print('Running files.load .. ', end='')    
     sv_name_lists = {} #To check and compare ASVs in the different input files
+    pos_of_nr = -1
     
     #Prepare tab and tax
     if tab != 'None':
@@ -30,21 +30,44 @@ def load(path='', tab='None', fasta='None', meta='None', tree='None', sep=','): 
                     taxpos = pos
                     taxaavailable = 1
 
-        readtab.index.name = 'ASV'
+        #Check position of number in asv name
+        asvname_test = readtab.index.tolist()[0]
+        for i in range(len(asvname_test)):
+            try:
+                int(asvname_test[i])
+                pos_of_nr = i
+                break
+            except:
+                continue
+
+        if pos_of_nr == -1:
+            nametype = 'ASV'
+        else:
+            nametype = asvname_test[:pos_of_nr]
+        readtab.index.name = nametype
+
         ctab = readtab.iloc[:, :taxpos]
         ratab = 100 * ctab / ctab.sum()
 
-        ctab = ctab.sort_index()
-        ratab = ratab.sort_index()
+        if pos_of_nr == -1:
+            ctab = ctab.sort_index()
+            ratab = ratab.sort_index()
+        else:
+            ctab = ctab.sort_index(key=lambda idx: idx.str.slice(start=pos_of_nr).astype(int))
+            ratab = ratab.sort_index(key=lambda idx: idx.str.slice(start=pos_of_nr).astype(int))
         sv_name_lists['tab'] = ctab.index.tolist()
 
         # Prepare taxa dataframe
         if taxaavailable == 1:
             taxtab = readtab.iloc[:, taxpos:]
-            taxtab = taxtab.sort_index()
+            if pos_of_nr == -1:
+                taxtab = taxtab.sort_index()
+            else:
+                taxtab = taxtab.sort_index(key=lambda idx: idx.str.slice(start=pos_of_nr).astype(int))
             taxtab = taxtab.applymap(str)
             for name in taxtab.columns: #Remove items containing only one letter
                 taxtab[name][taxtab[name].str.len() == 1] = np.nan
+                taxtab[name][taxtab[name] == 'nan'] = np.nan
 
             #Check if __ is in taxa names
             prefixdict = {'D':'d__', 'K':'k__', 'P':'p__','C':'c__', 'O':'o__',
@@ -59,7 +82,7 @@ def load(path='', tab='None', fasta='None', meta='None', tree='None', sep=','): 
 
     # Read fasta file with ASV sequences
     if fasta != 'None':
-        fastalist = [['ASV', 'seq']]
+        fastalist = [[nametype, 'seq']]
         with open(path + fasta, 'r') as f:
             for line in f:
                 if line[0] == '>':
@@ -67,8 +90,11 @@ def load(path='', tab='None', fasta='None', meta='None', tree='None', sep=','): 
                 else:
                     fastalist[-1][1] = fastalist[-1][1] + line.strip()
         seqtab = pd.DataFrame(fastalist[1:], columns=fastalist[0])
-        seqtab = seqtab.set_index('ASV')
-        seqtab = seqtab.sort_index()
+        seqtab = seqtab.set_index(nametype)
+        if pos_of_nr == -1:
+            seqtab = seqtab.sort_index()
+        else:
+            seqtab = seqtab.sort_index(key=lambda idx: idx.str.slice(start=pos_of_nr).astype(int))
         sv_name_lists['fasta'] = seqtab.index.tolist()
 
     # Read Newick tree file

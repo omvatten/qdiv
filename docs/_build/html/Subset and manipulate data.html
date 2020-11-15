@@ -105,7 +105,7 @@ are also dropped from the ‘ra’, ‘tax’, ‘seq’, and ‘meta’ datafra
 </div>
 <div class="section" id="consensus-table">
 <h2>Consensus table<a class="headerlink" href="#consensus-table" title="Permalink to this headline">¶</a></h2>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">subset</span><span class="o">.</span><span class="n">consensus</span><span class="p">(</span><span class="n">objlist</span><span class="p">,</span> <span class="n">keepObj</span><span class="o">=</span><span class="s1">&#39;best&#39;</span><span class="p">,</span> <span class="n">taxa</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">alreadyAligned</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">differentLengths</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">onlyReturnSeqs</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">subset</span><span class="o">.</span><span class="n">consensus</span><span class="p">(</span><span class="n">objlist</span><span class="p">,</span> <span class="n">keepObj</span><span class="o">=</span><span class="s1">&#39;best&#39;</span><span class="p">,</span> <span class="n">taxa</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">alreadyAligned</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">differentLengths</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">nameType</span><span class="o">=</span><span class="s1">&#39;ASV&#39;</span><span class="p">,</span> <span class="n">onlyReturnSeqs</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
 </pre></div>
 </div>
 <p>Takes a list of objects and returns a consensus object based on ASVs found in all. Information about the fraction of reads retained from the original objects is also provided.</p>
@@ -116,6 +116,7 @@ are also dropped from the ‘ra’, ‘tax’, ‘seq’, and ‘meta’ datafra
 (0 is the first object, 1 is the second, etc), if ‘None’, the taxa information in the kept object is used</p>
 <p>if <em>alreadyAligned</em> =True, the subset.align_sequences function has already been run on the objects to make sure the same sequences in different objects have the same names</p>
 <p>if <em>differentLengths</em> =True, it assumes that the same ASV inferred with different bioinformatics pipelines could have different sequence lengths.</p>
+<p><em>nameType</em> is the label used for sequences (e.g. ASV or OTU)</p>
 <p>if <em>onlyReturnSeqs</em> =True, only a dataframe with the shared ASVs is returned.</p>
 <p>Example</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">qdiv</span>
@@ -136,6 +137,26 @@ are also dropped from the ‘ra’, ‘tax’, ‘seq’, and ‘meta’ datafra
 </div>
 <p>In the example above, <em>shared_seqs</em> is a pandas dataframe with the shared sequences</p>
 <p><em>info</em> just contains a text string saying that the shared ASVs were returned.</p>
+</div>
+<div class="section" id="merge-objects">
+<h2>Merge objects<a class="headerlink" href="#merge-objects" title="Permalink to this headline">¶</a></h2>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">subset</span><span class="o">.</span><span class="n">merge_objects</span><span class="p">(</span><span class="n">objlist</span><span class="p">,</span> <span class="n">alreadyAligned</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">differentLengths</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">nameType</span><span class="o">=</span><span class="s1">&#39;ASV&#39;</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Takes a list of objects and a merged objects including all OTUs/ASVs and samples.</p>
+<p><em>objlist</em> is a list of objects</p>
+<p>if <em>alreadyAligned</em> =True, the subset.align_sequences function has already been run on the objects to make sure the same sequences in different objects have the same names</p>
+<p>if <em>differentLengths</em> =True, it assumes that the same ASV inferred with different bioinformatics pipelines could have different sequence lengths.</p>
+<p><em>nameType</em> is the label used for sequences (e.g. ASV or OTU)</p>
+<p>Example</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">qdiv</span>
+
+<span class="n">merged_obj</span> <span class="o">=</span> <span class="n">qdiv</span><span class="o">.</span><span class="n">subset</span><span class="o">.</span><span class="n">merge_objects</span><span class="p">([</span><span class="n">obj1</span><span class="p">,</span> <span class="n">obj2</span><span class="p">])</span>
+
+<span class="n">qdiv</span><span class="o">.</span><span class="n">stats</span><span class="o">.</span><span class="n">print_info</span><span class="p">(</span><span class="n">merged_obj</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>In the example above, <em>merged_obj</em> is the new object constructed by combining obj1 and obj2.</p>
 </div>
 </div>
 
@@ -169,6 +190,7 @@ are also dropped from the ‘ra’, ‘tax’, ‘seq’, and ‘meta’ datafra
 <li class="toctree-l2"><a class="reference internal" href="#merge-samples">Merge samples</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#rarefy">Rarefy</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#consensus-table">Consensus table</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#merge-objects">Merge objects</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="Diversity%20calculations.html">Diversity calculations</a></li>

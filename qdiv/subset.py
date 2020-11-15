@@ -1,7 +1,6 @@
 import pandas as pd
 import numpy as np
 import copy
-pd.options.mode.chained_assignment = None  # default='warn'
 
 # FUNCTIONS FOR SUBSETTING DATA
 
@@ -47,11 +46,9 @@ def samples(obj, var='index', slist='None', keep0=False):
 
     # Remove SV with zero count
     if not keep0 and 'tab' in obj:
-        tab['sum'] = tab.sum(axis=1)
-        tab2 = tab[tab['sum'] > 0]
-        keepSVs = tab2.index
-        tab2 = tab2.drop('sum', axis=1)
-        out['tab'] = tab2
+        tab_sum = tab.sum(axis=1)
+        keepSVs = tab_sum[tab_sum > 0].index
+        out['tab'] = tab.loc[keepSVs]
         if 'ra' in obj:
             ra2 = ra.loc[keepSVs, :]
             out['ra'] = ra2
@@ -187,27 +184,26 @@ def merge_samples(obj, var='None', slist='None', keep0=False):
     for smp in slist:
         tempobj = samples(obj, var, [smp], keep0=True)
         tab = tempobj['tab']
-        tab['sum'] = tab.sum(axis=1)
-        tab['ra'] = 100 * tab['sum'] / tab['sum'].sum()
-        tabdi[smp] = tab.loc[:, 'sum']
-        radi[smp] = tab.loc[:, 'ra']
+        tab_sum = tab.sum(axis=1)
+        tab_ra = 100 * tab_sum / tab_sum.sum()
+        tabdi[smp] = tab_sum
+        radi[smp] = tab_ra
     temptab = pd.DataFrame(tabdi, index=obj['tab'].index)
     tempra = pd.DataFrame(radi, index=obj['tab'].index)
 
     out = {}
     if keep0 == False:  ## Remove SV with zero count
-        temptab['sum'] = temptab.sum(axis=1)
-        tab2 = temptab[temptab['sum'] > 0]
-        keepSVs = list(tab2.index)
-        tab2 = tab2.drop('sum', axis=1)
-        ra2 = tempra.loc[keepSVs, :]
+        temptab_sum = temptab.sum(axis=1)
+        keepSVs = temptab_sum[temptab_sum > 0].index
+        tab2 = temptab.loc[keepSVs]
+        ra2 = tempra.loc[keepSVs]
         if 'seq' in obj.keys():
             seq = obj['seq']
-            seq2 = seq.loc[keepSVs, :]
+            seq2 = seq.loc[keepSVs]
             out['seq'] = seq2
         if 'tax' in obj.keys():
             tax = obj['tax']
-            tax2 = tax.loc[keepSVs, :]
+            tax2 = tax.loc[keepSVs]
             out['tax'] = tax2
     else:
         tab2 = temptab
@@ -302,7 +298,7 @@ def rarefy_object(obj, depth='min', seed='None', replacement=False):
 # Function that makes sure different objects have the same SV names. Returns a list of objects with aligned names
 # If differentLengths=True, it assumes that the same SV inferred with different bioinformatics pipelines could have different sequence length
 # For example, Deblur sets a specific read length while Dada2 allows different lengths. Comparing SVs from these two pipelines is thus impossible unless differentLengths=True
-def align_sequences(objectlist, differentLengths=False):
+def align_sequences(objectlist, differentLengths=False, nameType='ASV'):
     objlist = copy.deepcopy(objectlist)
 
     # Make sure no duplicate sequences within objects
@@ -349,7 +345,7 @@ def align_sequences(objectlist, differentLengths=False):
     s_list = objlist[0]['seq']['seq'].tolist()
     for s_check in s_list:
         counter += 1
-        SVname = 'SV' + str(counter)
+        SVname = nameType + str(counter)
         svdict[s_check] = SVname
         seqdict[SVname] = s_check
 
@@ -377,7 +373,7 @@ def align_sequences(objectlist, differentLengths=False):
 
                 if in_dict == 'No': # Then give it new name
                     counter += 1
-                    SVname = 'SV' + str(counter)
+                    SVname = nameType + str(counter)
                     svdict[s_check] = SVname
                     seqdict[SVname] = s_check
                     temp_s_list.append(s_check)
@@ -412,7 +408,6 @@ def align_sequences(objectlist, differentLengths=False):
             if 'tax' in objlist[i].keys():
                 tax.loc[n, 'newSV'] = newSVname
 
-
         seq = seq.groupby('newSV').first()
         if 'tab' in objlist[i].keys():
             tab = tab.groupby('newSV').sum()
@@ -438,12 +433,12 @@ def align_sequences(objectlist, differentLengths=False):
 # if keepObj='best', the frequency table having the largest fraction of its reads mapped to the common SVs is kept
 # taxa makes it possible to specify with an integer the object having taxa information that should be kept (0 is the first object, 1 is the second, etc). If 'None', the taxa information in the kept Obj is used
 # if onlyReturnSeqs=True, only a dataframe with the shared ASVs is returned
-def consensus(objlist, keepObj='best', taxa='None', alreadyAligned=False, differentLengths=False, onlyReturnSeqs=False):
+def consensus(objlist, keepObj='best', taxa='None', alreadyAligned=False, differentLengths=False, nameType='ASV', onlyReturnSeqs=False):
     print('Running subset.consensus..')
     if alreadyAligned:
         aligned_objects = objlist.copy()
     else:
-        aligned_objects = align_sequences(objlist, differentLengths=differentLengths)
+        aligned_objects = align_sequences(objlist, differentLengths=differentLengths, nameType=nameType)
 
     #Make a list with SVs in common.
     incommonSVs = aligned_objects[0]['tab'].index.tolist()
@@ -507,7 +502,7 @@ def consensus(objlist, keepObj='best', taxa='None', alreadyAligned=False, differ
     
     newindex_dict = {}
     for i in range(len(correct_order_svlist)):
-        newindex_dict[correct_order_svlist[i]]='ASV' + str(i+1)
+        newindex_dict[correct_order_svlist[i]]= nameType + str(i+1)
     cons_obj['tab'].rename(index=newindex_dict, inplace=True)
     cons_obj['ra'].rename(index=newindex_dict, inplace=True)
     cons_obj['seq'].rename(index=newindex_dict, inplace=True)
@@ -518,3 +513,85 @@ def consensus(objlist, keepObj='best', taxa='None', alreadyAligned=False, differ
             'Maximum relative abundance (%) of lost reads in a sample': ra_sample_max}
     print('Done with subset.consensus (note that this function does not keep tree in the object).')
     return cons_obj, info
+
+# Function that merges objects and keeps all ASVs (different from consensus, which drops non-shared ASVs)
+def merge_objects(objlist, alreadyAligned=False, differentLengths=False, nameType='ASV'):
+    print('Running subset.merge_objects..')
+    if alreadyAligned:
+        aligned_objects = objlist.copy()
+    else:
+        aligned_objects = align_sequences(objlist, differentLengths=differentLengths)
+
+    #Make lists
+    tablist = []
+    seqlist = []
+    taxlist = []
+    metalist = []
+    for obj_nr in range(1, len(aligned_objects)):
+        if len(aligned_objects[0].keys()) != len(aligned_objects[obj_nr].keys()):
+            print('Error, not the same number of dataframes in each object')
+            return None
+    for obj in aligned_objects:
+        if 'tab' in obj.keys():
+            tablist.append(obj['tab'])
+        if 'seq' in obj.keys():
+            seqlist.append(obj['seq'])
+        if 'tax' in obj.keys():
+            taxlist.append(obj['tax'])
+        if 'meta' in obj.keys():
+            metalist.append(obj['meta'])
+
+    #Join dataframes
+    if 'tab' in aligned_objects[0].keys():
+        tab_joined = pd.concat(tablist, axis=1, join='outer')
+        tab_joined.fillna(0, inplace=True)
+    if 'seq' in aligned_objects[0].keys():
+        seq_joined = pd.concat(seqlist, axis=0, join='outer')
+        seq_joined = seq_joined.drop_duplicates()
+    if 'meta' in aligned_objects[0].keys():
+        meta_joined = pd.concat(metalist, axis=0, join='outer')
+    
+    #Make tax dataframe
+    if 'tax' in aligned_objects[0].keys():
+        tax_joined = aligned_objects[0]['tax']
+        all_asvs = tax_joined.index.tolist()
+        for obj_nr in range(1, len(aligned_objects)):
+            obj_asvs = aligned_objects[obj_nr]['tax'].index.tolist()
+            extra_asvs = list(set(obj_asvs).difference(all_asvs))
+            subtax = aligned_objects[obj_nr]['tax'].loc[extra_asvs]
+            tax_joined = pd.concat([tax_joined, subtax], axis=0, join='outer')
+            
+    #Order based on total abundance and rename ASVs again
+    if 'tab' in aligned_objects[0].keys():
+        tab_joined['sum'] = tab_joined.sum(axis=1)
+        tab_joined = tab_joined.sort_values(by='sum', ascending=False)
+        newnames = {}
+        counter = 1
+        for ix in tab_joined.index:
+            newnames[ix] = nameType + str(counter)
+            counter += 1
+        tab_joined = tab_joined.drop('sum', axis=1)
+    
+        tab_joined = tab_joined.rename(index=newnames)
+        tab_joined.sort_index(inplace=True, key=lambda idx: idx.str.slice(start=len(nameType)).astype(int))
+        if 'seq' in aligned_objects[0].keys():
+            seq_joined = seq_joined.rename(index=newnames)
+            seq_joined.sort_index(inplace=True, key=lambda idx: idx.str.slice(start=len(nameType)).astype(int))
+        if 'tax' in aligned_objects[0].keys():
+            tax_joined = tax_joined.rename(index=newnames)
+            tax_joined.sort_index(inplace=True, key=lambda idx: idx.str.slice(start=len(nameType)).astype(int))
+    
+    #Make output object
+    out = {}
+    if 'tab' in aligned_objects[0].keys():
+        out['tab'] = tab_joined.applymap(int)
+        out['ra'] = 100 * tab_joined / tab_joined.sum()
+    if 'seq' in aligned_objects[0].keys():
+        out['seq'] = seq_joined
+    if 'tax' in aligned_objects[0].keys():
+        out['tax'] = tax_joined
+    if 'meta' in aligned_objects[0].keys():
+        out['meta'] = meta_joined
+    print('Done!')
+    return out
+    

@@ -8,7 +8,6 @@ from . import subset
 from . import diversity
 from . import null
 from . import hfunc
-pd.options.mode.chained_assignment = None  # default='warn'
 
 # PLOT FUNCTIONS
 

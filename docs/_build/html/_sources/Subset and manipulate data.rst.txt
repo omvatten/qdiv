@@ -106,7 +106,7 @@ Consensus table
 
 .. code-block:: python
 
-   subset.consensus(objlist, keepObj='best', taxa='None', alreadyAligned=False, differentLengths=False, onlyReturnSeqs=False)
+   subset.consensus(objlist, keepObj='best', taxa='None', alreadyAligned=False, differentLengths=False, nameType='ASV', onlyReturnSeqs=False)
 
 Takes a list of objects and returns a consensus object based on ASVs found in all. Information about the fraction of reads retained from the original objects is also provided.
 
@@ -121,6 +121,8 @@ Takes a list of objects and returns a consensus object based on ASVs found in al
 if *alreadyAligned* =True, the subset.align_sequences function has already been run on the objects to make sure the same sequences in different objects have the same names 
 
 if *differentLengths* =True, it assumes that the same ASV inferred with different bioinformatics pipelines could have different sequence lengths. 
+
+*nameType* is the label used for sequences (e.g. ASV or OTU)
 
 if *onlyReturnSeqs* =True, only a dataframe with the shared ASVs is returned. 
 
@@ -149,3 +151,32 @@ In the example above, *cons_obj* is the new consensus object constructed based o
 In the example above, *shared_seqs* is a pandas dataframe with the shared sequences
 
 *info* just contains a text string saying that the shared ASVs were returned.
+
+Merge objects
+#############
+
+.. code-block:: python
+
+   subset.merge_objects(objlist, alreadyAligned=False, differentLengths=False, nameType='ASV')
+
+Takes a list of objects and a merged objects including all OTUs/ASVs and samples.
+
+*objlist* is a list of objects 
+
+if *alreadyAligned* =True, the subset.align_sequences function has already been run on the objects to make sure the same sequences in different objects have the same names 
+
+if *differentLengths* =True, it assumes that the same ASV inferred with different bioinformatics pipelines could have different sequence lengths. 
+
+*nameType* is the label used for sequences (e.g. ASV or OTU)
+
+Example
+
+.. code-block:: python
+
+   import qdiv
+
+   merged_obj = qdiv.subset.merge_objects([obj1, obj2])
+   
+   qdiv.stats.print_info(merged_obj)
+
+In the example above, *merged_obj* is the new object constructed by combining obj1 and obj2. 

@@ -4,7 +4,7 @@ def citations(f='all'):
     if f == 'all' or f == 'qdiv':
         print('qdiv package:')
         print('Modin, O. https://github.com/omvatten/qdiv')
-        print('Modin, O., R. Liébana, S. Saheb-Alam, B.-M. Wilén, C. Suarez, M. Hermansson and F. Persson (2020). Microbiome (accepted). Preprint at Research Square DOI: 10.21203/rs.2.24335/v3.')
+        print('Modin, O., R. Liébana, S. Saheb-Alam, B.-M. Wilén, C. Suarez, M. Hermansson and F. Persson (2020). Microbiome 8, 132, DOI: 10.1186/s40168-020-00909-7')
     if f == 'all' or f in ['diversity.naive_alpha', 'diversity.naive_beta', 'diversity.naive_multi_beta', 'naive']:
         print('Naive diversity:')
         print('Hill, M. O. (1973). Ecology 54(2): 427-432.')
@@ -22,7 +22,7 @@ def citations(f='all'):
         print('Chao, A. and C. Ricotta (2019). Ecology 100(12): e02852.')
     if f == 'all' or f in ['null.rcq']:
         print('RCq null model:')
-        print('Modin, O., R. Liébana, S. Saheb-Alam, B.-M. Wilén, C. Suarez, M. Hermansson and F. Persson (2020). Microbiome (accepted). Preprint at Research Square DOI: 10.21203/rs.2.24335/v3.')
+        print('Modin, O., R. Liébana, S. Saheb-Alam, B.-M. Wilén, C. Suarez, M. Hermansson and F. Persson (2020). Microbiome 8, 132, DOI: 10.1186/s40168-020-00909-7')
         print('Raup, D. M. and R. E. Crick (1979). Journal of Paleontology 53(5): 1213-1227.')
         print('Chase, J. M., N. J. B. Kraft, K. G. Smith, M. Vellend and B. D. Inouye (2011). Ecosphere 2(2): 24.')
         print('Stegen, J. C., X. Lin, J. K. Fredrickson, X. Chen, D. W. Kennedy, C. J. Murray, M. L. Rockhold and A. Konopka (2013). ISME Journal 7(11): 2069-2079.')
