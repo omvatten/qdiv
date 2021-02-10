@@ -2,6 +2,10 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib import colors as mcolors
+from matplotlib.patches import PathPatch
+from matplotlib.path import Path
+from matplotlib.patches import Ellipse
+import matplotlib.transforms as transforms
 import pickle
 import math
 from . import subset
@@ -272,22 +276,30 @@ def alpha_diversity(obj, distmat='None', divType='naive', var='None', slist='Non
 
 # Visualizes dissimilarities in PCoA plot
 # dist is distance matrix and meta is meta data
-# biplot is list with meta data column headings used in biplot, the columns must contain numeric data
 # var1 is heading in meta used to color code, var2 is heading in meta used to code by marker type
 # var1_title and var_2 title are the titles used in the legend
+# biplot is list with meta data column headings used in biplot, the columns must contain numeric data
 # whitePad sets the space between the outermost points and the plot limits (1.0=no space)
-# rightSpace is the space for the legend on the right
 # var2pos is the vertical position of the var2 legend
 # tag is heading in meta used to add labels to each point in figure
-# order is heading in meta used to order samples
+# order is heading in meta used to order samples (should be numbers)
 # title is title of the entire figure
 # if connectPoints is a metadata column header, it will use that data to connect the points
+# markerscale sets the size of the markers in the legend
+# lw is linewidth of lines in the plot
+# if hideAxisValues=True, no numbers are shown
+# if showLegend=False, the legend is removed
+# ellipse is metadata column header with categories of samples that should be grouped with confidence ellipses
+# n_std is number of standard deviations of confidence ellipses
+# ellipse_tag is metadata column with labels for each ellipse
+# ellipse_connect i metadata column with data to connect centers of ellipses with lines 
 # colorlist specifies colorlist to use for var1; same for markerlist and var2
-# savename is path and name to save png figure output
-def pcoa(dist, meta, var1='None', var2='None', var1_title='', var2_title='', biplot=[], 
+# savename is path and name to save png and pdf output
+def pcoa(dist, meta='None', var1='None', var2='None', var1_title='', var2_title='', biplot=[], 
              whitePad=1.1, var2pos=0.4, tag='None', order='None', title='', connectPoints='None',
-             figsize=(10, 14), fontsize=18, markersize=100, markerscale=1.1,
-             hideAxisValues=False, showLegend=True,
+             figsize=(9, 6), fontsize=12, markersize=50, markerscale=1.1, lw=1,
+             hideAxisValues=False, showLegend=True, 
+             ellipse='None', n_std=2, ellipse_tag='None', ellipse_connect='None',
              colorlist='None', markerlist='None', savename='None'):
     def get_eig(d): #Function for centering and eigen-decomposition of distance matrix
         dist2 = -0.5*(d**2)
@@ -375,25 +387,40 @@ def pcoa(dist, meta, var1='None', var2='None', var1_title='', var2_title='', bip
     pcoadf = pd.DataFrame({xn: coords[0], yn: coords[1]}, index=smplist)
 
     # Combine pcoa results with meta data
-    meta = meta.copy()
-    meta[xn] = pcoadf[xn]
-    meta[yn] = pcoadf[yn]
-    metaPlot = meta[meta[xn].notnull()]
-    if order != 'None':
-        meta = meta.sort_values(by=[order])
+    if isinstance(meta, pd.DataFrame):
+        meta = meta.copy()
+        meta[xn] = pcoadf[xn]
+        meta[yn] = pcoadf[yn]
+        metaPlot = meta[meta[xn].notnull()]
+    else:
+        metaPlot = pcoadf
+
+    if order != 'None' and isinstance(meta, pd.DataFrame):
+        metaPlot = metaPlot.sort_values(by=order)
+
+    # Check data for ellipses if those are to be plotted        
+    if ellipse != 'None' and isinstance(meta, pd.DataFrame): #https://matplotlib.org/devdocs/gallery/statistics/confidence_ellipse.html
+        ellcats = []
+        [ellcats.append(item) for item in metaPlot[ellipse] if item not in ellcats]
+        ell_df = pd.DataFrame(np.nan, index=ellcats, columns=['ell_radius_x', 'ell_radius_y', 'scale_x', 'scale_y', 'mean_x', 'mean_y', 'xmid', 'ymid'])
+        for cat in ellcats:
+            xs = metaPlot[xn][metaPlot[ellipse] == cat]
+            ys = metaPlot[yn][metaPlot[ellipse] == cat]
+
+            ell_df.loc[cat, 'xmid'] = np.mean(xs)
+            ell_df.loc[cat, 'ymid'] = np.mean(ys)
+            if len(xs) == len(ys) and len(xs) > 2:
+                ell_df.loc[cat, ['ell_radius_x', 'ell_radius_y', 'scale_x', 'scale_y', 'mean_x', 'mean_y']] = hfunc.pcoa_ellipse(xs, ys, n_std)
 
     if var1 == 'None':
-        print('Error, var1 is not specified')
-        return None
+        metaPlot['None'] = 'all'
+        smpcats1 = ['all']
     if var1 != 'None': #List of names used for different colors in legend
         smpcats1 = []
-        [smpcats1.append(item) for item in meta[var1] if item not in smpcats1]
-    if var2 != 'None': #List of names used for different marker types in legend
+        [smpcats1.append(item) for item in metaPlot[var1] if item not in smpcats1]
+    if var2 != 'None' and var1 != 'None': #List of names used for different marker types in legend
         smpcats2 = []
-        [smpcats2.append(item) for item in meta[var2] if item not in smpcats2]
-    if tag != 'None': #List of labels placed next to points
-        tagcats = []
-        [tagcats.append(item) for item in meta[tag] if item not in tagcats]
+        [smpcats2.append(item) for item in metaPlot[var2] if item not in smpcats2]
 
     # Create figure
     if colorlist == 'None':
@@ -411,10 +438,33 @@ def pcoa(dist, meta, var1='None', var2='None', var1_title='', var2_title='', bip
     for i in range(len(smpcats1)):
         metaPlot_i = metaPlot[metaPlot[var1] == smpcats1[i]] #Subset metaPlot based on var1 in smpcats1
 
-        if connectPoints != 'None':
-            metaPlot_i[connectPoints] = metaPlot_i[connectPoints].apply(int)
+        # Connect midpoints between ellipses
+        if ellipse_connect != 'None':
+            metaPlot_i['xmid_ell'] = np.nan
+            metaPlot_i['ymid_ell'] = np.nan
+            for ell_cat in ell_df.index:
+                metaPlot_i['xmid_ell'][metaPlot_i[ellipse] == ell_cat] = ell_df.loc[ell_cat, 'xmid']
+                metaPlot_i['ymid_ell'][metaPlot_i[ellipse] == ell_cat] = ell_df.loc[ell_cat, 'ymid']
+            metaPlot_i[ellipse_connect] = metaPlot_i[ellipse_connect].apply(float)
+            metaPlot_i = metaPlot_i.sort_values(ellipse_connect)
+            ax.plot(metaPlot_i['xmid_ell'], metaPlot_i['ymid_ell'], color=colorlist[i], lw=lw)
+
+        # Connect points between normal points
+        elif connectPoints != 'None':
+            metaPlot_i[connectPoints] = metaPlot_i[connectPoints].apply(float)
             metaPlot_i = metaPlot_i.sort_values(connectPoints)
-            ax.plot(metaPlot_i[xn], metaPlot_i[yn], color=colorlist[i])
+            ax.plot(metaPlot_i[xn], metaPlot_i[yn], color=colorlist[i], lw=lw)
+
+        # Draw ellipse
+        if ellipse != 'None':
+            ell_df_index = []
+            [ell_df_index.append(item) for item in metaPlot_i[ellipse] if item not in ell_df_index]
+            for ix in ell_df_index:
+                #ell_radius_x, ell_radius_y, scale_x, scale_y, mean_x, mean_y
+                ellipse_ax = Ellipse((0, 0), width=ell_df.loc[ix, 'ell_radius_x']*2, height=ell_df.loc[ix, 'ell_radius_y']*2, facecolor='none', edgecolor=colorlist[i])
+                transf_ax = transforms.Affine2D().rotate_deg(45).scale(ell_df.loc[ix, 'scale_x'], ell_df.loc[ix, 'scale_y']).translate(ell_df.loc[ix, 'mean_x'], ell_df.loc[ix, 'mean_y'])
+                ellipse_ax.set_transform(transf_ax + ax.transData)
+                ax.add_patch(ellipse_ax)
 
         if var2 != 'None':
             linesColor[0].append(ax.scatter([], [], label=str(smpcats1[i]), color=colorlist[i]))
@@ -435,7 +485,7 @@ def pcoa(dist, meta, var1='None', var2='None', var1_title='', var2_title='', bip
                 jcounter += 1
 
             # Here set both legends for color and marker
-            if showLegend:
+            if showLegend and var1 != 'None':
                 ax.legend(linesColor[0], linesColor[1], ncol=1, bbox_to_anchor=(1, 1), title=var1_title, frameon=False, markerscale=markerscale, fontsize=fontsize, loc=2)
                 from matplotlib.legend import Legend
                 leg = Legend(ax, linesShape[0], linesShape[1], ncol=1, bbox_to_anchor=(1, var2pos), title=var2_title, frameon=False, markerscale=markerscale, fontsize=fontsize, loc=2)
@@ -448,12 +498,20 @@ def pcoa(dist, meta, var1='None', var2='None', var1_title='', var2_title='', bip
             xlist = metaPlot_i[xn]
             ylist = metaPlot_i[yn]
             ax.scatter(xlist, ylist, label=None, color=colorlist[i], marker=markerlist[i], s=markersize)
-            if showLegend:
+            if showLegend and var1 != 'None':
                 ax.legend(linesColor[0], linesColor[1], bbox_to_anchor=(1, 1), title=var1_title, frameon=False, markerscale=markerscale, fontsize=fontsize, loc='upper left')
 
-    ##Put tags at each point
-    if tag != 'None':
-        for ix in metaPlot.index.tolist():
+    ##Put tags at each point or ellipse, or both
+    if ellipse_tag != 'None':
+        for ix in ell_df.index:
+            tagtextoptions = metaPlot[ellipse_tag][metaPlot[ellipse] == ix].tolist()
+            tagtext = str(tagtextoptions[0])
+            tagx = ell_df.loc[ix, 'xmid']
+            tagy = ell_df.loc[ix, 'ymid']
+            ax.annotate(tagtext, (tagx, tagy))
+    elif tag != 'None':
+        metaPlot[tag] = metaPlot[tag].astype(str)
+        for ix in metaPlot.index:
             tagtext = metaPlot.loc[ix, tag]
             tagx = metaPlot.loc[ix, xn]
             tagy = metaPlot.loc[ix, yn]

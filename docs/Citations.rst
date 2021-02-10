@@ -17,7 +17,7 @@ f='all' prints all references listed below.
 qdiv package:
 
 - Modin, O. https://github.com/omvatten/qdiv
-- Modin, O., R. Liébana, S. Saheb-Alam, B.-M. Wilén, C. Suarez, M. Hermansson and F. Persson (2020). Microbiome (accepted). Preprint at Research Square DOI: 10.21203/rs.2.24335/v3.
+- Modin, O., R. Liébana, S. Saheb-Alam, B.-M. Wilén, C. Suarez, M. Hermansson and F. Persson (2020). Microbiome 8, 132, DOI: 10.1186/s40168-020-00909-7
 
 Naive diversity (diversity.naive_alpha, diversity.naive_beta, diversity.naive_multi_beta):
 
@@ -40,7 +40,7 @@ Evenness (diversity.evenness, diversity.dissimilarity_contributions, plot.dissim
 
 Raup-Crick null model (null.rcq):
 
-- Modin, O., R. Liébana, S. Saheb-Alam, B.-M. Wilén, C. Suarez, M. Hermansson and F. Persson (2020). Microbiome (accepted). Preprint at Research Square DOI: 10.21203/rs.2.24335/v3.
+- Modin, O., R. Liébana, S. Saheb-Alam, B.-M. Wilén, C. Suarez, M. Hermansson and F. Persson (2020). Microbiome 8, 132, DOI: 10.1186/s40168-020-00909-7
 - Raup, D. M. and R. E. Crick (1979). Journal of Paleontology 53(5): 1213-1227.
 - Chase, J. M., N. J. B. Kraft, K. G. Smith, M. Vellend and B. D. Inouye (2011). Ecosphere 2(2): 24.
 - Stegen, J. C., X. Lin, J. K. Fredrickson, X. Chen, D. W. Kennedy, C. J. Murray, M. L. Rockhold and A. Konopka (2013). ISME Journal 7(11): 2069-2079.

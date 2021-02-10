@@ -275,3 +275,38 @@ def rao(tab, distmat):
         rao_mat = ra2mat.mul(distmat)
         Qvalue = sum(rao_mat.sum())
         return Qvalue
+        
+# Return confidence ellipse, used in plot.pcoa
+def pcoa_ellipse(x, y, n_std=2): #Method from https://matplotlib.org/3.1.0/gallery/statistics/confidence_ellipse.html
+    from matplotlib.patches import Ellipse
+    import matplotlib.transforms as transforms
+
+    #Get extreme values
+    if len(x) != len(y):
+        raise ValueError("x and y must be the same size")
+
+    cov = np.cov(x, y)
+    if cov[0, 0] * cov[1, 1] != 0:
+        pearson = cov[0, 1]/np.sqrt(cov[0, 0] * cov[1, 1])
+    elif cov[0, 0] == 0:
+        pearson = -1
+    else:
+        pearson = 1
+
+    # Using a special case to obtain the eigenvalues of this
+    # two-dimensionl dataset.
+    ell_radius_x = np.sqrt(1 + pearson)
+    ell_radius_y = np.sqrt(1 - pearson)
+
+    # Calculating the stdandard deviation of x from
+    # the squareroot of the variance and multiplying
+    # with the given number of standard deviations.
+    scale_x = np.sqrt(cov[0, 0]) * n_std
+    mean_x = np.mean(x)
+
+    # calculating the stdandard deviation of y ...
+    scale_y = np.sqrt(cov[1, 1]) * n_std
+    mean_y = np.mean(y)
+
+    return [ell_radius_x, ell_radius_y, scale_x, scale_y, mean_x, mean_y]
+

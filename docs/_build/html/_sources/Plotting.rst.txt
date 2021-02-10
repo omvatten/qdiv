@@ -81,7 +81,7 @@ PCoA
 
 .. code-block:: python
 
-   plot.pcoa(dist, meta, var1='None', var2='None', var1_title='', var2_title='', biplot=[], whitePad=1.1, var2pos=0.4, tag='None', order='None', title='', connectPoints='None', figsize=(10, 14), fontsize=18, markersize=100, markerscale=1.1, hideAxisValues=False, showLegend=True, colorlist='None', markerlist='None', savename='None')
+   plot.pcoa(dist, meta='None', var1='None', var2='None', var1_title='', var2_title='', biplot=[], whitePad=1.1, var2pos=0.4, tag='None', order='None', title='', connectPoints='None', figsize=(9, 6), fontsize=12, markersize=50, markerscale=1.1, lw=1, hideAxisValues=False, showLegend=True, ellipse='None', n_std=2, ellipse_tag='None', ellipse_connect='None', colorlist='None', markerlist='None', savename='None')
 
 Visualizes dissimilarities between samples in principal coordinate analysis plot.
 
@@ -99,23 +99,37 @@ Visualizes dissimilarities between samples in principal coordinate analysis plot
 
 *whitePad* sets the space between the outermost points and the plot limits (1.0=no space).
 
-*rightSpace* is the space for the legend on the right.
-
 *var2pos* is the vertical position of the var2 legend.
+
+*tag* is meta data column used to add labels to each point in figure
+
+*order* is meta data column used to order samples (should be numbers)
+
+*title* is the title of the entire figure.
 
 *connectPoints* is a meta data column with numbers. If specified, the sample points in the PCoA will be connected by lines in the order determined by the numbers in the column.
 
-*tag* is a heading in the meta used to add labels to each point in figure.
+*markerscale* sets the size of the markers in the legend
 
-*order* is heading in meta used to order samples.
+*lw* is linewidth of lines in the plot
 
-*title* is the title of the entire figure.
+if *hideAxisValues=True* no numbers are shown on the axes
+
+if *showLegend=False* the legend is removed
+
+*ellipse* is metadata column with categories of samples that should be grouped with confidence ellipses
+
+*n_std* is the number of standard deviations of the confidence ellipses
+
+*ellipse_tag* is metadata column with labels for each ellipse
+
+*ellipse_connect* is metadata column with numbers used to connect centers of ellipses with lines.
 
 *colorlist* specifies colorlist to use for var1. If 'None', qdiv will decide the colors. same for markerlist and var2; savename is path and name to save png figure output.
 
 *markerlist* specifies markers to use for var2. If 'None', qdiv will decide the markers. 
 
-*savename* is path and name to save png figure output.
+*savename* is path and name to save png and pdf figures.
 
 Pairwise dissimilarity
 ######################
