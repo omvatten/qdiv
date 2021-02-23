@@ -43,6 +43,8 @@
 <p>Plots a heatmap showing the relative abundance of different taxa in different samples.</p>
 <p><em>obj</em> is the object.</p>
 <p><em>xAxis</em> specifies heading in meta data used to merge samples and use a labels on x-axis; levels specifies the taxonomic levels to be displayed on the y-axis.</p>
+<p><em>levels</em> specifies the taxonomic levels shown on the y-axis. It should be list with one or two taxonomic levels.</p>
+<p>if <em>levelsShown</em> =’Number’, there will be a list of numbers on the y-axis instead of taxonomic names.</p>
 <p><em>subsetLevels</em> and <em>subsetPatterns</em> refers to text patterns which can be used to filter the results for specific taxa.
 If these arguments are used, the inputs should be a list of taxanomic levels to search within and a list of text patterns to search for (see also subset.text_patterns() function).</p>
 <p><em>order</em> refers to heading of meta data column used to order samples. The column should contain numbers.

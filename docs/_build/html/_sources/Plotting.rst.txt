@@ -14,6 +14,10 @@ Plots a heatmap showing the relative abundance of different taxa in different sa
 
 *xAxis* specifies heading in meta data used to merge samples and use a labels on x-axis; levels specifies the taxonomic levels to be displayed on the y-axis.
 
+*levels* specifies the taxonomic levels shown on the y-axis. It should be list with one or two taxonomic levels.
+
+if *levelsShown* ='Number', there will be a list of numbers on the y-axis instead of taxonomic names.
+
 *subsetLevels* and *subsetPatterns* refers to text patterns which can be used to filter the results for specific taxa.
 If these arguments are used, the inputs should be a list of taxanomic levels to search within and a list of text patterns to search for (see also subset.text_patterns() function).
 
