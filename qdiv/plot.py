@@ -18,6 +18,7 @@ from . import hfunc
 ## Plots heatmap
     # xAxis specifies heading in meta data used to merge samples
     # levels specifies taxonomic levels used in y axis
+    # if levelsShown='Number', numbers instead of taxonomic levels are shown on the y-axis
     # subsetLevels and subsetPatterns refer to subsetTextPatters function which can be used to filter results
     # order refers to heading in meta data used to order samples
     # numberToPlot refers to the number of taxa with highest abundance to include in the heatmap
@@ -355,16 +356,17 @@ def pcoa(dist, meta='None', var1='None', var2='None', var1_title='', var2_title=
             Y[mh] = meta[mh]
             Y[mh] = (Y[mh]-Y[mh].mean())/Y[mh].std()
         Y_cent = Y.transpose()
-        Spc =(1/(len(dist.columns)-1))*np.matmul(Y_cent, U_vectors)
+
+        Spc =(1/(len(dist.columns)-1))*np.matmul(Y_cent, U_vectors.values)
         biglambda = np.array([[Eig_vals[0]**-0.5, 0], [0, Eig_vals[1]**-0.5]])
         Uproj = ((len(dist.columns)-1)**0.5)*np.matmul(Spc, biglambda)
 
         #Scale to the plot
         Uscalefactors = []
-        Uscalefactors.append(max(coords[0])/max(Uproj[:, 0]))
-        Uscalefactors.append(min(coords[0])/min(Uproj[:, 0]))
-        Uscalefactors.append(max(coords[1])/max(Uproj[:, 1]))
-        Uscalefactors.append(min(coords[1])/min(Uproj[:, 1]))
+        Uscalefactors.append(max(coords[0])/Uproj[0].max())
+        Uscalefactors.append(min(coords[0])/Uproj[0].min())
+        Uscalefactors.append(max(coords[1])/Uproj[1].max())
+        Uscalefactors.append(min(coords[1])/Uproj[1].min())
         Uscale = 1
         for i in Uscalefactors:
             if i < Uscale and i > 0:
@@ -520,8 +522,19 @@ def pcoa(dist, meta='None', var1='None', var2='None', var1_title='', var2_title=
     ##Input arrows
     if len(biplot) > 0:
         for mh_nr in range(len(biplot)):
-            ax.arrow(0, 0, Uproj[mh_nr, 0], Uproj[mh_nr, 1])
-            ax.annotate(biplot[mh_nr], (Uproj[mh_nr, 0], Uproj[mh_nr, 1]))
+            var_name = biplot[mh_nr]
+            ha = 'center'
+            if Uproj.loc[var_name, 0] > 0:
+                ha = 'left'
+            elif Uproj.loc[var_name, 0] < 0:
+                ha = 'right'
+            va = 'center'
+            if Uproj.loc[var_name, 1] > 0:
+                va = 'bottom'
+            elif Uproj.loc[var_name, 1] < 0:
+                va = 'top'
+            ax.arrow(0, 0, Uproj.loc[var_name, 0], Uproj.loc[var_name, 1], color='black')
+            ax.annotate(var_name, (1.03*Uproj.loc[var_name, 0], 1.03*Uproj.loc[var_name, 1]), horizontalalignment=ha, verticalalignment=va)
         ax.axhline(0, 0, 1, linestyle='--', color='grey', lw=0.5)
         ax.axvline(0, 0, 1, linestyle='--', color='grey', lw=0.5)
 
