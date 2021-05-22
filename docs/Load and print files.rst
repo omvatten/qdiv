@@ -6,14 +6,14 @@ Loading files
 
 .. code-block:: python
 
-   files.load(path='', tab='None', fasta='None', tree='None', meta='None', sep=',', addPrefix=True, orderSeqs=True)
+   files.load(path='', tab='None', fasta='None', tree='None', meta='None', sep=',', addTaxonPrefix=True, orderSeqs=True)
 
 Loads files into an object, which is used for further analysis.
 
 *path* is the path to the directory holding the input files, *tab* is the name of the count table file, 
 *fasta* is the name of the fasta file, *tree* is a Newick-formatted tree file, *meta* is the name of meta data file, *sep* is the separator used in the count table and meta data files (',' or ';' or '\\t').
 
-if *addPrefix* =True (default), a g__ will be added before genus name, f__ before family name, etc.
+if *addTaxonPrefix* =True (default), a g__ will be added before genus name, f__ before family name, etc.
 
 if *orderSeqs* =True (default), sequences will be sorted numerically if the sequence identifiers contain a number. 
 

@@ -100,12 +100,12 @@ def heatmap(obj, xAxis='None', levels=['Phylum', 'Genus'], levelsShown='None', s
                     splitname2 = sn.split('__')
                     newname = newname+splitname2[0]+'__'
                     splitname3 = splitname2[1].split(':')
-                    newname = newname+'$\it{'+splitname3[0].replace('_',' ')+'}$'+':'+splitname3[1]
+                    newname = newname+'$\it{'+splitname3[0].replace('_','\ ')+'}$'+':'+splitname3[1]
                 elif '__' in sn:
                     splitname2 = sn.split('__')
-                    newname = newname+splitname2[0]+'__'+'$\it{'+splitname2[1].replace('_',' ')+'}$'
+                    newname = newname+splitname2[0]+'__'+'$\it{'+splitname2[1].replace('_','\ ')+'}$'
                 else:
-                    newname = newname+'$\it{'+sn.replace('_',' ')+'}$'
+                    newname = newname+'$\it{'+sn.replace('_','\ ')+'}$'
                 if sn != splitname1[-1]:
                     newname = newname + '; '
         elif ';' in n:
@@ -114,9 +114,9 @@ def heatmap(obj, xAxis='None', levels=['Phylum', 'Genus'], levelsShown='None', s
             for sn in splitname1:
                 if ':' in sn:
                     splitname2 = sn.split(':')
-                    newname = newname+'$\it{'+splitname2[0].replace('_',' ')+'}$'+':'+splitname2[1]
+                    newname = newname+'$\it{'+splitname2[0].replace('_','\ ')+'}$'+':'+splitname2[1]
                 else:
-                    newname = newname+'$\it{'+sn.replace('_',' ')+'}$'
+                    newname = newname+'$\it{'+sn.replace('_','\ ')+'}$'
                 if sn != splitname1[-1]:
                     newname = newname + '; '
         else: #If there is only one taxa name
@@ -124,12 +124,12 @@ def heatmap(obj, xAxis='None', levels=['Phylum', 'Genus'], levelsShown='None', s
                 splitname1 = n.split('__')
                 newname = splitname1[0]+'__'
                 splitname2 = splitname1[1].split(':')
-                newname = newname+'$\it{'+splitname2[0].replace('_',' ')+'}$'+':'+splitname2[1]
+                newname = newname+'$\it{'+splitname2[0].replace('_','\ ')+'}$'+':'+splitname2[1]
             elif '__' in n:
                 splitname1 = n.split('__')
-                newname = splitname1[0]+'__'+'$\it{'+splitname1[1].replace('_', ' ')+'}$'
+                newname = splitname1[0]+'__'+'$\it{'+splitname1[1].replace('_', '\ ')+'}$'
             else:
-                newname = '$\it{'+n.replace('_', ' ')+'}$'
+                newname = '$\it{'+n.replace('_', '\ ')+'}$'
         new_taxa_list.append(newname)
     table = pd.DataFrame(table.to_numpy(), index=new_taxa_list, columns=table.columns)
     
@@ -304,6 +304,9 @@ def alpha_diversity(obj, distmat='None', divType='naive', var='None', slist='Non
 # order is heading in meta used to order samples (should be numbers)
 # title is title of the entire figure
 # if connectPoints is a metadata column header, it will use that data to connect the points
+# figsize is figure dimension
+# fontsize is font size
+# markersize is size of markers in the figures
 # markerscale sets the size of the markers in the legend
 # lw is linewidth of lines in the plot
 # if hideAxisValues=True, no numbers are shown
