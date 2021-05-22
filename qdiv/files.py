@@ -10,10 +10,12 @@ from . import hfunc
 # fasta is fasta file with sequences. OTU/ASV names should correspond to those in tab
 # meta is meta data
 # sep specifies separator used in input files e.g. ',' or '\t'
-def load(path='', tab='None', fasta='None', meta='None', tree='None', sep=','):  # Import file and convert them to suitable format
+# if addTaxonPrefix is True (default), g__ is added before genera, f__ before families, etc.
+# if orderSeqs is True (default), sequences names are sorted numerically (if they contain numbers)
+
+def load(path='', tab='None', fasta='None', meta='None', tree='None', sep=',', addTaxonPrefix=True, orderSeqs=True):  # Import file and convert them to suitable format
     print('Running files.load .. ', end='')    
     sv_name_lists = {} #To check and compare ASVs in the different input files
-    pos_of_nr = -1
     
     #Prepare tab and tax
     if tab != 'None':
@@ -21,9 +23,10 @@ def load(path='', tab='None', fasta='None', meta='None', tree='None', sep=','): 
         readtab = pd.read_csv(path + tab, sep=sep, header=0, index_col=0)
 
         #Check if taxa information is in table
+        possibleLevels = ['Superkingdom', 'Real', 'Clade', 'Domain', 'Kingdom', 'Phylum', 'Class', 'Order', 'Family', 'Genus', 'Speces']
         taxaavailable = 0
         taxpos = len(readtab.columns)
-        for level in ['Domain', 'Kingdom', 'Phylum', 'Class', 'Order', 'Family', 'Genus', 'Speces']:
+        for level in possibleLevels:
             if level in readtab.columns:
                 pos = readtab.columns.get_loc(level)
                 if pos < taxpos:
@@ -31,20 +34,21 @@ def load(path='', tab='None', fasta='None', meta='None', tree='None', sep=','): 
                     taxaavailable = 1
 
         #Check position of number in asv name
-        asvname_test = readtab.index.tolist()[0]
-        for i in range(len(asvname_test)):
-            try:
-                int(asvname_test[i])
-                pos_of_nr = i
-                break
-            except:
-                continue
-
-        if pos_of_nr == -1:
-            nametype = 'ASV'
-        else:
-            nametype = asvname_test[:pos_of_nr]
-        readtab.index.name = nametype
+        pos_of_nr = -1
+        if orderSeqs:
+            asvname_test = readtab.index.tolist()[0]
+            for i in range(len(asvname_test)):
+                try:
+                    int(asvname_test[i])
+                    pos_of_nr = i
+                    break
+                except:
+                    continue
+            if pos_of_nr == -1:
+                nametype = 'ASV'
+            else:
+                nametype = asvname_test[:pos_of_nr]
+            readtab.index.name = nametype
 
         ctab = readtab.iloc[:, :taxpos]
         ratab = 100 * ctab / ctab.sum()
@@ -60,6 +64,7 @@ def load(path='', tab='None', fasta='None', meta='None', tree='None', sep=','): 
         # Prepare taxa dataframe
         if taxaavailable == 1:
             taxtab = readtab.iloc[:, taxpos:]
+            taxtab.dropna(axis=1, how='all', inplace=True)
             if pos_of_nr == -1:
                 taxtab = taxtab.sort_index()
             else:
@@ -70,15 +75,21 @@ def load(path='', tab='None', fasta='None', meta='None', tree='None', sep=','): 
                 taxtab[name][taxtab[name] == 'nan'] = np.nan
 
             #Check if __ is in taxa names
-            prefixdict = {'D':'d__', 'K':'k__', 'P':'p__','C':'c__', 'O':'o__',
-                          'F':'f__', 'G':'g__', 'S':'s__'}
-            for c in taxtab.columns.tolist():
-                mask = taxtab[c][taxtab[c].notna()]
-                if len(mask) > 0:
-                    mask2 = mask[~mask.str.contains('__', na=False)]
-                    if len(mask2) > 0:
-                        prefix = prefixdict[c[0]]
-                        taxtab.loc[mask2.index, c] = prefix + taxtab.loc[mask2.index, c]
+            if addTaxonPrefix:
+                prefixdict = {'Domain':'d__', 'Kingdom':'k__', 'Phylum':'p__','Class':'c__', 'Order':'o__',
+                              'Family':'f__', 'Genus':'g__', 'Species':'s__', 'Realm':'r__'}
+                for c in taxtab.columns.tolist():
+                    if c in prefixdict.keys():
+                        prefix = prefixdict[c]
+                    elif 'Sub' in c and len(c) > 4:
+                        prefix = c[:4]+'__'
+                    else:
+                        prefix = ''
+                    mask = taxtab[c][taxtab[c].notna()]
+                    if len(mask) > 0:
+                        mask2 = mask[~mask.str.contains('__', na=False)]
+                        if len(mask2) > 0:
+                            taxtab.loc[mask2.index, c] = prefix + taxtab.loc[mask2.index, c]
 
     # Read fasta file with ASV sequences
     if fasta != 'None':
@@ -105,7 +116,7 @@ def load(path='', tab='None', fasta='None', meta='None', tree='None', sep=','): 
             asvlist = asvlist + branch_df.loc[ix, 'ASVs']
         asvlist = sorted(list(set(asvlist)))
         sv_name_lists['tree'] = asvlist
-    
+
     # Compare number of ASVs in tab, fasta and tree
     adjustment_necessary = False
     if len(sv_name_lists) > 1:
@@ -121,6 +132,7 @@ def load(path='', tab='None', fasta='None', meta='None', tree='None', sep=','): 
                 set0 = set1.intersection(set0)
                 key0 = key1
                 adjustment_necessary = True
+
     if adjustment_necessary:
         keepSVs = sorted(list(set0))
         if tab != 'None':
@@ -148,7 +160,6 @@ def load(path='', tab='None', fasta='None', meta='None', tree='None', sep=','): 
     # Return dictionary object with all dataframes
     out = {}
     if tab != 'None':
-        ctab = ctab.applymap(int)
         out['tab'] = ctab
         out['ra'] = ratab
     if tab != 'None' and taxaavailable == 1:

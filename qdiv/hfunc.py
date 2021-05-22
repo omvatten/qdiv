@@ -128,73 +128,68 @@ def get_colors_markers(type='colors', plot=False):
 # Groups SVs based on taxa, returns object with grouped sequences
 # levels specifies taxonomic levels to use in the grouping
 # nameType specifies the abbreviation to be used for unclassified sequences
-def groupbytaxa(obj, levels=['Phylum', 'Genus'], nameType='ASV'):
+# if nameType='merge', all unclassified sequences will be merged
+def groupbytaxa(obj, levels=['Phylum', 'Genus'], merge=False):
     # Clean up tax data frame
-    tax = obj['tax'].copy()
-    tax = tax.fillna('0')
-    taxSV = tax.copy() #df to hold nameTypes in undefined
-    taxNames = tax.copy() #df to hold lowest known taxaname in undefined
+    taxM = obj['tax'].copy()
+    taxS = obj['tax'].copy()
 
-    # Check which OTU or SV name is used in the index
-    indexlist = tax.index.tolist()
-    if indexlist[0][:3] in ['Otu', 'OTU', 'ASV', 'ESV']:
-        currentname = indexlist[0][:3]
-        startpos = 3
-    elif indexlist[0][:2] in ['SV']:
-        currentname = indexlist[0][:2]
-        startpos = 2
-    else:
-        print('Error in groupbyTaxa, ASV/OTU name not known')
-        return 0
+    taxlevels = taxM.columns.tolist()
+    group_level = levels[-1]
+    if group_level not in taxlevels:
+        print('Error in groupbytaxa, level not found')
+        return None
 
-    # If incorrect name is in tax, make column with correct name
-    if nameType != currentname:
-        newnames = []
-        for i in range(len(indexlist)):
-            newnames.append(nameType+indexlist[i][startpos:])
-        indexlist = newnames
+    pos = taxlevels.index(group_level)
+    taxM[taxlevels[0]][taxM[taxlevels[0]].isna()] = 'Unclassified'
+    if pos != 0:
+        for i in range(1, pos+1):
+            t0 = taxlevels[i-1]
+            t1 = taxlevels[i]
+            taxM[t1][taxM[t1].isna()] = taxM[t0][taxM[t1].isna()]
 
-    # Put the ASV/OTU name in all empty spots in taxSV
-    for col in range(len(taxSV.columns)):
-        for row in range(len(taxSV.index)):
-            if taxSV.iloc[row, col] == '0':
-                taxSV.iloc[row, col] = indexlist[row]
-    taxSV[nameType] = indexlist
-
-    # Change all 0 in tax to lowest determined taxa level in taxNames
-    for ix_nr in range(len(taxNames.index)):
-        if taxNames.iloc[ix_nr, 0] == '0':
-            taxNames.iloc[ix_nr, 0] = taxSV.loc[taxNames.index[ix_nr], nameType]
-
-    taxanameslist = taxNames.columns.tolist() #List with Kingdom, Phylum .. SV
-    for s_nr in range(1, len(taxanameslist)):
-        s0 = taxanameslist[s_nr-1]
-        s1 = taxanameslist[s_nr]
-        taxNames[s1][tax[s1] == '0'] = taxNames[s0][tax[s1] == '0']
-
-    # Create names to use in output
-    if len(levels) == 1:
-        tax['Name'] = taxSV[levels[0]]
-        for ix in tax.index:
-            if tax.loc[ix, levels[0]] == '0':
-                tax.loc[ix, 'Name'] = taxNames.loc[ix, levels[0]] + '; ' + tax.loc[ix, 'Name']
-    elif len(levels) == 2:
-        tax['Name'] = taxNames[levels[0]]+'; '+taxSV[levels[1]]
-    else:
-        print('Error in GroupbyTaxa, levels should be a list with 1 or 2 items')
-        return 0
+    taxS['Name'] = ''
+    if merge and len(levels) == 1:
+        taxS['Name'] = taxM[group_level]
+    elif merge and len(levels) > 1:
+        taxS['Name'] = taxM[levels[0]]
+        for i in range(1, len(levels)):
+            t0 = levels[i-1]
+            t1 = levels[i]
+            taxS['Name'][taxM[t0] != taxM[t1]] = taxS['Name'][taxM[t0] != taxM[t1]] + '; ' + taxM[t1][taxM[t0] != taxM[t1]]
+    if merge:
+        mask = (taxS[group_level].isna()) & (taxM[group_level] != 'Unclassified')
+        taxS['Name'][mask] = taxS['Name'][mask] + ':unclassified'
+        
+    elif not merge and len(levels) == 1:
+        taxS['Name'][taxS[group_level].notna()] = taxS[group_level][taxS[group_level].notna()]
+        taxS['Name'][taxS[group_level].isna()] = taxM[group_level][taxS[group_level].isna()] + ':' + list(map(str, taxM[group_level][taxS[group_level].isna()].index))
+    elif not merge and len(levels) > 1:
+        taxS['Name'] = taxM[levels[0]]
+        for i in range(1, len(levels)):
+            t0 = levels[i-1]
+            t1 = levels[i]
+            if t1 != group_level:
+                taxS['Name'][taxM[t0] != taxM[t1]] = taxS['Name'][taxM[t0] != taxM[t1]] + '; ' + taxM[t1][taxM[t0] != taxM[t1]]
+            else:
+                mask = (taxS[t1].isna()) & (taxM[t0] != taxM[t1])
+                taxS['Name'][mask] = taxS['Name'][mask] + '; ' + taxM[t1][mask] + ':' + list(map(str, taxM[t1][mask].index))
+                mask = (taxS[t1].notna()) & (taxM[t0] != taxM[t1])
+                taxS['Name'][mask] = taxS['Name'][mask] + '; ' + taxM[t1][mask]
+                mask = (taxS[t1].isna()) & (taxM[t0] == taxM[t1])
+                taxS['Name'][mask] = taxS['Name'][mask] + ':' + list(map(str, taxM[t1][mask].index))
 
     #Grouby Name and return object
     out = {}
     if 'tab' in obj:
         tab = obj['tab'].copy()
-        tab['Name'] = tax['Name']
+        tab['Name'] = taxS['Name']
         tab = tab.set_index(['Name'])
         tab = tab.groupby(tab.index).sum()
         out['tab'] = tab
     if 'ra' in obj:
         ra = obj['ra'].copy()
-        ra['Name'] = tax['Name']
+        ra['Name'] = taxS['Name']
         ra = ra.set_index('Name')
         ra = ra.groupby(ra.index).sum()
         out['ra'] = ra
@@ -202,17 +197,9 @@ def groupbytaxa(obj, levels=['Phylum', 'Genus'], nameType='ASV'):
         out['meta'] = obj['meta'].copy()
     if 'tax' in obj:
         newtax = obj['tax'].copy()
-        newtax['Name'] = tax['Name']
+        newtax['Name'] = taxS['Name']
         newtax = newtax.set_index(['Name'])
         newtax = newtax.groupby(newtax.index).first()
-        if len(levels) == 1:
-            lowest_level = levels[0]
-        else:
-            lowest_level = levels[-1]
-        position_nr = tax.columns.tolist().index(lowest_level)
-        for c_nr in range(len(newtax.columns)):
-            if c_nr > position_nr:
-                newtax.iloc[:, c_nr] = np.nan
         out['tax'] = newtax
     return out
 

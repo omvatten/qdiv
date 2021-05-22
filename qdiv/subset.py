@@ -229,7 +229,7 @@ def merge_samples(obj, var='None', slist='None', keep0=False):
 def rarefy_table(tab, depth='min', seed='None', replacement=False):
     #Make sure table elements are all integers
     tab = tab.fillna(0)
-    tab = tab.applymap(int) 
+    tab = tab.applymap(int)
 
     ## Set read depth
     if depth == 'min':

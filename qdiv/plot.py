@@ -24,7 +24,7 @@ from . import hfunc
     # numberToPlot refers to the number of taxa with highest abundance to include in the heatmap
     # method refers to the method used to define the taxa with highest abundance, 'max_sample' is max relative abundance in a sample,
     # 'mean_all' is the mean relative abundance across all samples
-    # nameType specifies the abbreviation to be used for unclassified sequences
+    # if merge=False (default), unclassified taxon levels will be given the ASV names, if merge=True, they will be given the lowest classified level
     # figsize is the width and height of the figure
     # fontsize is refers to the axis text
     # sepCol is a list of column numbers between which to include a separator, i.e. to clarify grouping of samples
@@ -36,7 +36,7 @@ from . import hfunc
     # cBar is a list of tick marks to use if a color bar is included as legend
     # savename is the name (also include path) of the saved png file, if 'None' no figure is saved
 def heatmap(obj, xAxis='None', levels=['Phylum', 'Genus'], levelsShown='None', subsetLevels='None', subsetPatterns='None',
-                order='None', numberToPlot=20, method='max_sample', nameType='ASV',
+                order='None', numberToPlot=20, method='max_sample', merge=False,
                  figsize=(14, 10), fontsize=15, sepCol = [],
                 labels=True, labelsize=10, cThreshold=8,
                 cMap='Reds', cLinear=0.5, cBar=[], savename='None'):
@@ -70,7 +70,7 @@ def heatmap(obj, xAxis='None', levels=['Phylum', 'Genus'], levelsShown='None', s
         merged_obj = subset_obj
 
     ## Groupby taxa
-    taxa_obj = hfunc.groupbytaxa(merged_obj, levels=levels, nameType=nameType)
+    taxa_obj = hfunc.groupbytaxa(merged_obj, levels=levels, merge=merge)
     ra = taxa_obj['ra']
     table = ra.copy()
 
@@ -79,12 +79,10 @@ def heatmap(obj, xAxis='None', levels=['Phylum', 'Genus'], levelsShown='None', s
         ra['max'] = ra.max(axis=1)
         ra = ra.sort_values(by=['max'], ascending=False)
         retain = ra.index.tolist()[:numberToPlot]
-
     elif method == 'mean_all':
         ra['mean'] = ra.mean(axis=1)
         ra = ra.sort_values(by=['mean'], ascending=False)
         retain = ra.index.tolist()[:numberToPlot]
-
     table = table.loc[retain]
 
     if order != 'None':
@@ -94,25 +92,44 @@ def heatmap(obj, xAxis='None', levels=['Phylum', 'Genus'], levelsShown='None', s
     taxa_list = table.index.tolist()
     new_taxa_list = []
     for n in taxa_list:
-        if ';' in n and '__' in n: #Check if there are two taxa names
-            splitname = n.split(';')
-            splitname1 = splitname[0].split('__')
-            newname1 = splitname1[0]+'__'+'$\it{'+splitname1[1].replace('_',' ')+'}$'
-            if '__' in splitname[1]:
-                splitname2 = splitname[1].split('__')
-                newname2 = splitname2[0]+'__'+'$\it{'+splitname2[1].replace('_',' ')+'}$'
-            else:
-                newname2 = splitname[1].replace('_',' ')
-            newname = newname1+'; '+newname2
-        elif ';' in n and '__' not in n:
-            splitname = n.split(';')
-            newname = splitname[0].replace('_', ' ')
+        if ';' in n and '__' in n:
+            newname = ''
+            splitname1 = n.split(';')
+            for sn in splitname1:
+                if '__' in sn and ':' in sn:
+                    splitname2 = sn.split('__')
+                    newname = newname+splitname2[0]+'__'
+                    splitname3 = splitname2[1].split(':')
+                    newname = newname+'$\it{'+splitname3[0].replace('_',' ')+'}$'+':'+splitname3[1]
+                elif '__' in sn:
+                    splitname2 = sn.split('__')
+                    newname = newname+splitname2[0]+'__'+'$\it{'+splitname2[1].replace('_',' ')+'}$'
+                else:
+                    newname = newname+'$\it{'+sn.replace('_',' ')+'}$'
+                if sn != splitname1[-1]:
+                    newname = newname + '; '
+        elif ';' in n:
+            newname = ''
+            splitname1 = n.split(';')
+            for sn in splitname1:
+                if ':' in sn:
+                    splitname2 = sn.split(':')
+                    newname = newname+'$\it{'+splitname2[0].replace('_',' ')+'}$'+':'+splitname2[1]
+                else:
+                    newname = newname+'$\it{'+sn.replace('_',' ')+'}$'
+                if sn != splitname1[-1]:
+                    newname = newname + '; '
         else: #If there is only one taxa name
-            if '__' in n:
-                splitname = n.split('__')
-                newname = splitname[0]+'__'+'$\it{'+splitname[1].replace('_', ' ')+'}$'
+            if '__' in n and ':' in n:
+                splitname1 = n.split('__')
+                newname = splitname1[0]+'__'
+                splitname2 = splitname1[1].split(':')
+                newname = newname+'$\it{'+splitname2[0].replace('_',' ')+'}$'+':'+splitname2[1]
+            elif '__' in n:
+                splitname1 = n.split('__')
+                newname = splitname1[0]+'__'+'$\it{'+splitname1[1].replace('_', ' ')+'}$'
             else:
-                newname = n.replace('_', ' ')
+                newname = '$\it{'+n.replace('_', ' ')+'}$'
         new_taxa_list.append(newname)
     table = pd.DataFrame(table.to_numpy(), index=new_taxa_list, columns=table.columns)
     
@@ -126,7 +143,7 @@ def heatmap(obj, xAxis='None', levels=['Phylum', 'Genus'], levelsShown='None', s
         for i in range(len(table.index), 0, -1):
             numbered_list.append(i)
         table = pd.DataFrame(table.to_numpy(), index=numbered_list, columns=table.columns)
-
+    
     #Fix datalabels
     if labels:
         labelvalues = table.copy()
@@ -135,11 +152,11 @@ def heatmap(obj, xAxis='None', levels=['Phylum', 'Genus'], levelsShown='None', s
                 value = float(table.loc[r, c])
                 if value < 0.1 and value > 0:
                     labelvalues.loc[r, c] = '<0.1'
-                elif value < 10 and value >= 0.1:
+                elif value < 9.95 and value >= 0.1:
                     labelvalues.loc[r, c] = str(round(value, 1))
                 elif value > 99:
                     labelvalues.loc[r, c] = '99'
-                elif value >= 10:
+                elif value >= 9.95:
                     labelvalues.loc[r, c] = str(int(round(value, 0)))
                 else:
                     labelvalues.loc[r, c] = '0'
@@ -280,6 +297,7 @@ def alpha_diversity(obj, distmat='None', divType='naive', var='None', slist='Non
 # var1 is heading in meta used to color code, var2 is heading in meta used to code by marker type
 # var1_title and var_2 title are the titles used in the legend
 # biplot is list with meta data column headings used in biplot, the columns must contain numeric data
+# arrow_width is width of arrows in biplot
 # whitePad sets the space between the outermost points and the plot limits (1.0=no space)
 # var2pos is the vertical position of the var2 legend
 # tag is heading in meta used to add labels to each point in figure
@@ -294,14 +312,18 @@ def alpha_diversity(obj, distmat='None', divType='naive', var='None', slist='Non
 # n_std is number of standard deviations of confidence ellipses
 # ellipse_tag is metadata column with labels for each ellipse
 # ellipse_connect i metadata column with data to connect centers of ellipses with lines 
+# if flipx or flipy is True, invert x or y axis
+# if returnData=True, the metadata and coordinates in PCoA is returned as a pandas dataframe
 # colorlist specifies colorlist to use for var1; same for markerlist and var2
 # savename is path and name to save png and pdf output
-def pcoa(dist, meta='None', var1='None', var2='None', var1_title='', var2_title='', biplot=[], 
+def pcoa(dist, meta='None', var1='None', var2='None', var1_title='', var2_title='', biplot=[], arrow_width=0.001,
              whitePad=1.1, var2pos=0.4, tag='None', order='None', title='', connectPoints='None',
              figsize=(9, 6), fontsize=12, markersize=50, markerscale=1.1, lw=1,
              hideAxisValues=False, showLegend=True, 
              ellipse='None', n_std=2, ellipse_tag='None', ellipse_connect='None',
+             flipx=False, flipy=False, returnData=False,
              colorlist='None', markerlist='None', savename='None'):
+
     def get_eig(d): #Function for centering and eigen-decomposition of distance matrix
         dist2 = -0.5*(d**2)
         col_mean = dist2.mean(axis=0)
@@ -330,10 +352,21 @@ def pcoa(dist, meta='None', var1='None', var2='None', var1_title='', var2_title=
     Eig_vals = [] #Main vectors used for biplot
     for i in range(2):
         maxpos = np.argmax(vals)
-        prop.append(vals[maxpos]/sum(ev_ev[0]))
-        coords.append((vals[maxpos]**0.5)*vects[:, maxpos])
+        add2prop = vals[maxpos]/sum(ev_ev[0])
+        if '+' in str(add2prop):
+            realpart = str(add2prop).split('+')[0]
+            prop.append(float(realpart[1:]))
+        else:
+            prop.append(add2prop)
+        add2coords = (vals[maxpos]**0.5)*vects[:, maxpos]
+        add2coords = np.real(add2coords)
+        coords.append(add2coords)
+ 
+        #prop.append(vals[maxpos]/sum(ev_ev[0]))
+        #coords.append((vals[maxpos]**0.5)*vects[:, maxpos])
         Eig_vals.append(vals[maxpos])
-        vals[maxpos] = 0
+        vals[maxpos] = 0 #Set vals maxpos to zero, so in next round we get 2nd highest
+        
     #Check if prop is imaginary
     for i in range(2):
         if '+' in str(prop[i]):
@@ -533,7 +566,7 @@ def pcoa(dist, meta='None', var1='None', var2='None', var1_title='', var2_title=
                 va = 'bottom'
             elif Uproj.loc[var_name, 1] < 0:
                 va = 'top'
-            ax.arrow(0, 0, Uproj.loc[var_name, 0], Uproj.loc[var_name, 1], color='black')
+            ax.arrow(0, 0, Uproj.loc[var_name, 0], Uproj.loc[var_name, 1], color='black', width=arrow_width)
             ax.annotate(var_name, (1.03*Uproj.loc[var_name, 0], 1.03*Uproj.loc[var_name, 1]), horizontalalignment=ha, verticalalignment=va)
         ax.axhline(0, 0, 1, linestyle='--', color='grey', lw=0.5)
         ax.axvline(0, 0, 1, linestyle='--', color='grey', lw=0.5)
@@ -542,6 +575,11 @@ def pcoa(dist, meta='None', var1='None', var2='None', var1_title='', var2_title=
     ax.set_ylabel(yn)
     ax.set_xlim(xaxislims)
     ax.set_ylim(yaxislims)
+    if flipx:
+        ax.invert_xaxis()
+    if flipy:
+        ax.invert_yaxis()
+    
     if hideAxisValues:
         ax.set_xticklabels([])
         ax.set_yticklabels([])
@@ -550,6 +588,10 @@ def pcoa(dist, meta='None', var1='None', var2='None', var1_title='', var2_title=
     if savename != 'None':
         plt.savefig(savename+'.pdf', format='pdf')
         plt.savefig(savename)
+    if returnData and len(biplot) > 0:
+        return metaPlot, Uproj
+    elif returnData:
+        return metaPlot
     plt.show()
 
 # Plots dissimilarity between pairs of samples types
