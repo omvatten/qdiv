@@ -6,13 +6,12 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Load and print files &#8212; qdiv  documentation</title>
-    <link rel="stylesheet" href="_static/alabaster.css" type="text/css" />
     <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="_static/alabaster.css" type="text/css" />
     <script id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
     <script src="_static/jquery.js"></script>
     <script src="_static/underscore.js"></script>
     <script src="_static/doctools.js"></script>
-    <script src="_static/language_data.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
     <link rel="next" title="Information and statistics" href="Information%20and%20statistics.html" />
@@ -37,12 +36,14 @@
 <h1>Load and print files<a class="headerlink" href="#load-and-print-files" title="Permalink to this headline">¶</a></h1>
 <div class="section" id="loading-files">
 <h2>Loading files<a class="headerlink" href="#loading-files" title="Permalink to this headline">¶</a></h2>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">files</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">path</span><span class="o">=</span><span class="s1">&#39;&#39;</span><span class="p">,</span> <span class="n">tab</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">fasta</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">tree</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">meta</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">sep</span><span class="o">=</span><span class="s1">&#39;,&#39;</span><span class="p">)</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">files</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">path</span><span class="o">=</span><span class="s1">&#39;&#39;</span><span class="p">,</span> <span class="n">tab</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">fasta</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">tree</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">meta</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">sep</span><span class="o">=</span><span class="s1">&#39;,&#39;</span><span class="p">,</span> <span class="n">addPrefix</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">orderSeqs</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 </pre></div>
 </div>
 <p>Loads files into an object, which is used for further analysis.</p>
 <p><em>path</em> is the path to the directory holding the input files, <em>tab</em> is the name of the count table file,
 <em>fasta</em> is the name of the fasta file, <em>tree</em> is a Newick-formatted tree file, <em>meta</em> is the name of meta data file, <em>sep</em> is the separator used in the count table and meta data files (‘,’ or ‘;’ or ‘\t’).</p>
+<p>if <em>addPrefix</em> =True (default), a <a href="#id1"><span class="problematic" id="id2">g__</span></a> will be added before genus name, <a href="#id1"><span class="problematic" id="id3">f__</span></a> before family name, etc.</p>
+<p>if <em>orderSeqs</em> =True (default), sequences will be sorted numerically if the sequence identifiers contain a number.</p>
 <p>Example</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">qdiv</span>
 
@@ -170,7 +171,7 @@ When the sequences have been processed, click ‘show assignment detail for Root
       &copy;2019, Oskar Modin.
       
       |
-      Powered by <a href="http://sphinx-doc.org/">Sphinx 3.2.1</a>
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 3.5.4</a>
       &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.12</a>
       
       |

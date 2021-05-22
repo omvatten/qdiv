@@ -6,7 +6,7 @@ Heatmap
 
 .. code-block:: python
 
-   plot.heatmap(obj, xAxis='None', levels=['Phylum', 'Genus'], levelsShown='None', subsetLevels='None', subsetPatterns='None', order='None', numberToPlot=20, method='max_sample', nameType='SV', figsize=(14, 10), fontsize=15, sepCol = [], labels=True, labelsize=10, cThreshold=8, cMap='Reds', cLinear=0.5, cBar=[], savename='None')
+   plot.heatmap(obj, xAxis='None', levels=['Phylum', 'Genus'], levelsShown='None', subsetLevels='None', subsetPatterns='None', order='None', numberToPlot=20, method='max_sample', merge=False, figsize=(14, 10), fontsize=15, sepCol = [], labels=True, labelsize=10, cThreshold=8, cMap='Reds', cLinear=0.5, cBar=[], savename='None')
 
 Plots a heatmap showing the relative abundance of different taxa in different samples.
 
@@ -31,7 +31,7 @@ The sample with the smallest number will be placed to the left in the heatmap.
 - 'max_sample' uses the maximum relative abundance in a sample
 - 'mean_all' uses the mean relative abundance across all samples to rank the taxa
 
-*nameType* is the label used for unclassified sequences (e.g. ASV or OTU) 
+if *merge* =True, unclassified sequences will be merged. If False (default), they will be kept separate and identified with sequence id found in the count table.
 
 *figsize* is the width and height of the figure in inches
 
@@ -85,7 +85,7 @@ PCoA
 
 .. code-block:: python
 
-   plot.pcoa(dist, meta='None', var1='None', var2='None', var1_title='', var2_title='', biplot=[], whitePad=1.1, var2pos=0.4, tag='None', order='None', title='', connectPoints='None', figsize=(9, 6), fontsize=12, markersize=50, markerscale=1.1, lw=1, hideAxisValues=False, showLegend=True, ellipse='None', n_std=2, ellipse_tag='None', ellipse_connect='None', colorlist='None', markerlist='None', savename='None')
+   plot.pcoa(dist, meta='None', var1='None', var2='None', var1_title='', var2_title='', biplot=[], arrow_width=0.001, whitePad=1.1, var2pos=0.4, tag='None', order='None', title='', connectPoints='None', figsize=(9, 6), fontsize=12, markersize=50, markerscale=1.1, lw=1, hideAxisValues=False, showLegend=True, ellipse='None', n_std=2, ellipse_tag='None', ellipse_connect='None', flipx=False, flipy=False, returnData=False, colorlist='None', markerlist='None', savename='None')
 
 Visualizes dissimilarities between samples in principal coordinate analysis plot.
 
@@ -93,13 +93,15 @@ Visualizes dissimilarities between samples in principal coordinate analysis plot
 
 *meta* is the meta data, typically object['meta'].
 
-*var1* is a column heading in the meta used to color code (required input!).
+*var1* is a column heading in the meta used to color code.
 
-*var2* is a column heading in the meta used to code by marker type (optional). 
+*var2* is a column heading in the meta used to code by marker type.
 
 *var1_title* and *var_2 title* are the titles used in the legend.
 
 *biplot* is a list of columns in meta data containing numeric data that should be plotted as a biplot in the PCoA. The arrows associated with each column are scaled to the plot area of the PCoA.
+
+*arrow_width* is the width of the arrows used in the biplot.
 
 *whitePad* sets the space between the outermost points and the plot limits (1.0=no space).
 
@@ -112,6 +114,10 @@ Visualizes dissimilarities between samples in principal coordinate analysis plot
 *title* is the title of the entire figure.
 
 *connectPoints* is a meta data column with numbers. If specified, the sample points in the PCoA will be connected by lines in the order determined by the numbers in the column.
+
+*figsize* is the figure size in inches (width, height).
+
+*markersize* is the size of the markers in the figure.
 
 *markerscale* sets the size of the markers in the legend
 
@@ -128,6 +134,12 @@ if *showLegend=False* the legend is removed
 *ellipse_tag* is metadata column with labels for each ellipse
 
 *ellipse_connect* is metadata column with numbers used to connect centers of ellipses with lines.
+
+if *flipx* =True, the x-axis will be inverted
+
+if *flipy* =True, the y-axis will be inverted
+
+if *returnData* =True, the coordinate of the points will be returned as a pandas dataframe. Note that if it is a biplot, two dataframes will be returned: one for the points and one for the arrows.
 
 *colorlist* specifies colorlist to use for var1. If 'None', qdiv will decide the colors. same for markerlist and var2; savename is path and name to save png figure output.
 
