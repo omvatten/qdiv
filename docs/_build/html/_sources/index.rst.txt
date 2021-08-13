@@ -22,5 +22,6 @@ Several scientific papers have been studied to program the algorithms used in qd
    Null models
    Plotting
    Citations
+   Tutorial_1.ipynb
 
 * :ref:`search`

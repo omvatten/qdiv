@@ -4,14 +4,19 @@
 <html>
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+
     <title>Installation instructions &#8212; qdiv  documentation</title>
-    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
     <link rel="stylesheet" href="_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
     <script id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
     <script src="_static/jquery.js"></script>
     <script src="_static/underscore.js"></script>
     <script src="_static/doctools.js"></script>
+    <script src="_static/language_data.js"></script>
+    <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+    <script async="async" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.7/latest.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <script type="text/x-mathjax-config">MathJax.Hub.Config({"tex2jax": {"inlineMath": [["$", "$"], ["\\(", "\\)"]], "processEscapes": true, "ignoreClass": "document", "processClass": "math|output_area"}})</script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
     <link rel="next" title="Input files" href="Input%20files.html" />
@@ -32,29 +37,41 @@
 
           <div class="body" role="main">
             
-  <div class="section" id="installation-instructions">
+  <section id="installation-instructions">
 <h1>Installation instructions<a class="headerlink" href="#installation-instructions" title="Permalink to this headline">¶</a></h1>
-<p>Download <a class="reference external" href="https://www.anaconda.com/products/individual">Anaconda</a> or <a class="reference external" href="https://docs.conda.io/en/latest/miniconda.html">Miniconda</a></p>
-<p>Open the Anaconda or Miniconda prompt (a terminal window).</p>
-<p>Create a new environment. You can, for example, call it qdiv_env. Then, activate the environment.</p>
-<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="go">conda create -n qdiv_env</span>
-<span class="go">conda activate qdiv_env</span>
-</pre></div>
-</div>
-<p>qdiv depends on three other python packages: pandas, numpy, and matplotlib. To install them, use the following command:</p>
-<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="go">conda install pandas numpy matplotlib</span>
-</pre></div>
-</div>
-<p>Next, install qdiv using pip.</p>
+<p>qdiv can be installed with pip or conda.</p>
 <div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="go">pip install qdiv</span>
 </pre></div>
 </div>
-<p>To start using qdiv, you need some way of writing and executing Python code. I use <a class="reference external" href="https://www.spyder-ide.org/">Spyder</a>. You can install Spyder like this:</p>
+<p>or</p>
+<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="go">conda activate qdiv_env</span>
+</pre></div>
+</div>
+<p>The recommended method is to download <a class="reference external" href="https://www.anaconda.com/products/individual">Anaconda</a> or <a class="reference external" href="https://docs.conda.io/en/latest/miniconda.html">Miniconda</a></p>
+<p>Open the Anaconda or Miniconda prompt (a terminal window).</p>
+<p>Create a new environment. You can, for example, call it qdiv_env. Then, activate the environment.</p>
+<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="go">conda create -n qdiv_env python=3.9</span>
+<span class="go">conda activate qdiv_env</span>
+</pre></div>
+</div>
+<p>Install qdiv using:</p>
+<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="go">conda install -c omvatten qdiv</span>
+</pre></div>
+</div>
+<p>To start using qdiv, you need some way of writing and executing Python code. I use <a class="reference external" href="https://www.spyder-ide.org/">Spyder</a> or Jupyter notebooks. You can install Spyder like this:</p>
 <div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="go">conda install spyder</span>
 </pre></div>
 </div>
 <p>To run Spyder, simply type:</p>
 <div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="go">spyder</span>
+</pre></div>
+</div>
+<p>You can install Jupyter like this:</p>
+<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="go">conda install jupyter</span>
+</pre></div>
+</div>
+<p>To start a Jupyter notebook, simply type:</p>
+<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="go">jupyter notebook</span>
 </pre></div>
 </div>
 <p>To check if qdiv works, you can run the following code:</p>
@@ -65,7 +82,7 @@
 </pre></div>
 </div>
 <p>Hopefully, this will run without error messages and print a value of 3.388</p>
-</div>
+</section>
 
 
           </div>
@@ -94,6 +111,13 @@
 <li class="toctree-l1"><a class="reference internal" href="Null%20models.html">Null models</a></li>
 <li class="toctree-l1"><a class="reference internal" href="Plotting.html">Plotting</a></li>
 <li class="toctree-l1"><a class="reference internal" href="Citations.html">Citations</a></li>
+<li class="toctree-l1"><a class="reference internal" href="Tutorial_1.html">Tutorial 1</a></li>
+<li class="toctree-l1"><a class="reference internal" href="Tutorial_1.html#TABLE-OF-CONTENTS">TABLE OF CONTENTS</a></li>
+<li class="toctree-l1"><a class="reference internal" href="Tutorial_1.html#PREPARE-THE-DATA-FILES">PREPARE THE DATA FILES</a></li>
+<li class="toctree-l1"><a class="reference internal" href="Tutorial_1.html#A-FIRST-LOOK-AT-THE-DATA">A FIRST LOOK AT THE DATA</a></li>
+<li class="toctree-l1"><a class="reference internal" href="Tutorial_1.html#RAREFYING">RAREFYING</a></li>
+<li class="toctree-l1"><a class="reference internal" href="Tutorial_1.html#ALPHA-DIVERSITY">ALPHA DIVERSITY</a></li>
+<li class="toctree-l1"><a class="reference internal" href="Tutorial_1.html#BETA-DIVERSITY">BETA DIVERSITY</a></li>
 </ul>
 
 <div class="relations">
@@ -131,7 +155,7 @@
       &copy;2019, Oskar Modin.
       
       |
-      Powered by <a href="http://sphinx-doc.org/">Sphinx 3.5.4</a>
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 3.2.1</a>
       &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.12</a>
       
       |

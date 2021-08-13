@@ -1,6 +1,20 @@
 Installation instructions
 ***************************
-Download `Anaconda <https://www.anaconda.com/products/individual>`_ or `Miniconda <https://docs.conda.io/en/latest/miniconda.html>`_
+
+qdiv can be installed with pip or conda.
+
+.. code-block:: console
+
+   pip install qdiv
+
+or
+
+.. code-block:: console
+
+   conda activate qdiv_env
+
+
+The recommended method is to download `Anaconda <https://www.anaconda.com/products/individual>`_ or `Miniconda <https://docs.conda.io/en/latest/miniconda.html>`_
 
 Open the Anaconda or Miniconda prompt (a terminal window).
 
@@ -8,22 +22,16 @@ Create a new environment. You can, for example, call it qdiv_env. Then, activate
 
 .. code-block:: console
 
-   conda create -n qdiv_env
+   conda create -n qdiv_env python=3.9
    conda activate qdiv_env
 
-qdiv depends on three other python packages: pandas, numpy, and matplotlib. To install them, use the following command:
+Install qdiv using:
 
 .. code-block:: console
 
-   conda install pandas numpy matplotlib
-   
-Next, install qdiv using pip.
+   conda install -c omvatten qdiv
 
-.. code-block:: console
-
-   pip install qdiv
-
-To start using qdiv, you need some way of writing and executing Python code. I use `Spyder <https://www.spyder-ide.org/>`_. You can install Spyder like this:
+To start using qdiv, you need some way of writing and executing Python code. I use `Spyder <https://www.spyder-ide.org/>`_ or Jupyter notebooks. You can install Spyder like this:
 
 .. code-block:: console
 
@@ -34,6 +42,18 @@ To run Spyder, simply type:
 .. code-block:: console
 
    spyder
+
+You can install Jupyter like this:
+
+.. code-block:: console
+
+   conda install jupyter
+
+To start a Jupyter notebook, simply type:
+
+.. code-block:: console
+
+   jupyter notebook
 
 To check if qdiv works, you can run the following code:
 

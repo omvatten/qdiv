@@ -4,14 +4,19 @@
 <html>
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+
     <title>Plotting &#8212; qdiv  documentation</title>
-    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
     <link rel="stylesheet" href="_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
     <script id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
     <script src="_static/jquery.js"></script>
     <script src="_static/underscore.js"></script>
     <script src="_static/doctools.js"></script>
+    <script src="_static/language_data.js"></script>
+    <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+    <script async="async" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.7/latest.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <script type="text/x-mathjax-config">MathJax.Hub.Config({"tex2jax": {"inlineMath": [["$", "$"], ["\\(", "\\)"]], "processEscapes": true, "ignoreClass": "document", "processClass": "math|output_area"}})</script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
     <link rel="next" title="Citations" href="Citations.html" />
@@ -32,9 +37,9 @@
 
           <div class="body" role="main">
             
-  <div class="section" id="plotting">
+  <section id="plotting">
 <h1>Plotting<a class="headerlink" href="#plotting" title="Permalink to this headline">¶</a></h1>
-<div class="section" id="heatmap">
+<section id="heatmap">
 <h2>Heatmap<a class="headerlink" href="#heatmap" title="Permalink to this headline">¶</a></h2>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">plot</span><span class="o">.</span><span class="n">heatmap</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">xAxis</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">levels</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;Phylum&#39;</span><span class="p">,</span> <span class="s1">&#39;Genus&#39;</span><span class="p">],</span> <span class="n">levelsShown</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">subsetLevels</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">subsetPatterns</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">numberToPlot</span><span class="o">=</span><span class="mi">20</span><span class="p">,</span> <span class="n">method</span><span class="o">=</span><span class="s1">&#39;max_sample&#39;</span><span class="p">,</span> <span class="n">merge</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">14</span><span class="p">,</span> <span class="mi">10</span><span class="p">),</span> <span class="n">fontsize</span><span class="o">=</span><span class="mi">15</span><span class="p">,</span> <span class="n">sepCol</span> <span class="o">=</span> <span class="p">[],</span> <span class="n">labels</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">labelsize</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span> <span class="n">cThreshold</span><span class="o">=</span><span class="mi">8</span><span class="p">,</span> <span class="n">cMap</span><span class="o">=</span><span class="s1">&#39;Reds&#39;</span><span class="p">,</span> <span class="n">cLinear</span><span class="o">=</span><span class="mf">0.5</span><span class="p">,</span> <span class="n">cBar</span><span class="o">=</span><span class="p">[],</span> <span class="n">savename</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">)</span>
 </pre></div>
@@ -65,8 +70,8 @@ The sample with the smallest number will be placed to the left in the heatmap.</
 <p><em>cLinear</em> is a parameter determining how the color intensity changes with relative abundance. A value of 1 means the change is linear.</p>
 <p><em>cBar</em> is a list of tick marks to use if a color bar is included as legend. The tick marks indicate relative abundance percentage levels to include in the legend.</p>
 <p><em>savename</em> is the name (also include path) of the saved png file. If ‘None’, no figure is saved.</p>
-</div>
-<div class="section" id="alpha-diversity">
+</section>
+<section id="alpha-diversity">
 <h2>Alpha diversity<a class="headerlink" href="#alpha-diversity" title="Permalink to this headline">¶</a></h2>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">plot</span><span class="o">.</span><span class="n">alpha_diversity</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">distmat</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">var</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">slist</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">ylog</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span> <span class="mi">6</span><span class="p">),</span> <span class="n">fontsize</span><span class="o">=</span><span class="mi">18</span><span class="p">,</span> <span class="n">colorlist</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">savename</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">)</span>
 </pre></div>
@@ -81,8 +86,8 @@ The sample with the smallest number will be placed to the left in the heatmap.</
 <p><em>fontsize</em> refers to the axis text font size</p>
 <p><em>colorlist</em> is a list of colors used for the lines in the plot, if colorlist=’None’, qdiv will decide the colors.</p>
 <p><em>savename</em> is the name (also include path) of the saved png file, if ‘None’ no figure is saved.</p>
-</div>
-<div class="section" id="pcoa">
+</section>
+<section id="pcoa">
 <h2>PCoA<a class="headerlink" href="#pcoa" title="Permalink to this headline">¶</a></h2>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">plot</span><span class="o">.</span><span class="n">pcoa</span><span class="p">(</span><span class="n">dist</span><span class="p">,</span> <span class="n">meta</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">var1</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">var2</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">var1_title</span><span class="o">=</span><span class="s1">&#39;&#39;</span><span class="p">,</span> <span class="n">var2_title</span><span class="o">=</span><span class="s1">&#39;&#39;</span><span class="p">,</span> <span class="n">biplot</span><span class="o">=</span><span class="p">[],</span> <span class="n">arrow_width</span><span class="o">=</span><span class="mf">0.001</span><span class="p">,</span> <span class="n">whitePad</span><span class="o">=</span><span class="mf">1.1</span><span class="p">,</span> <span class="n">var2pos</span><span class="o">=</span><span class="mf">0.4</span><span class="p">,</span> <span class="n">tag</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">title</span><span class="o">=</span><span class="s1">&#39;&#39;</span><span class="p">,</span> <span class="n">connectPoints</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">9</span><span class="p">,</span> <span class="mi">6</span><span class="p">),</span> <span class="n">fontsize</span><span class="o">=</span><span class="mi">12</span><span class="p">,</span> <span class="n">markersize</span><span class="o">=</span><span class="mi">50</span><span class="p">,</span> <span class="n">markerscale</span><span class="o">=</span><span class="mf">1.1</span><span class="p">,</span> <span class="n">lw</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">hideAxisValues</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">showLegend</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">ellipse</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">n_std</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">ellipse_tag</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">ellipse_connect</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">flipx</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">flipy</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">returnData</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">colorlist</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">markerlist</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">savename</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">)</span>
 </pre></div>
@@ -117,8 +122,8 @@ The sample with the smallest number will be placed to the left in the heatmap.</
 <p><em>colorlist</em> specifies colorlist to use for var1. If ‘None’, qdiv will decide the colors. same for markerlist and var2; savename is path and name to save png figure output.</p>
 <p><em>markerlist</em> specifies markers to use for var2. If ‘None’, qdiv will decide the markers.</p>
 <p><em>savename</em> is path and name to save png and pdf figures.</p>
-</div>
-<div class="section" id="pairwise-dissimilarity">
+</section>
+<section id="pairwise-dissimilarity">
 <h2>Pairwise dissimilarity<a class="headerlink" href="#pairwise-dissimilarity" title="Permalink to this headline">¶</a></h2>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">plot</span><span class="o">.</span><span class="n">pairwise_beta</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">divType</span><span class="o">=</span><span class="s1">&#39;naive&#39;</span><span class="p">,</span> <span class="n">distmat</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">compareVar</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">spairs</span><span class="o">=</span><span class="p">[],</span> <span class="n">nullModel</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">randomization</span><span class="o">=</span><span class="s1">&#39;abundance&#39;</span><span class="p">,</span> <span class="n">weight</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">iterations</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span> <span class="n">qrange</span><span class="o">=</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">],</span> <span class="n">colorlist</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">onlyPlotData</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">skipJB</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">onlyReturnData</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">savename</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">)</span>
 </pre></div>
@@ -137,8 +142,8 @@ between the meta data categories specified present under compareVar.</p>
 <p>If <em>skipJB</em> =True, Jaccard and Bray-Curtis dissimilarities will not be calculated.</p>
 <p>If <em>onlyReturnData</em> =True, no plots will be done and only a python dictionary containing the output data will be generated. This dictionary can later be used as input to the onlyPlotData argument.</p>
 <p><em>savename</em> is path and name to the generated output. The data in the python dictionary is saved as a pickle file.</p>
-</div>
-<div class="section" id="rarefaction-curve">
+</section>
+<section id="rarefaction-curve">
 <h2>Rarefaction curve<a class="headerlink" href="#rarefaction-curve" title="Permalink to this headline">¶</a></h2>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">plot</span><span class="o">.</span><span class="n">rarefactioncurve</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">step</span><span class="o">=</span><span class="s1">&#39;flexible&#39;</span><span class="p">,</span> <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">14</span><span class="p">,</span> <span class="mi">10</span><span class="p">),</span> <span class="n">fontsize</span><span class="o">=</span><span class="mi">18</span><span class="p">,</span> <span class="n">var</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">tag</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">colorlist</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">onlyReturnData</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">onlyPlotData</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">savename</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">)</span>
 </pre></div>
@@ -155,8 +160,8 @@ between the meta data categories specified present under compareVar.</p>
 <p>if <em>onlyReturnData</em> =True, function will return a python dictionary with data.</p>
 <p>if <em>onlyPlotData</em> is a dictionary with data (generated in a previous step by running the function with onlyReturnData=True), it will be plotted and no calculations will be carried out.</p>
 <p>if <em>savename</em> is specified, plots will be saved and data will be saved as a pickle file.</p>
-</div>
-<div class="section" id="octave-frequency-histogram">
+</section>
+<section id="octave-frequency-histogram">
 <h2>Octave (frequency histogram)<a class="headerlink" href="#octave-frequency-histogram" title="Permalink to this headline">¶</a></h2>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">plot</span><span class="o">.</span><span class="n">octave</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">var</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">slist</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">nrows</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">ncols</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">fontsize</span><span class="o">=</span><span class="mi">11</span><span class="p">,</span> <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span> <span class="mi">6</span><span class="p">),</span> <span class="n">xlabels</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">ylabels</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">title</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s1">&#39;blue&#39;</span><span class="p">,</span> <span class="n">savename</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">)</span>
 </pre></div>
@@ -171,8 +176,8 @@ between the meta data categories specified present under compareVar.</p>
 <p>if <em>title</em> =True, sample name is shown as title for each panel</p>
 <p><em>color</em> determines color of bars</p>
 <p><em>savename</em> is path and name of file.</p>
-</div>
-<div class="section" id="dissimilarity-contributions-of-taxa">
+</section>
+<section id="dissimilarity-contributions-of-taxa">
 <h2>Dissimilarity contributions of taxa<a class="headerlink" href="#dissimilarity-contributions-of-taxa" title="Permalink to this headline">¶</a></h2>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">plot</span><span class="o">.</span><span class="n">dissimilarity_contributions</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">var</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">q</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">index</span><span class="o">=</span><span class="s1">&#39;local&#39;</span><span class="p">,</span> <span class="n">numberToPlot</span><span class="o">=</span><span class="mi">20</span><span class="p">,</span> <span class="n">levels</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;Genus&#39;</span><span class="p">],</span> <span class="n">fromFile</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">18</span><span class="o">/</span><span class="mf">2.54</span><span class="p">,</span> <span class="mi">14</span><span class="o">/</span><span class="mf">2.54</span><span class="p">),</span> <span class="n">fontsize</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span> <span class="n">savename</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">)</span>
 </pre></div>
@@ -186,8 +191,8 @@ between the meta data categories specified present under compareVar.</p>
 <p><em>levels</em> are taxonomic levels to include on y-axis.</p>
 <p><em>fromFile</em> could be that path to a csv file generated with the output from diversity.naive_dissimilarity_contributions.</p>
 <p><em>savename</em> is path and name of files to be saved.</p>
-</div>
-</div>
+</section>
+</section>
 
 
           </div>
@@ -225,6 +230,13 @@ between the meta data categories specified present under compareVar.</p>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="Citations.html">Citations</a></li>
+<li class="toctree-l1"><a class="reference internal" href="Tutorial_1.html">Tutorial 1</a></li>
+<li class="toctree-l1"><a class="reference internal" href="Tutorial_1.html#TABLE-OF-CONTENTS">TABLE OF CONTENTS</a></li>
+<li class="toctree-l1"><a class="reference internal" href="Tutorial_1.html#PREPARE-THE-DATA-FILES">PREPARE THE DATA FILES</a></li>
+<li class="toctree-l1"><a class="reference internal" href="Tutorial_1.html#A-FIRST-LOOK-AT-THE-DATA">A FIRST LOOK AT THE DATA</a></li>
+<li class="toctree-l1"><a class="reference internal" href="Tutorial_1.html#RAREFYING">RAREFYING</a></li>
+<li class="toctree-l1"><a class="reference internal" href="Tutorial_1.html#ALPHA-DIVERSITY">ALPHA DIVERSITY</a></li>
+<li class="toctree-l1"><a class="reference internal" href="Tutorial_1.html#BETA-DIVERSITY">BETA DIVERSITY</a></li>
 </ul>
 
 <div class="relations">
@@ -262,7 +274,7 @@ between the meta data categories specified present under compareVar.</p>
       &copy;2019, Oskar Modin.
       
       |
-      Powered by <a href="http://sphinx-doc.org/">Sphinx 3.5.4</a>
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 3.2.1</a>
       &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.12</a>
       
       |

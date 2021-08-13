@@ -4,14 +4,19 @@
 <html>
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+
     <title>Diversity calculations &#8212; qdiv  documentation</title>
-    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
     <link rel="stylesheet" href="_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
     <script id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
     <script src="_static/jquery.js"></script>
     <script src="_static/underscore.js"></script>
     <script src="_static/doctools.js"></script>
+    <script src="_static/language_data.js"></script>
+    <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+    <script async="async" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.7/latest.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <script type="text/x-mathjax-config">MathJax.Hub.Config({"tex2jax": {"inlineMath": [["$", "$"], ["\\(", "\\)"]], "processEscapes": true, "ignoreClass": "document", "processClass": "math|output_area"}})</script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
     <link rel="next" title="Null models" href="Null%20models.html" />
@@ -32,7 +37,7 @@
 
           <div class="body" role="main">
             
-  <div class="section" id="diversity-calculations">
+  <section id="diversity-calculations">
 <h1>Diversity calculations<a class="headerlink" href="#diversity-calculations" title="Permalink to this headline">¶</a></h1>
 <p><em>Alpha diversity</em> refers to diversity of OTUs/ASVs within a sample. <em>Beta diversity</em> refers to differences in community composition between different sampes.
 We have three ways of measuring diversity:</p>
@@ -47,7 +52,7 @@ We have three ways of measuring diversity:</p>
 <li><p>A q of 1 means that that each OTU/ASV is weighted exactly according to its relative abundance in the sample.</p></li>
 <li><p>A q &gt; 1 means that more weight is given to OTUs/ASVs with high relative abundance.</p></li>
 </ul>
-<div class="section" id="alpha-diversity">
+<section id="alpha-diversity">
 <h2>Alpha diversity<a class="headerlink" href="#alpha-diversity" title="Permalink to this headline">¶</a></h2>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">diversity</span><span class="o">.</span><span class="n">naive_alpha</span><span class="p">(</span><span class="n">tab</span><span class="p">,</span> <span class="n">q</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
 </pre></div>
@@ -74,8 +79,8 @@ The values are the same as the functional diversity measures described by Chiu e
 <p><em>q</em> is the diversity order for the Hill numbers.</p>
 <p><em>index</em> can be: ‘FD’, ‘MD’, or ‘D’. ‘FD’ is the functional diversity (“the effective total distance between species”), ‘MD’ is the mean functional diversity (“the effective sum of pairwise distances between a species and all other species”),
 and ‘D’ is the functional Hill number (“the effective number of equally abundant and equally distinct species”). See Chiu et al. (2014), <em>PLOS ONE,</em> 9(7), e100014 (DOI: 10.1371/journal.pone.0100014), the descriptions in quotations marks are from that paper.</p>
-</div>
-<div class="section" id="beta-diversity-dissimilarity">
+</section>
+<section id="beta-diversity-dissimilarity">
 <h2>Beta diversity (dissimilarity)<a class="headerlink" href="#beta-diversity-dissimilarity" title="Permalink to this headline">¶</a></h2>
 <p>The difference in community composition between different samples can be expressed as <em>beta diversity</em> or <em>dissimilarity</em>. Beta diversity takes a value between 1 (if the compared samples are identical to each) and N (which is the number of samples being compared.
 For functional beta diversity it goes between 1 and NxN.
@@ -155,8 +160,8 @@ if <em>dis</em> =False, beta diversity constrained between 1 and 4 are calculate
 <p><em>q</em> is the diversity order.</p>
 <p><em>divType</em> is the type of diversity: ‘naive’ or ‘phyl’.</p>
 <p><em>index</em> is the type of dissimilarity index (either local or regional)</p>
-</div>
-<div class="section" id="evenness">
+</section>
+<section id="evenness">
 <h2>Evenness<a class="headerlink" href="#evenness" title="Permalink to this headline">¶</a></h2>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">diversity</span><span class="o">.</span><span class="n">evenness</span><span class="p">(</span><span class="n">tab</span><span class="p">,</span> <span class="n">tree</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">distmat</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">q</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">divType</span><span class="o">=</span><span class="s1">&#39;naive&#39;</span><span class="p">,</span> <span class="n">index</span><span class="o">=</span><span class="s1">&#39;local&#39;</span><span class="p">,</span> <span class="n">perspective</span><span class="o">=</span><span class="s1">&#39;samples&#39;</span><span class="p">)</span>
 </pre></div>
@@ -170,8 +175,8 @@ if <em>dis</em> =False, beta diversity constrained between 1 and 4 are calculate
 <p><em>index</em> can be ‘CR1’, ‘CR2’, ‘CR3’, ‘CR4’, or ‘CR5’. These refer to the indices described in Table 1 in Chao and Ricotta (2019). <em>index</em> can also be ‘local’, which is equal to CR2, or ‘regional’, which is equal to CR1.</p>
 <p><em>perspective</em> can be ‘samples’, which means an evenness value is calculated for each sample (column) in the count table.
 <em>perspective</em> can also be ‘taxa’, which means an evenness value is calculated for each OTU/ASV (row) in the count table.</p>
-</div>
-</div>
+</section>
+</section>
 
 
           </div>
@@ -205,6 +210,13 @@ if <em>dis</em> =False, beta diversity constrained between 1 and 4 are calculate
 <li class="toctree-l1"><a class="reference internal" href="Null%20models.html">Null models</a></li>
 <li class="toctree-l1"><a class="reference internal" href="Plotting.html">Plotting</a></li>
 <li class="toctree-l1"><a class="reference internal" href="Citations.html">Citations</a></li>
+<li class="toctree-l1"><a class="reference internal" href="Tutorial_1.html">Tutorial 1</a></li>
+<li class="toctree-l1"><a class="reference internal" href="Tutorial_1.html#TABLE-OF-CONTENTS">TABLE OF CONTENTS</a></li>
+<li class="toctree-l1"><a class="reference internal" href="Tutorial_1.html#PREPARE-THE-DATA-FILES">PREPARE THE DATA FILES</a></li>
+<li class="toctree-l1"><a class="reference internal" href="Tutorial_1.html#A-FIRST-LOOK-AT-THE-DATA">A FIRST LOOK AT THE DATA</a></li>
+<li class="toctree-l1"><a class="reference internal" href="Tutorial_1.html#RAREFYING">RAREFYING</a></li>
+<li class="toctree-l1"><a class="reference internal" href="Tutorial_1.html#ALPHA-DIVERSITY">ALPHA DIVERSITY</a></li>
+<li class="toctree-l1"><a class="reference internal" href="Tutorial_1.html#BETA-DIVERSITY">BETA DIVERSITY</a></li>
 </ul>
 
 <div class="relations">
@@ -242,7 +254,7 @@ if <em>dis</em> =False, beta diversity constrained between 1 and 4 are calculate
       &copy;2019, Oskar Modin.
       
       |
-      Powered by <a href="http://sphinx-doc.org/">Sphinx 3.5.4</a>
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 3.2.1</a>
       &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.12</a>
       
       |

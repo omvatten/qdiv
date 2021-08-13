@@ -4,14 +4,19 @@
 <html>
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+
     <title>Load and print files &#8212; qdiv  documentation</title>
-    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
     <link rel="stylesheet" href="_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
     <script id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
     <script src="_static/jquery.js"></script>
     <script src="_static/underscore.js"></script>
     <script src="_static/doctools.js"></script>
+    <script src="_static/language_data.js"></script>
+    <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+    <script async="async" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.7/latest.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <script type="text/x-mathjax-config">MathJax.Hub.Config({"tex2jax": {"inlineMath": [["$", "$"], ["\\(", "\\)"]], "processEscapes": true, "ignoreClass": "document", "processClass": "math|output_area"}})</script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
     <link rel="next" title="Information and statistics" href="Information%20and%20statistics.html" />
@@ -32,9 +37,9 @@
 
           <div class="body" role="main">
             
-  <div class="section" id="load-and-print-files">
+  <section id="load-and-print-files">
 <h1>Load and print files<a class="headerlink" href="#load-and-print-files" title="Permalink to this headline">¶</a></h1>
-<div class="section" id="loading-files">
+<section id="loading-files">
 <h2>Loading files<a class="headerlink" href="#loading-files" title="Permalink to this headline">¶</a></h2>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">files</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">path</span><span class="o">=</span><span class="s1">&#39;&#39;</span><span class="p">,</span> <span class="n">tab</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">fasta</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">tree</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">meta</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">sep</span><span class="o">=</span><span class="s1">&#39;,&#39;</span><span class="p">,</span> <span class="n">addTaxonPrefix</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">orderSeqs</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 </pre></div>
@@ -59,8 +64,8 @@
 <li><p>‘tree’ holds tree branches. The column ‘nodes’ holds the node names (end nodes are the same as OTU/ASV names), ‘ASVs’ holds a list of OTUs/ASVs connected to each node, and ‘branchL’ holds the lengths of the branches connected to each node.</p></li>
 <li><p>‘meta’ holds the meta data. The row indices are the samples names (the same as the column headings in ‘tab’). The columns are variables that define each sample as determined by the user in the meta data input file.</p></li>
 </ul>
-</div>
-<div class="section" id="save-files">
+</section>
+<section id="save-files">
 <h2>Save files<a class="headerlink" href="#save-files" title="Permalink to this headline">¶</a></h2>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">files</span><span class="o">.</span><span class="n">printout</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">path</span><span class="o">=</span><span class="s1">&#39;&#39;</span><span class="p">,</span> <span class="n">savename</span><span class="o">=</span><span class="s1">&#39;&#39;</span><span class="p">,</span> <span class="n">sep</span><span class="o">=</span><span class="s1">&#39;,&#39;</span><span class="p">)</span>
 </pre></div>
@@ -75,8 +80,8 @@
 <span class="n">qdiv</span><span class="o">.</span><span class="n">files</span><span class="o">.</span><span class="n">printout</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">path</span><span class="o">=</span><span class="s1">&#39;&#39;</span><span class="p">,</span> <span class="n">savename</span><span class="o">=</span><span class="s1">&#39;output&#39;</span><span class="p">,</span> <span class="n">sep</span><span class="o">=</span><span class="s1">&#39;,&#39;</span><span class="p">)</span>
 </pre></div>
 </div>
-</div>
-<div class="section" id="load-new-taxonomy">
+</section>
+<section id="load-new-taxonomy">
 <h2>Load new taxonomy<a class="headerlink" href="#load-new-taxonomy" title="Permalink to this headline">¶</a></h2>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">files</span><span class="o">.</span><span class="n">read_rdp</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">filename</span><span class="p">,</span> <span class="n">cutoff</span><span class="o">=</span><span class="mi">70</span><span class="p">)</span>
 </pre></div>
@@ -99,8 +104,8 @@ When the sequences have been processed, click ‘show assignment detail for Root
 <p><em>obj</em> is the object to which the taxonomy should be added. If the object already contains taxonomy information, this will be replaced by the new taxonomy.</p>
 <p><em>filename</em> is the text file with the new taxonomy.</p>
 <p><em>taxonomy</em> options are: ‘silva’, ‘ltp’, ‘rdp’, ‘gtdb’, ‘embl_ebi_ena’</p>
-</div>
-</div>
+</section>
+</section>
 
 
           </div>
@@ -134,6 +139,13 @@ When the sequences have been processed, click ‘show assignment detail for Root
 <li class="toctree-l1"><a class="reference internal" href="Null%20models.html">Null models</a></li>
 <li class="toctree-l1"><a class="reference internal" href="Plotting.html">Plotting</a></li>
 <li class="toctree-l1"><a class="reference internal" href="Citations.html">Citations</a></li>
+<li class="toctree-l1"><a class="reference internal" href="Tutorial_1.html">Tutorial 1</a></li>
+<li class="toctree-l1"><a class="reference internal" href="Tutorial_1.html#TABLE-OF-CONTENTS">TABLE OF CONTENTS</a></li>
+<li class="toctree-l1"><a class="reference internal" href="Tutorial_1.html#PREPARE-THE-DATA-FILES">PREPARE THE DATA FILES</a></li>
+<li class="toctree-l1"><a class="reference internal" href="Tutorial_1.html#A-FIRST-LOOK-AT-THE-DATA">A FIRST LOOK AT THE DATA</a></li>
+<li class="toctree-l1"><a class="reference internal" href="Tutorial_1.html#RAREFYING">RAREFYING</a></li>
+<li class="toctree-l1"><a class="reference internal" href="Tutorial_1.html#ALPHA-DIVERSITY">ALPHA DIVERSITY</a></li>
+<li class="toctree-l1"><a class="reference internal" href="Tutorial_1.html#BETA-DIVERSITY">BETA DIVERSITY</a></li>
 </ul>
 
 <div class="relations">
@@ -171,7 +183,7 @@ When the sequences have been processed, click ‘show assignment detail for Root
       &copy;2019, Oskar Modin.
       
       |
-      Powered by <a href="http://sphinx-doc.org/">Sphinx 3.5.4</a>
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 3.2.1</a>
       &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.12</a>
       
       |
