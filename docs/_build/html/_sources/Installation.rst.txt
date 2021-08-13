@@ -11,8 +11,7 @@ or
 
 .. code-block:: console
 
-   conda activate qdiv_env
-
+   conda install -c omvatten qdiv
 
 The recommended method is to download `Anaconda <https://www.anaconda.com/products/individual>`_ or `Miniconda <https://docs.conda.io/en/latest/miniconda.html>`_
 
