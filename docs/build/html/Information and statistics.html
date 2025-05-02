@@ -1,0 +1,173 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Information and statistics &mdash; qdiv 3.0.0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=e59714d7" />
+
+  
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=acc74ff5"></script>
+      <script src="_static/doctools.js?v=9bcbadda"></script>
+      <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Subset and manipulate data" href="Subset%20and%20manipulate%20data.html" />
+    <link rel="prev" title="Load and print files" href="Load%20and%20print%20files.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            qdiv
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="Installation.html">Installation instructions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="Input%20files.html">Input files</a></li>
+<li class="toctree-l1"><a class="reference internal" href="Load%20and%20print%20files.html">Load and print files</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Information and statistics</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#get-information">Get information</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#mantel-test">Mantel test</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#permanova">Permanova</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#distance-between-sequences">Distance between sequences</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="Subset%20and%20manipulate%20data.html">Subset and manipulate data</a></li>
+<li class="toctree-l1"><a class="reference internal" href="Diversity%20calculations.html">Diversity calculations</a></li>
+<li class="toctree-l1"><a class="reference internal" href="Null%20models.html">Null models</a></li>
+<li class="toctree-l1"><a class="reference internal" href="Plotting.html">Plotting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="Citations.html">Citations</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">qdiv</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Information and statistics</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/Information and statistics.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="information-and-statistics">
+<h1>Information and statistics<a class="headerlink" href="#information-and-statistics" title="Link to this heading"></a></h1>
+<section id="get-information">
+<h2>Get information<a class="headerlink" href="#get-information" title="Link to this heading"></a></h2>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">stats</span><span class="o">.</span><span class="n">print_info</span><span class="p">(</span><span class="n">obj</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Prints information about the number of samples, number of reads, minimum and maximum number of reads in a samples, meta data, taxonomy, etc.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">stats</span><span class="o">.</span><span class="n">taxa</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">savename</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Returns a pandas dataframe with information about the number of taxa at different taxonomic levels in the data.</p>
+<p><em>obj</em> is an object.</p>
+<p>if <em>savename</em> is specified, a csv file with the information is saved.</p>
+</section>
+<section id="mantel-test">
+<h2>Mantel test<a class="headerlink" href="#mantel-test" title="Link to this heading"></a></h2>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">stats</span><span class="o">.</span><span class="n">mantel</span><span class="p">(</span><span class="n">dis1</span><span class="p">,</span> <span class="n">dis2</span><span class="p">,</span> <span class="n">method</span><span class="o">=</span><span class="s1">&#39;spearman&#39;</span><span class="p">,</span> <span class="n">getOnlyStat</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">permutations</span><span class="o">=</span><span class="mi">99</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Carries out a mantel tests and returns a list containing the test statistic and the p value.</p>
+<p><em>dis1</em> and <em>dis2</em> are two dissimilarity matrices.</p>
+<p><em>method</em> is the test statistic used. ‘spearman’, ‘pearson’, or ‘absDist’ can be chosen. The methods converts each dissimilarity matrix to an array of numbers and investigates the correlation between the two arrays.</p>
+<ul class="simple">
+<li><p>‘spearman’ is a rank-based correlation coefficient.</p></li>
+<li><p>‘pearson’ is the product-moment correlation coefficient conventionally used in the Mantel test.</p></li>
+<li><p>‘absDist’ is the mean absolute distance between the numbers in the two arrays.</p></li>
+</ul>
+<p>If <em>getOnlyStat</em> =True, only the test statistic will be returned, no permutations and consequently no p-value will be calculated.</p>
+<p><em>permutations</em> is the number of randomizations carried out.</p>
+</section>
+<section id="permanova">
+<h2>Permanova<a class="headerlink" href="#permanova" title="Link to this heading"></a></h2>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">stats</span><span class="o">.</span><span class="n">permanova</span><span class="p">(</span><span class="n">dis</span><span class="p">,</span> <span class="n">meta</span><span class="p">,</span> <span class="n">var</span><span class="p">,</span> <span class="n">permutations</span><span class="o">=</span><span class="mi">99</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Carries out a permanova tests and returns a list containing the test statistic and the p value.</p>
+<p><em>dis</em> is a dissimilarity matrix.</p>
+<p><em>meta</em> is the meta data, e.g. obj[‘meta’].</p>
+<p><em>var</em> is the column in the meta data that holds the categories of samples being compared.</p>
+<p><em>permutations</em> is the number of randomizations carried out.</p>
+</section>
+<section id="distance-between-sequences">
+<h2>Distance between sequences<a class="headerlink" href="#distance-between-sequences" title="Link to this heading"></a></h2>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">stats</span><span class="o">.</span><span class="n">sequence_comparison</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">inputType</span><span class="o">=</span><span class="s1">&#39;seq&#39;</span><span class="p">,</span> <span class="n">savename</span><span class="o">=</span><span class="s1">&#39;DistMat&#39;</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Returns a pandas dataframe with pairwise distances between OTUs/ASVs in the data set. The data is also saved as a csv file at the location specified by savename.</p>
+<p><em>obj</em> is the qdiv object.</p>
+<p><em>inputType</em> can be either ‘seq’ or ‘tree’. If it is ‘seq’, the distance is calculated as the Levenshtein distance dividied by the length of the longest distance in the pair.
+If it is ‘tree’, the distances are calculated as branch distances in the phylogenetic tree.</p>
+<p><em>savename</em> specifies path and name of output file.</p>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="Load%20and%20print%20files.html" class="btn btn-neutral float-left" title="Load and print files" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="Subset%20and%20manipulate%20data.html" class="btn btn-neutral float-right" title="Subset and manipulate data" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2025, Oskar Modin.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
