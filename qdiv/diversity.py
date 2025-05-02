@@ -9,39 +9,55 @@ pd.options.mode.chained_assignment = None  # default='warn'
 
 # Returns naive alpha diversity of order q for all samples
 # naive = species diversity or taxonomic diversity, does not consider similarity between ASVs
-def naive_alpha(tab, q=1):
-    ra = tab / tab.sum()
+def naive_alpha(tab, q=1, **kwargs):
+    defaultKwargs = {'use_values_in_tab':False}
+    kwargs = {**defaultKwargs, **kwargs}
+
+    if not kwargs['use_values_in_tab']:
+        ra = tab / tab.sum()
+    else:
+        ra = tab.map(float)
     if isinstance(ra, pd.Series):
-        ra = pd.DataFrame(ra.to_numpy(), index=ra.index, columns=[ra.name])
+        print('Error: tab should be dataframe, not series.')
+        return None
 
     if q == 1:
         raLn = ra
         raLn[ra > 0] = ra[ra > 0] * np.log(ra[ra > 0])
-        Hillvalues = np.exp(-raLn.sum())
+        Hillvalues = raLn.sum()
+        Hillvalues[Hillvalues < 0] = np.exp(-Hillvalues[Hillvalues < 0])
         return Hillvalues
     else:
         rapow = ra
         rapow[ra > 0] = ra[ra > 0].pow(q)
         rapow = rapow.sum()
-        Hillvalues = rapow.pow(1 / (1 - q))
+        Hillvalues = rapow
+        Hillvalues[Hillvalues > 0] = Hillvalues[Hillvalues > 0].pow(1 / (1 - q))
         return Hillvalues
 
 # Returns phylogenetic alpha diversity of order q for all samples
 # Chao et al. Phil Trans RS B, 2010.
-def phyl_alpha(tab, tree, q=1, index='PD'):
-    ra = tab / tab.sum()
+def phyl_alpha(tab, tree, q=1, index='PD', **kwargs):
+    defaultKwargs = {'use_values_in_tab':False}
+    kwargs = {**defaultKwargs, **kwargs}
+
+    if not kwargs['use_values_in_tab']:
+        ra = tab / tab.sum()
+    else:
+        ra = tab.map(float)
     if isinstance(ra, pd.Series):
-        ra = pd.DataFrame(ra.to_numpy(), index=ra.index, columns=[ra.name])
+        print('Error: tab should be dataframe, not series.')
+        return None
 
     #Make a tree df with ra associated with each branch
-    tree2 = pd.DataFrame(0, index=tree.index, columns=ra.columns)
+    tree2 = pd.DataFrame(0.0, index=tree.index, columns=ra.columns)
     for ix in tree2.index:
         asvlist = tree.loc[ix, 'ASVs']
         ra_branch = ra.reindex(asvlist).sum()
         tree2.loc[ix] = ra_branch
 
     #Make Tavg series
-    Tavg = pd.Series(index=ra.columns)
+    Tavg = pd.Series(pd.NA, index=ra.columns)
     for smp in ra.columns:
         Tavg[smp] = tree['branchL'].mul(tree2[smp]).sum()
 
@@ -49,18 +65,20 @@ def phyl_alpha(tab, tree, q=1, index='PD'):
     tree_calc = tree2.copy()
     
     if q == 1:
-        tree_calc[tree_calc > 0] = tree_calc[tree_calc > 0].applymap(math.log)
+        tree_calc[tree_calc > 0] = tree_calc[tree_calc > 0].map(math.log)
         tree_calc = tree2.mul(tree_calc)
         tree_calc = tree_calc.mul(tree['branchL'], axis=0) #Multiply with branch length
         tree_calc = tree_calc.div(Tavg, axis=1) #Divide by Tavg
         tree_calc = -tree_calc.sum()
-        hill_div = tree_calc.apply(math.exp)
+        hill_div = tree_calc
+        hill_div[hill_div > 0] = hill_div[hill_div > 0].apply(math.exp)
     else:
         tree_calc[tree_calc > 0] = tree_calc[tree_calc > 0].pow(q) #Take power of q
         tree_calc = tree_calc.mul(tree['branchL'], axis=0) #Multiply with branch length
         tree_calc = tree_calc.div(Tavg, axis=1) #Divide by Tavg
         tree_calc = tree_calc.sum()
-        hill_div = tree_calc.pow(1/(1-q))
+        hill_div = tree_calc
+        hill_div[hill_div > 0] = hill_div[hill_div > 0].pow(1/(1-q))
     
     if index == 'PD':
         return hill_div.mul(Tavg)
@@ -73,12 +91,19 @@ def phyl_alpha(tab, tree, q=1, index='PD'):
 
 # Returns functional alpha diversity of order q for all samples
 # FD as in Chiu et al. Plos One, 2014
-def func_alpha(tab, distmat, q=1, index='FD'):
-    ra = tab / tab.sum()
-    if isinstance(ra, pd.Series):
-        ra = pd.DataFrame(ra.to_numpy(), index=ra.index, columns=[ra.name])
+def func_alpha(tab, distmat, q=1, index='FD', **kwargs):
+    defaultKwargs = {'use_values_in_tab':False}
+    kwargs = {**defaultKwargs, **kwargs}
 
-    outdf = pd.Series(0, index=ra.columns)
+    if not kwargs['use_values_in_tab']:
+        ra = tab / tab.sum()
+    else:
+        ra = tab.map(float)
+    if isinstance(ra, pd.Series):
+        print('Error: tab should be dataframe, not series.')
+        return None
+
+    outdf = pd.Series(0.0, index=ra.columns)
     svlist = ra.index.tolist()
     distmat = distmat.loc[svlist, svlist]
     Qframe = hfunc.rao(ra, distmat)
@@ -88,7 +113,7 @@ def func_alpha(tab, distmat, q=1, index='FD'):
             ra2mat = pd.DataFrame(np.outer(ra[smp].to_numpy(), ra[smp].to_numpy()), index=ra.index, columns=ra.index)
             ra2Lnmat = ra2mat.copy()
             mask = ra2Lnmat > 0
-            ra2Lnmat[mask] = ra2Lnmat[mask].applymap(math.log)
+            ra2Lnmat[mask] = ra2Lnmat[mask].map(math.log)
             ra2ochLn = ra2mat.mul(ra2Lnmat)
             dQmat = distmat.mul(1 / Qframe.loc[smp])
             dQ_ra2_Ln = dQmat.mul(ra2ochLn)
@@ -116,14 +141,20 @@ def func_alpha(tab, distmat, q=1, index='FD'):
 
 # Returns matrix of paiwise dissimilarities of order q
 # Viewpoint can be local or regional, see Chao et al. 2014
-def naive_beta(tab, q=1, dis=True, viewpoint='local'):
-    ra = tab / tab.sum()
+def naive_beta(tab='None', q=1, dis=True, viewpoint='local', **kwargs):
+    defaultKwargs = {'use_values_in_tab':False}
+    kwargs = {**defaultKwargs, **kwargs}
+
+    if not kwargs['use_values_in_tab']:
+        ra = tab / tab.sum()
+    else:
+        ra = tab.map(float)
     if isinstance(ra, pd.Series) or len(ra.columns) < 2:
         print('Too few samples in tab.')
         return None
 
     smplist = ra.columns
-    outdf = pd.DataFrame(0, index=smplist, columns=smplist)
+    outdf = pd.DataFrame(0.0, index=smplist, columns=smplist)
     for smp1nr in range(len(smplist) - 1):
         smp1 = smplist[smp1nr]
         for smp2nr in range(smp1nr + 1, len(smplist)):
@@ -177,14 +208,20 @@ def naive_beta(tab, q=1, dis=True, viewpoint='local'):
 
 # Returns matrix of paiwise dissimilarities of order q
 # Viewpoint can be local or regional, see Chao et al. 2014
-def phyl_beta(tab, tree, q=1, dis=True, viewpoint='local'):
-    ra = tab / tab.sum()
+def phyl_beta(tab, tree, q=1, dis=True, viewpoint='local', **kwargs):
+    defaultKwargs = {'use_values_in_tab':False}
+    kwargs = {**defaultKwargs, **kwargs}
+
+    if not kwargs['use_values_in_tab']:
+        ra = tab / tab.sum()
+    else:
+        ra = tab.map(float)
     if isinstance(ra, pd.Series) or len(ra.columns) < 2:
         print('Too few samples in tab.')
         return None
 
     #Make a tree df with ra associated with each branch
-    tree2 = pd.DataFrame(0, index=tree.index, columns=ra.columns)
+    tree2 = pd.DataFrame(0.0, index=tree.index, columns=ra.columns)
     for ix in tree2.index:
         asvlist = tree.loc[ix, 'ASVs']
         ra_branch = ra.reindex(asvlist).sum()
@@ -192,7 +229,7 @@ def phyl_beta(tab, tree, q=1, dis=True, viewpoint='local'):
 
     #Go through each pair of samples
     smplist = ra.columns
-    outdf = pd.DataFrame(0, index=smplist, columns=smplist)
+    outdf = pd.DataFrame(0.0, index=smplist, columns=smplist)
     for smp1nr in range(len(smplist) - 1):
         smp1 = smplist[smp1nr]
         for smp2nr in range(smp1nr + 1, len(smplist)):
@@ -223,7 +260,7 @@ def phyl_beta(tab, tree, q=1, dis=True, viewpoint='local'):
             subtree[[smp1, smp2]] = subtree[[smp1, smp2]].div(2*Tavg)
             a_df = subtree[[smp1, smp2]].copy()
             if q == 1:
-                a_df[a_df > 0] = a_df[a_df > 0].applymap(math.log)
+                a_df[a_df > 0] = a_df[a_df > 0].map(math.log)
                 a_df = a_df.mul(subtree[[smp1, smp2]])
                 a_df = a_df.mul(tree['branchL'], axis=0)
                 a_df = -sum(a_df.sum()) - math.log(Tavg*2)
@@ -248,14 +285,20 @@ def phyl_beta(tab, tree, q=1, dis=True, viewpoint='local'):
 
 # Returns matrix of paiwise phylogenetic dissimilarities of order q
 # Based on local functional overlaps as defined in Chao et al. 2014
-def func_beta(tab, distmat, q=1, dis=True, viewpoint='local'):
-    ra = tab / tab.sum()
+def func_beta(tab, distmat, q=1, dis=True, viewpoint='local', **kwargs):
+    defaultKwargs = {'use_values_in_tab':False}
+    kwargs = {**defaultKwargs, **kwargs}
+
+    if not kwargs['use_values_in_tab']:
+        ra = tab / tab.sum()
+    else:
+        ra = tab.map(float)
     if isinstance(ra, pd.Series) or len(ra.columns) < 2:
         print('Too few samples in tab.')
         return None
 
     smplist = list(ra.columns)
-    outD = pd.DataFrame(0, index=smplist, columns=smplist)
+    outD = pd.DataFrame(0.0, index=smplist, columns=smplist)
 
     # For showing progress
     total_comp = (len(smplist)**2)/2
@@ -367,14 +410,20 @@ def func_beta(tab, distmat, q=1, dis=True, viewpoint='local'):
         return outFD
 
 # Calculate matrix of pairwise Bray-Curtis dissimilarities
-def bray(tab):
-    ra = tab / tab.sum()
+def bray(tab, **kwargs):
+    defaultKwargs = {'use_values_in_tab':False}
+    kwargs = {**defaultKwargs, **kwargs}
+
+    if not kwargs['use_values_in_tab']:
+        ra = tab / tab.sum()
+    else:
+        ra = tab.map(float)
     if isinstance(ra, pd.Series) or len(ra.columns) < 2:
         print('Too few samples in tab.')
         return None
 
     smplist = list(tab.columns)
-    outdf = pd.DataFrame(0, index=smplist, columns=smplist)
+    outdf = pd.DataFrame(0.0, index=smplist, columns=smplist)
     for smp1nr in range(len(smplist) - 1):
         smp1 = smplist[smp1nr]
         for smp2nr in range(smp1nr + 1, len(smplist)):
@@ -385,15 +434,22 @@ def bray(tab):
     return outdf
 
 # Calculate matrix of pairwise Jaccard dissimilarities
-def jaccard(tab):
-    if isinstance(tab, pd.Series) or len(tab.columns) < 2:
+def jaccard(tab, **kwargs):
+    defaultKwargs = {'use_values_in_tab':False}
+    kwargs = {**defaultKwargs, **kwargs}
+
+    if not kwargs['use_values_in_tab']:
+        ra = tab / tab.sum()
+    else:
+        ra = tab.map(float)
+    if isinstance(ra, pd.Series) or len(ra.columns) < 2:
         print('Too few samples in tab.')
         return None
 
     bintab = tab.copy()
     bintab[bintab > 0] = 1
     smplist = list(bintab.columns)
-    outdf = pd.DataFrame(0, index=smplist, columns=smplist)
+    outdf = pd.DataFrame(0.0, index=smplist, columns=smplist)
     for smp1nr in range(len(smplist) - 1):
         smp1 = smplist[smp1nr]
         for smp2nr in range(smp1nr + 1, len(smplist)):
@@ -413,7 +469,16 @@ def jaccard(tab):
 # q is the diversity order
 # returns a dataframe with the categories in var being the index
 # and including the columns N (nr of samples in category), beta, local_dis, regional_dis
-def naive_multi_beta(obj, var='None', q=1):
+def naive_multi_beta(obj, var='None', q=1, **kwargs):
+    if 'meta' not in obj or 'tab' not in obj:
+        print('Error: meta or tab missing in obj.')
+        return None
+    if isinstance(obj['tab'], pd.Series) or len(obj['tab'].columns) < 2:
+        print('Too few samples in tab.')
+        return None
+    defaultKwargs = {'use_values_in_tab':False}
+    kwargs = {**defaultKwargs, **kwargs}
+
     #Make dictionary with tabs, based on var
     meta = obj['meta']
     tabdict = {}
@@ -435,13 +500,13 @@ def naive_multi_beta(obj, var='None', q=1):
 
         N_cols = len(tab.columns)
         N_rows = len(tab.index)
-        df_temp = pd.DataFrame(0, index=range(N_rows*N_cols), columns=['alpha', 'gamma'])
+        df_temp = pd.DataFrame(0.0, index=range(N_rows*N_cols), columns=['alpha', 'gamma'])
         df_temp.loc[range(N_rows), 'gamma'] = tab.sum(axis=1).to_numpy()
         alphalist = []
         for col in tab.columns:
             alphalist = alphalist + tab[col].tolist()
         df_temp['alpha'] = alphalist
-        alpha_gamma_divs = naive_alpha(df_temp, q=q)
+        alpha_gamma_divs = naive_alpha(df_temp, q=q, use_values_in_tab=kwargs['use_values_in_tab'])
         beta_div = alpha_gamma_divs['gamma'] / (alpha_gamma_divs['alpha'] / N_cols)
         output_beta.loc[cat, 'N'] = N_cols
         output_beta.loc[cat, 'beta'] = beta_div
@@ -456,11 +521,16 @@ def naive_multi_beta(obj, var='None', q=1):
 # q is the diversity order
 # returns a dataframe with the categories in var being the index
 # and including the columns N (nr of samples in category), beta, local_dis, regional_dis
-def phyl_multi_beta(obj, var='None', q=1):
+def phyl_multi_beta(obj, var='None', q=1, **kwargs):
     #Make dictionary with tabs, based on var
     if 'meta' not in obj or 'tab' not in obj or 'tree' not in obj:
         print('Make sure meta, tab, and tree are included in object')
-        return 0
+        return None
+    if isinstance(obj['tab'], pd.Series) or len(obj['tab'].columns) < 2:
+        print('Too few samples in tab.')
+        return None
+    defaultKwargs = {'use_values_in_tab':False}
+    kwargs = {**defaultKwargs, **kwargs}
 
     #Make a dictionary with all sub tables
     meta = obj['meta']
@@ -485,8 +555,12 @@ def phyl_multi_beta(obj, var='None', q=1):
             continue
         
         #Make a tree df with ra associated with each branch
-        ra = tab/tab.sum()
-        tree2 = pd.DataFrame(0, index=tree.index, columns=ra.columns)
+        if not kwargs['use_values_in_tab']:
+            ra = tab/tab.sum()
+        else:
+            ra = tab
+
+        tree2 = pd.DataFrame(0.0, index=tree.index, columns=ra.columns)
         for ix in tree2.index:
             asvlist = tree.loc[ix, 'ASVs']
             ra_branch = ra.reindex(asvlist).sum()
@@ -517,7 +591,7 @@ def phyl_multi_beta(obj, var='None', q=1):
         tree2 = tree2.div(N_cols * Tavg)
         a_df = tree2.copy()
         if q == 1:
-            a_df[a_df > 0] = a_df[a_df > 0].applymap(math.log)
+            a_df[a_df > 0] = a_df[a_df > 0].map(math.log)
             a_df = a_df.mul(tree2)
             a_df = a_df.mul(tree['branchL'], axis=0)
             a_df = -sum(a_df.sum()) - math.log(Tavg * N_cols)
@@ -548,11 +622,16 @@ def phyl_multi_beta(obj, var='None', q=1):
 # q is the diversity order
 # returns a dataframe with the categories in var being the index
 # and including the columns NxN (nr of samples in category squared), beta (0 to N^2), local_dis, regional_dis
-def func_multi_beta(obj, distmat='None', var='None', q=1):
+def func_multi_beta(obj, distmat, var='None', q=1, **kwargs):
     #Make dictionary with tabs, based on var
-    if 'meta' not in obj or 'tab' not in obj or 'distmat' == 'None':
-        print('Make sure meta, tab, and distmat are included')
-        return 0
+    if 'meta' not in obj or 'tab' not in obj:
+        print('Make sure meta and tab are included')
+        return None
+    if isinstance(obj['tab'], pd.Series) or len(obj['tab'].columns) < 2:
+        print('Too few samples in tab.')
+        return None
+    defaultKwargs = {'use_values_in_tab':False}
+    kwargs = {**defaultKwargs, **kwargs}
 
     #Make a dictionary with all sub tables
     meta = obj['meta']
@@ -573,7 +652,11 @@ def func_multi_beta(obj, distmat='None', var='None', q=1):
         if len(tab.columns) <= 1: #There must be at least two samples in the tab
             continue
 
-        ra = tab/tab.sum()
+        if not kwargs['use_values_in_tab']:
+            ra = tab/tab.sum()
+        else:
+            ra = tab.map(float)
+
         smplist = ra.columns.tolist()
         N_cols = len(smplist)
 
@@ -586,7 +669,7 @@ def func_multi_beta(obj, distmat='None', var='None', q=1):
             ra2mat = pd.DataFrame(np.outer(ra_mean, ra_mean), index=ra_mean.index, columns=ra_mean.index)
             mask = ra2mat > 0
             ra2mat_ln = ra2mat.copy()
-            ra2mat_ln[mask] = ra2mat_ln[mask].applymap(math.log)
+            ra2mat_ln[mask] = ra2mat_ln[mask].map(math.log)
             ra2mat = ra2mat.mul(ra2mat_ln)
             ra2mat = ra2mat.mul(dqmat)
             Dg = math.exp(-0.5*(sum(ra2mat.sum())))
@@ -603,7 +686,7 @@ def func_multi_beta(obj, distmat='None', var='None', q=1):
                     ra2mat = ra2mat.div(N_cols**2)
                     mask = ra2mat > 0
                     ra2mat_ln = ra2mat.copy()
-                    ra2mat_ln[mask] = ra2mat_ln[mask].applymap(math.log)
+                    ra2mat_ln[mask] = ra2mat_ln[mask].map(math.log)
                     ra2mat = ra2mat.mul(ra2mat_ln)
                     ra2mat = ra2mat.mul(dqmat)
                     asum = asum + sum(ra2mat.sum())
@@ -651,7 +734,10 @@ def func_multi_beta(obj, distmat='None', var='None', q=1):
 # CR1 can also be called regional and CR2 can also be called local, because they are linked to those dissimilarity measures
 # if perspective=samples, the evenness value for each sample is calculate (i.e. each column in tab)
 # if perspective=taxa, the evenness value for each taxon is calculate (i.e. each row in tab)
-def evenness(tab, tree='None', distmat='None', q=1, divType='naive', index='local', perspective='samples'):
+def evenness(tab, tree='None', distmat='None', q=1, divType='naive', index='local', perspective='samples', **kwargs):
+    defaultKwargs = {'use_values_in_tab':False}
+    kwargs = {**defaultKwargs, **kwargs}
+
     # Power to raise D and S to in evenness formula for Chao1 and Chao2
     if index == 'CR1' or index == 'regional':
         power = float(1-q)
@@ -664,17 +750,17 @@ def evenness(tab, tree='None', distmat='None', q=1, divType='naive', index='loca
 
         # Calculate D value    
         if divType == 'naive':
-            D_series = naive_alpha(tab, q=q)
+            D_series = naive_alpha(tab, q=q, use_values_in_tab=kwargs['use_values_in_tab'])
         elif divType == 'phyl' and isinstance(tree, pd.DataFrame):
-            D_series = phyl_alpha(tab, tree=tree, q=q, index='D')
+            D_series = phyl_alpha(tab, tree, q=q, index='D', use_values_in_tab=kwargs['use_values_in_tab'])
         elif divType == 'func' and isinstance(distmat, pd.DataFrame):
-            D_series = func_alpha(tab, distmat=distmat, q=q, index='D')
+            D_series = func_alpha(tab, distmat=distmat, q=q, index='D', use_values_in_tab=kwargs['use_values_in_tab'])
         else:
             print('Make sure the required input for the chosen divType is available')
             print('divType = naive --> Nothing else needed')
             print('divType = phyl --> tree must be specified')
             print('divType = func --> distmat must be specified')
-            return 0
+            return None
 
     # Calculate an evenness value for each ASV or node
     elif perspective == 'taxa':
@@ -682,10 +768,14 @@ def evenness(tab, tree='None', distmat='None', q=1, divType='naive', index='loca
         if divType == 'naive':
             tab = tab.transpose()
             S_series = tab.count() #Note all samples are counted here (even 0 reads)
-            D_series = naive_alpha(tab, q=q)
+            D_series = naive_alpha(tab, q=q, use_values_in_tab=kwargs['use_values_in_tab'])
         elif divType == 'phyl' and isinstance(tree, pd.DataFrame):
             #Make a tree df with ra associated with each branch
-            ra = tab/tab.sum()
+            if not kwargs['use_values_in_tab']:
+                ra = tab/tab.sum()
+            else:
+                ra = tab.map(float)
+
             tree2 = pd.DataFrame(0, index=tree.index, columns=ra.columns)
             for ix in tree2.index:
                 asvlist = tree.loc[ix, 'ASVs']
@@ -697,12 +787,13 @@ def evenness(tab, tree='None', distmat='None', q=1, divType='naive', index='loca
             D_series = naive_alpha(tree2, q)
         else:
             print('divType must be naive or phyl if perspective=taxa')
-            return 0
+            return None
 
     #Get evenness measure
     if q == 1 and index in ['CR1', 'CR2', 'regional', 'local']:
         df = pd.DataFrame({'D':D_series, 'S':S_series})
-        df[df > 0] = df[df > 0].applymap(math.log)
+        df = df.astype(float)
+        df[df > 0] = df[df > 0].map(math.log)
         measure = df['D'][df['S'] > 0].div(df['S'][df['S'] > 0])
     elif index in ['CR1', 'CR2', 'regional', 'local']:
         D_series = D_series.pow(power)
@@ -728,7 +819,10 @@ def evenness(tab, tree='None', distmat='None', q=1, divType='naive', index='loca
 # q is the diversity order
 # divType is the diversity type, either naive or phyl
 # index can be local (or Chao2) or regional (or Chao1)
-def dissimilarity_contributions(obj, var='None', q=1, divType='naive', index='local'):
+def dissimilarity_contributions(obj, var='None', q=1, divType='naive', index='local', **kwargs):
+    defaultKwargs = {'use_values_in_tab':False}
+    kwargs = {**defaultKwargs, **kwargs}
+
     if var != 'None' and 'meta' not in obj:
         print('Meta data missing.')
         return None
@@ -760,24 +854,27 @@ def dissimilarity_contributions(obj, var='None', q=1, divType='naive', index='lo
         if divType == 'naive':
             if index == 'CR1' or index == 'regional':
                 w = tab.sum(axis=1).pow(q) / sum(tab.sum(axis=1).pow(q))
-                ev = evenness(tab, q=q, index=index, perspective='taxa')
+                ev = evenness(tab, q=q, index=index, perspective='taxa', use_values_in_tab=kwargs['use_values_in_tab'])
             elif index == 'CR2' or index == 'local':
                 tabpow = tab.copy()
                 tabpow[tabpow > 0] = tabpow[tabpow > 0].pow(q)
                 w = tabpow.sum(axis=1) / sum(tabpow.sum())
-                ev = evenness(tab, q=q, index=index, perspective='taxa')
+                ev = evenness(tab, q=q, index=index, perspective='taxa', use_values_in_tab=kwargs['use_values_in_tab'])
             else:
                 print('Wrong index')
-                return 0
+                return None
             w_mul_ev = w * (1 - ev)
             output.loc['dis', cat] = w_mul_ev.sum()
             taxa_contributions = 100 * w_mul_ev / w_mul_ev.sum()
             output.loc[taxa_contributions.index, cat] = taxa_contributions
-            output[cat].fillna(0, inplace=True)
+            output[cat] = output[cat].fillna(0)
 
         # Phylogenetic version, calculate for each node
         elif divType == 'phyl' and 'tree' in obj:
-            ra = tab/tab.sum()
+            if not kwargs['use_values_in_tab']:
+                ra = tab/tab.sum()
+            else:
+                ra = tab.map(float)
             tree = obj['tree']
             tree2 = pd.DataFrame(0, index=tree.index, columns=ra.columns)
             for ix in tree2.index:
@@ -785,7 +882,7 @@ def dissimilarity_contributions(obj, var='None', q=1, divType='naive', index='lo
                 ra_branch = ra.reindex(asvlist).sum()
                 tree2.loc[ix] = ra_branch
 
-            ev = evenness(tab, tree=tree, q=q, divType='phyl', index=index, perspective='taxa')
+            ev = evenness(tab, tree=tree, q=q, divType='phyl', index=index, perspective='taxa', use_values_in_tab=kwargs['use_values_in_tab'])
             if index == 'CR1' or index == 'regional':
                 zi_plus = tree2.sum(axis=1)
                 zi_plus[zi_plus > 0] = zi_plus[zi_plus > 0].pow(q) #zi+^q

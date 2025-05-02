@@ -28,10 +28,15 @@ def taxa(obj, savename='None'):
         tax = obj['tax'].copy()
         taxlevels = tax.columns.tolist() #List of taxonomic levels
     else:
-        taxlevels = []
+        print('No taxanomic information in object.')
+        taxlevels = [] #List of taxonomic levels
 
-    tab = obj['tab'].copy()
-    samples = tab.columns.tolist() #List of samples in freq table
+    if 'tab' in obj.keys():
+        tab = obj['tab'].copy()
+        samples = tab.columns.tolist() #List of samples in freq table
+    else:
+        print('tab missing: No count table in object.')
+        return None
 
     # Make output file
     output = [['Sample', 'ASVs', 'Reads'] + taxlevels]
@@ -44,14 +49,15 @@ def taxa(obj, savename='None'):
             templist.append(len(tab[tab[smp] > 0].index))
             templist.append(tab[smp].sum())
 
-        if 'tax' in obj.keys():
+        if len(taxlevels) > 0:
             for tlev in taxlevels:
                 if smp == 'Total': #For the whole freq table
-                    nrofdifferent = len(tax[tax[tlev].notnull()].groupby(by=tlev).first().index)
+                    nrofdifferent = len(tax.loc[tax[tlev].notnull(), tlev].unique())
                     templist.append(nrofdifferent)
                 else: # For each sample
-                    taxsmp = tax[tab[smp] != 0]
-                    nrofdifferent = len(taxsmp[taxsmp[tlev].notnull()].groupby(by=tlev).first().index)
+                    asvs_in_smp = tab.loc[tab[smp]>0, smp].index
+                    tax_smp = tax.loc[asvs_in_smp, tlev]
+                    nrofdifferent = len(tax_smp[tax_smp.notna()].unique())
                     templist.append(nrofdifferent)
         output.append(templist)
     output = pd.DataFrame(output[1:], columns=output[0])
@@ -114,47 +120,86 @@ def mantel(dis1, dis2, method='spearman', getOnlyStat=False, permutations=99):
 # returns list [F_stat, p_value]
 def permanova(dis, meta, var, permutations=99):
 
-    def get_F(dis, cats_list):
-        # Get SStotal
-        help_df = np.tril(np.ones(dis.shape), k=-1).astype(np.bool)
-        vectDis = dis.where(help_df).stack().values
-        SStotal = sum(vectDis**2) / len(dis.index)
-        # Get SSwithin
-        SSw = 0
-        for cat in cats_list:
-            subsmplist = meta[var][meta[var] == cat].index #Take all samples within the same group
-            disw = dis.loc[subsmplist, subsmplist]
-            help_df = np.tril(np.ones(disw.shape), k=-1).astype(np.bool)
-            vectDisw = disw.where(help_df).stack().values
-            SSw = SSw + sum(vectDisw**2) / len(subsmplist)
+    def get_SS(dis, variable, metaSS):
+        if variable not in metaSS.columns:
+            help_df = np.tril(np.ones(dis.shape), k=-1).astype(np.bool)
+            vectDis = dis.where(help_df).stack().to_numpy()
+            SS = sum(vectDis**2)/len(dis.index)
+        else:
+            SS = 0
+            for cat in metaSS[variable].unique():
+                subsmplist = metaSS[metaSS[variable] == cat].index #Take all samples within the same group
+                if len(subsmplist) > 1:
+                    disw = dis.loc[subsmplist, subsmplist]
+                    help_df = np.tril(np.ones(disw.shape), k=-1).astype(np.bool)
+                    vectDisw = disw.where(help_df).stack().to_numpy()
+                    SS = SS + sum(vectDisw**2)/len(subsmplist)
+        return SS
 
-        # Calculate Fstat
-        SSa = SStotal - SSw
-        Fstat = (SSa / (len(cats_list) - 1)) / (SSw / (len(dis.index) - len(cats_list)))
-        return Fstat
+    def get_F(dis, metaF):
+        SStot = get_SS(dis, 'None', metaF)
+        if isinstance(var, str) or len(var) == 1:
+            if isinstance(var, list):
+                var1 = var[0]
+            else:
+                var1 = var
+            SSw = get_SS(dis, var1, metaF)
+            SSa = SStot - SSw
+            dfa = len(metaF[var1].unique())-1
+            dfw = len(dis.index)-len(metaF[var1].unique())
+            Fstat = (SSa/dfa) / (SSw/dfw)
+            return np.array([Fstat, np.nan, np.nan])
+        elif isinstance(var, list) and len(var)==2:
+            v1 = var[0]; v2 = var[1]
+            mc = metaF.copy()
+            mc['var12'] = mc[v1].astype(str)+mc[v2].astype(str)
+            SS1 = SStot - get_SS(dis, variable=v1, metaSS=mc)
+            SS2 = SStot - get_SS(dis, variable=v2, metaSS=mc)
+            SSr = get_SS(dis, variable='var12', metaSS=mc)
+            df1 = len(mc[v1].unique())-1
+            df2 = len(mc[v2].unique())-1
+            dfr = len(dis.index) - (len(mc[v1].unique()))*(len(mc[v2].unique()))
+            if SSr > 0:
+                SS12 = SStot - SS1 - SS2 - SSr
+                df12 = (len(mc[v1].unique())-1)*(len(mc[v2].unique())-1)
+                F1 = (SS1/df1)/(SSr/dfr)
+                F2 = (SS2/df2)/(SSr/dfr)
+                F12 = (SS12/df12)/(SSr/dfr)
+                return np.array([F1, F2, F12])
+            else:
+                SSe = SStot - SS1 - SS2
+                print(SStot, SS1, SS2, SSe)
+                dfe = (len(mc[v1].unique())-1)*(len(mc[v2].unique())-1)
+                print(df1, df2, dfe)
+                F1 = (SS1/df1)/(SSe/dfe)
+                F2 = (SS2/df2)/(SSe/dfe)
+                return np.array([F1, F2, np.nan])
 
-    # Get unique categories in meta[var]
-    cats_list = np.unique(meta[var])
-    real_F = get_F(dis, cats_list)
+    # Get true F
+    real_F = get_F(dis, meta)
 
+    #Get null distribution
     null_F = []
     smplist = dis.index.tolist()
     for i in range(permutations):
         random_smplist = smplist.copy()
         random.shuffle(random_smplist)
         random_dis = pd.DataFrame(dis.values, index=random_smplist, columns=random_smplist)
-        null_F.append(get_F(random_dis, cats_list))
+        null_F.append(get_F(random_dis, meta))
 
-    p_val = 0
+    p_val = np.zeros(3)
     for nF in null_F:
-        if nF >= real_F:
-            p_val += 1
+        p_val[nF > real_F] = p_val[nF > real_F] + 1
     p_val = (p_val + 1) / (len(null_F) + 1)
-    return [real_F, p_val]
+    p_val[np.isnan(real_F)] = np.nan
+    if isinstance(var, list):
+        return {'var': var, 'F': real_F, 'p': p_val}
+    else:
+        return {'var': var, 'F': real_F[0], 'p': p_val[0]}
 
 # Returns matrix for pairwise distances between ASVs.
 # The inputType can either be seq or tree.
-# If the input is seq, pairwise Levenshtein/Hamming distances (uses Levenshtein package) are calculated.
+# If the input is seq, pairwise Levenshtein are calculated using the Wagner-Fisher algorithm. The distance is divided by the length of the longest seq in the pair.
 # If the input is tree, the distances between end nodes in the phylogenetic tree are calculated.
 # Results are saved as csv file at location specified in savename.
 # The output distance matrix can be used as input for functional diversity index calculations (func_alpha, func_beta)
@@ -214,7 +259,7 @@ def sequence_comparison(obj, inputType='seq', savename='DistMat'):
         
         #Get list of asvs
         svnames = sorted(tree_endN['nodes'].tolist())
-        df = pd.DataFrame(0, index=svnames, columns=svnames)
+        df = pd.DataFrame(0, index=svnames, columns=svnames, dtype=float)
 
         # For showing progress
         total_comp = (len(svnames)**2 / 2)
@@ -228,7 +273,7 @@ def sequence_comparison(obj, inputType='seq', savename='DistMat'):
             asvlist = tree.loc[ix, 'ASVs']
             df.loc[asvlist, asvlist] = df.loc[asvlist, asvlist] + BL
 
-        df_dist = pd.DataFrame(0, index=svnames, columns=svnames)
+        df_dist = pd.DataFrame(0, index=svnames, columns=svnames, dtype=float)
         for i in range(len(svnames)-1):
             sv1 = svnames[i]
             sv1_toroot = df.loc[sv1, sv1]

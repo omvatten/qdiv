@@ -20,7 +20,7 @@ def samples(obj, var='index', slist='None', keep0=False):
             meta = meta[meta[var].isin(slist)]
         else:
             print('var not found')
-            return 0
+            return None
     elif 'meta' in obj and var == 'index':
         meta = obj['meta']
         meta = meta.loc[slist, :]
@@ -78,22 +78,22 @@ def samples(obj, var='index', slist='None', keep0=False):
     return out
 
 # Subsets object based on list of OTUs/ASVs to keep
-def sequences(obj, svlist):
+def sequences(obj, asvlist):
     out = {}
     tab = obj['tab']
-    tab = tab.loc[svlist, :]
+    tab = tab.loc[asvlist, :]
     out['tab'] = tab
     if 'ra' in obj:
         ra = obj['ra']
-        ra = ra.loc[svlist, :]
+        ra = ra.loc[asvlist, :]
         out['ra'] = ra
     if 'tax' in obj:
         tax = obj['tax']
-        tax = tax.loc[svlist, :]
+        tax = tax.loc[asvlist, :]
         out['tax'] = tax
     if 'seq' in obj:
         seq = obj['seq']
-        seq = seq.loc[svlist, :]
+        seq = seq.loc[asvlist, :]
         out['seq'] = seq
     if 'tree' in obj:
         out['tree'] = obj['tree']
@@ -141,18 +141,26 @@ def abundant_sequences(obj, number=25, method='sum'):
 # Subset object based on text in taxonomic names
 # subsetLevels is list taxonomic levels searched for text patterns, e.g. ['Family', 'Genus']
 # subsetPatterns is list of text to search for, e.g. ['Nitrosom', 'Brochadia']
-def text_patterns(obj, subsetLevels=[], subsetPatterns=[]):
-    if len(subsetLevels) == 0 or len(subsetPatterns) == 0:
-        print('No taxlevels or pattern')
+def text_patterns(obj, subsetLevels=[], subsetPatterns=[], case=False):
+    if 'tax' not in obj:
+        print('Error: No tax in obj.')
         return None
-    else:
-        taxPatternCheck = obj['tax'].applymap(str)
-        keepIX = []
-        for col in subsetLevels:
-            for ix in taxPatternCheck.index:
-                for ptrn in subsetPatterns:
-                    if ptrn in taxPatternCheck.loc[ix, col] and ix not in keepIX:
-                        keepIX.append(ix)
+    if len(subsetPatterns) == 0:
+        print('Error: No text pattern specified.')
+        return None
+    
+    tax = obj['tax'].copy()
+    tax = tax.map(str)
+    if len(subsetLevels) == 0:
+        subsetLevels = tax.columns
+
+    keepIX = []
+    for col in subsetLevels:
+        for ptrn in subsetPatterns:
+            templist = tax[tax[col].str.contains(ptrn, case=case)].index.tolist()
+            keepIX = keepIX + templist
+    keepIX = list(set(keepIX))
+
     out = {}
     if 'tab' in obj:
         out['tab'] = obj['tab'].loc[keepIX]
@@ -171,10 +179,14 @@ def text_patterns(obj, subsetLevels=[], subsetPatterns=[]):
 # Merges samples based on information in meta data
 # var is the column heading in metadata used to merge samples. The counts for all samples with the same text in var column will be merged.
 # slist is a list of names in meta data column which specify samples to keep. If slist='None' (default), the whole meta data column is used
-# if keep0 is false, all SVs with 0 counts after the subsetting will be discarded from the data
-def merge_samples(obj, var='None', slist='None', keep0=False):
+# method is 'sum' or 'mean' and determines if the tab counts in each category should be summed or taken the mean
+# if keep0 is false, all ASVs with 0 counts after the subsetting will be discarded from the data
+def merge_samples(obj, var='None', slist='None', method='sum', keep0=False):
     if 'meta' not in obj.keys():
-        print('Meta data missing')
+        print('Error: meta data missing')
+        return None
+    if method not in ['sum', 'mean']:
+        print('method should be sum or mean.')
         return None
     if var != 'None' and slist == 'None':
         slist = obj['meta'][var]
@@ -184,7 +196,10 @@ def merge_samples(obj, var='None', slist='None', keep0=False):
     for smp in slist:
         tempobj = samples(obj, var, [smp], keep0=True)
         tab = tempobj['tab']
-        tab_sum = tab.sum(axis=1)
+        if method == 'sum':
+            tab_sum = tab.sum(axis=1)
+        elif method == 'mean':
+            tab_sum = tab.mean(axis=1)
         tab_ra = 100 * tab_sum / tab_sum.sum()
         tabdi[smp] = tab_sum
         radi[smp] = tab_ra
@@ -212,12 +227,16 @@ def merge_samples(obj, var='None', slist='None', keep0=False):
             out['seq'] = obj['seq']
         if 'tax' in obj.keys():
             out['tax'] = obj['tax']
+
     out['tab'] = tab2
-    out['ra'] = ra2
+    if 'ra' in obj:
+        out['ra'] = ra2
     if 'tree' in obj:
         out['tree'] = obj['tree']
 
     meta = obj['meta']
+    if isinstance(slist, list):
+        meta = meta[meta[var].isin(slist)]
     meta2 = meta.groupby(var).first()
     meta2[var] = meta2.index
     out['meta'] = meta2
@@ -229,7 +248,7 @@ def merge_samples(obj, var='None', slist='None', keep0=False):
 def rarefy_table(tab, depth='min', seed='None', replacement=False):
     #Make sure table elements are all integers
     tab = tab.fillna(0)
-    tab = tab.applymap(int)
+    tab = tab.map(int)
 
     ## Set read depth
     if depth == 'min':
@@ -295,11 +314,15 @@ def rarefy_object(obj, depth='min', seed='None', replacement=False):
 
 # ANALYSING AND COMBINING OBJECTS
 
-# Function that makes sure different objects have the same SV names. Returns a list of objects with aligned names
-# If differentLengths=True, it assumes that the same SV inferred with different bioinformatics pipelines could have different sequence length
-# For example, Deblur sets a specific read length while Dada2 allows different lengths. Comparing SVs from these two pipelines is thus impossible unless differentLengths=True
+# Function that makes sure different objects have the same ASV names. Returns a list of objects with aligned names
+# If differentLengths=True, it assumes that the same ASV inferred with different bioinformatics pipelines could have different sequence length
+# For example, Deblur sets a specific read length while Dada2 allows different lengths. Comparing ASVs from these two pipelines is thus impossible unless differentLengths=True
 def align_sequences(objectlist, differentLengths=False, nameType='ASV'):
     objlist = copy.deepcopy(objectlist)
+    for obj in objlist:
+        if 'seq' not in obj:
+            print('Error: Sequence information missing in obj')
+            return None
 
     # Make sure no duplicate sequences within objects
     for i in range(len(objlist)):
@@ -310,6 +333,7 @@ def align_sequences(objectlist, differentLengths=False, nameType='ASV'):
         if 'tab' in objlist[i].keys():
             tab = obj['tab']
             tab['sequence'] = seq['sequence']
+        if 'ra' in objlist[i].keys():
             ra = obj['ra']
             ra['sequence'] = seq['sequence']
         if 'tax' in objlist[i].keys():
@@ -323,6 +347,7 @@ def align_sequences(objectlist, differentLengths=False, nameType='ASV'):
             tab = tab.set_index('Newname')
             tab = tab.sort_index()
             objlist[i]['tab'] = tab
+        if 'ra' in objlist[i].keys():
             ra = ra.groupby(by='sequence').sum()
             ra['Newname'] = seq['Newname']
             ra = ra.set_index('Newname')
@@ -338,7 +363,7 @@ def align_sequences(objectlist, differentLengths=False, nameType='ASV'):
         seq = seq.sort_index()
         objlist[i]['seq'] = seq
 
-    # Find all unique SVs in all objects and give them an id
+    # Find all unique ASVs in all objects and give them an id
     svdict = {}
     seqdict = {}
     counter = 0
@@ -386,15 +411,16 @@ def align_sequences(objectlist, differentLengths=False, nameType='ASV'):
         print(str(i+1), end='.. ')
 
         seq = objlist[i]['seq']
-        seq['newSV'] = np.nan
+        seq['newSV'] = pd.NA
         if 'tab' in objlist[i].keys():
             tab = objlist[i]['tab']
+            tab['newSV'] = pd.NA
+        if 'ra' in objlist[i].keys():
             ra = objlist[i]['ra']
-            tab['newSV'] = np.nan
-            ra['newSV'] = np.nan
+            ra['newSV'] = pd.NA
         if 'tax' in objlist[i].keys():
             tax = objlist[i]['tax']
-            tax['newSV'] = np.nan
+            tax['newSV'] = pd.NA
 
         for n in seq.index:
             newSVname = svdict[seq.loc[n, 'seq']]
@@ -404,6 +430,7 @@ def align_sequences(objectlist, differentLengths=False, nameType='ASV'):
 
             if 'tab' in objlist[i].keys():
                 tab.loc[n, 'newSV'] = newSVname
+            if 'ra' in objlist[i].keys():
                 ra.loc[n, 'newSV'] = newSVname
             if 'tax' in objlist[i].keys():
                 tax.loc[n, 'newSV'] = newSVname
@@ -411,6 +438,7 @@ def align_sequences(objectlist, differentLengths=False, nameType='ASV'):
         seq = seq.groupby('newSV').first()
         if 'tab' in objlist[i].keys():
             tab = tab.groupby('newSV').sum()
+        if 'ra' in objlist[i].keys():
             ra = ra.groupby('newSV').sum()
         if 'tax' in objlist[i].keys():
             tax = tax.groupby('newSV').first()
@@ -419,6 +447,7 @@ def align_sequences(objectlist, differentLengths=False, nameType='ASV'):
         objlist[i]['seq'] = seq
         if 'tab' in objlist[i].keys():
             objlist[i]['tab'] = tab
+        if 'ra' in objlist[i].keys():
             objlist[i]['ra'] = ra
         if 'tax' in objlist[i].keys():
             objlist[i]['tax'] = tax
@@ -432,8 +461,9 @@ def align_sequences(objectlist, differentLengths=False, nameType='ASV'):
 # keepObj makes it possible to specify which object in objlist that should be kept after filtering based on common SVs. Specify with integer (0 is the first object, 1 is the second, etc)
 # if keepObj='best', the frequency table having the largest fraction of its reads mapped to the common SVs is kept
 # taxa makes it possible to specify with an integer the object having taxa information that should be kept (0 is the first object, 1 is the second, etc). If 'None', the taxa information in the kept Obj is used
+# keep_cutoff species percentage cutoff to keep ASVs irrespective of them being found in multiple objects
 # if onlyReturnSeqs=True, only a dataframe with the shared ASVs is returned
-def consensus(objlist, keepObj='best', taxa='None', alreadyAligned=False, differentLengths=False, nameType='ASV', onlyReturnSeqs=False):
+def consensus(objlist, keepObj='best', taxa='None', alreadyAligned=False, differentLengths=False, nameType='ASV', keep_cutoff=0.2, onlyReturnSeqs=False):
     print('Running subset.consensus..')
     if alreadyAligned:
         aligned_objects = objlist.copy()
@@ -456,6 +486,7 @@ def consensus(objlist, keepObj='best', taxa='None', alreadyAligned=False, differ
     #Calculate relative abundance of incommon SVs in each tab
     ra_in_tab = []
     ra_sample_max = []
+    ra_sample_ind_max = []
     for i in range(len(aligned_objects)):
         tab_all = aligned_objects[i]['tab']
         tab_incommon = aligned_objects[i]['tab'].loc[incommonSVs]
@@ -464,6 +495,7 @@ def consensus(objlist, keepObj='best', taxa='None', alreadyAligned=False, differ
         tab_notincommon = aligned_objects[i]['tab'].loc[~tab_all.index.isin(incommonSVs)]
         ra_of_notincommon = 100 * tab_notincommon / tab_all.sum()
         ra_sample_max.append(max(ra_of_notincommon.sum()))
+        ra_sample_ind_max.append(max(ra_of_notincommon.max()))
 
     #Get the number of the object with the highest ra associated with incommon SVs
     maxvalue = max(ra_in_tab)
@@ -472,12 +504,28 @@ def consensus(objlist, keepObj='best', taxa='None', alreadyAligned=False, differ
     else:
         ra_max_pos = keepObj
 
+    # Make sure abundant ASVs are kept even if they are not in common
+    ra = 100*aligned_objects[ra_max_pos]['tab']/aligned_objects[ra_max_pos]['tab'].sum()
+    ra['max'] = ra.max(axis=1)
+    keep_extra = ra[ra['max']>keep_cutoff].index.tolist()
+    incommonSVs = list(set(incommonSVs+keep_extra))
+
+    #Calculate relative abundance of incommon SVs in kept tab
+    tab_all = aligned_objects[ra_max_pos]['tab']
+    tab_incommon = aligned_objects[ra_max_pos]['tab'].loc[incommonSVs]
+    ra_in_tab1 = 100 * sum(tab_incommon.sum()) / sum(tab_all.sum())
+
+    tab_notincommon = aligned_objects[ra_max_pos]['tab'].loc[~tab_all.index.isin(incommonSVs)]
+    ra_of_notincommon = 100 * tab_notincommon / tab_all.sum()
+    ra_sample_max1 = max(ra_of_notincommon.sum())
+    ra_sample_ind_max1 = max(ra_of_notincommon.max())
+
     # Make consensus object based on the table having most fraction of reads belonging to incommon SVs
     cons_obj = {}
     cons_obj['tab'] = aligned_objects[ra_max_pos]['tab'].loc[incommonSVs, :]
-    cons_obj['ra'] = cons_obj['tab']/cons_obj['tab'].sum()
     cons_obj['seq'] = aligned_objects[ra_max_pos]['seq'].loc[incommonSVs, :]
-    cons_obj['meta'] = aligned_objects[ra_max_pos]['meta']
+    if 'meta' in aligned_objects[ra_max_pos]:
+        cons_obj['meta'] = aligned_objects[ra_max_pos]['meta']
 
     #Check if tax is in that object, if not get taxa info from on the other
     if 'tax' in aligned_objects[ra_max_pos].keys() and taxa == 'None':
@@ -490,12 +538,11 @@ def consensus(objlist, keepObj='best', taxa='None', alreadyAligned=False, differ
         cons_obj['tax'] = aligned_objects[taxa]['tax'].loc[incommonSVs, :]
     
     #Change ASV names in consensus object
-    sort_df = cons_obj['ra'].copy()
+    sort_df = cons_obj['tab'].copy()
     sort_df['avg'] = sort_df.mean(axis=1)
     sort_df = sort_df.sort_values(by='avg', ascending=False)
     correct_order_svlist = sort_df.index.tolist()
     cons_obj['tab'] = cons_obj['tab'].loc[correct_order_svlist]
-    cons_obj['ra'] = cons_obj['ra'].loc[correct_order_svlist]
     cons_obj['seq'] = cons_obj['seq'].loc[correct_order_svlist]
     if 'tax' in cons_obj.keys():
         cons_obj['tax'] = cons_obj['tax'].loc[correct_order_svlist]
@@ -504,14 +551,21 @@ def consensus(objlist, keepObj='best', taxa='None', alreadyAligned=False, differ
     for i in range(len(correct_order_svlist)):
         newindex_dict[correct_order_svlist[i]]= nameType + str(i+1)
     cons_obj['tab'].rename(index=newindex_dict, inplace=True)
-    cons_obj['ra'].rename(index=newindex_dict, inplace=True)
     cons_obj['seq'].rename(index=newindex_dict, inplace=True)
     if 'tax' in cons_obj.keys():
         cons_obj['tax'].rename(index=newindex_dict, inplace=True)
 
-    info = {'Kept obj pos': ra_max_pos, 'Relative abundance (%) of reads associated with retained ASVs': ra_in_tab, 
-            'Maximum relative abundance (%) of lost reads in a sample': ra_sample_max}
+    info = {'Kept obj pos': ra_max_pos,
+            'Rel. abund. (%) of reads associated with only consensus ASVs': ra_in_tab, 
+            'Max. rel. abund. (%) of lost reads in a sample with only consensus ASVs': ra_sample_max,
+            'Max. rel. abund. (%) of ASV lost in a sample with only consensus ASVs': ra_sample_ind_max,
+            'Rel. abund. (%) of reads associated with retained ASVs in selected obj': ra_in_tab1, 
+            'Max. rel. abund. (%) of lost reads in a sample in selected obj': ra_sample_max1,
+            'Max. rel. abund. (%) of ASV lost in a sample in selected obj': ra_sample_ind_max1,
+            }
     print('Done with subset.consensus (note that this function does not keep tree in the object).')
+    for k in info.keys():
+        print(k, info[k])
     return cons_obj, info
 
 # Function that merges objects and keeps all ASVs (different from consensus, which drops non-shared ASVs)
@@ -584,8 +638,7 @@ def merge_objects(objlist, alreadyAligned=False, differentLengths=False, nameTyp
     #Make output object
     out = {}
     if 'tab' in aligned_objects[0].keys():
-        out['tab'] = tab_joined.applymap(int)
-        out['ra'] = 100 * tab_joined / tab_joined.sum()
+        out['tab'] = tab_joined
     if 'seq' in aligned_objects[0].keys():
         out['seq'] = seq_joined
     if 'tax' in aligned_objects[0].keys():

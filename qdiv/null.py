@@ -122,17 +122,16 @@ def rcq(obj, constrainingVar='None', randomization='frequency', weightingVar='No
                     reads = readslist[cnr]
 
                     if randomization in ['abundance', 'weighting']:
-                        rows = np.random.choice(SVlist, size=richness, replace=False, p=abund_all_p)
+                        rows = np.random.choice(SVlist, size=int(richness), replace=False, p=abund_all_p)
                     elif randomization == 'frequency':
-                        rows = np.random.choice(SVlist, size=richness, replace=False, p=freqlist)
+                        rows = np.random.choice(SVlist, size=int(richness), replace=False, p=freqlist)
                     random_tabs[i].loc[rows, smp] = 1
 
                     abund_sub_p = abundseries[rows] / abundseries[rows].sum()
 
-                    randomchoice = np.random.choice(rows, size=reads - richness, replace=True, p=abund_sub_p)
+                    randomchoice = np.random.choice(rows, size=int(reads-richness), replace=True, p=abund_sub_p)
                     uniquechoices = np.unique(randomchoice, return_counts=True)
-                    random_tabs[i].loc[uniquechoices[0], smp] = random_tabs[i].loc[uniquechoices[0], smp] + \
-                                                                uniquechoices[1]
+                    random_tabs[i].loc[uniquechoices[0], smp] = random_tabs[i].loc[uniquechoices[0], smp] + uniquechoices[1]
         print('100%')
         return random_tabs
 
@@ -298,7 +297,7 @@ def nriq(obj, distmat, q=1, iterations=99):
     tab = obj['tab']
     ra = tab / tab.sum()
     smplist = ra.columns
-    output = pd.DataFrame(np.nan, index=smplist, columns=['MPDq', 'null_mean', 'null_std', 'p_index', 'ses'])
+    output = pd.DataFrame(pd.NA, index=smplist, columns=['MPDq', 'null_mean', 'null_std', 'p_index', 'ses'])
 
     for smp in smplist:
         output.loc[smp, 'MPDq'] = get_dmean(ra[smp], dm=distmat)
@@ -374,7 +373,7 @@ def ntiq(obj, distmat, q=1, iterations=99):
         output.loc[smp, 'null_std'] = darr[j, :].std()
         output.loc[smp, 'p_index'] = (len(darr[j, :][darr[j, :] < output.loc[smp, 'MNTDq']]) + 0.5 * len(darr[j, :][darr[j, :] == output.loc[smp, 'MNTDq']])) / len(darr[j, :])
         if output.loc[smp, 'null_std'] > 0:
-            output.loc[smp, 'ses'] = (output.loc[smp, 'null_mean'] - output.loc[smp, 'MNTDq']) / output.loc[smp, 'null_mean']
+            output.loc[smp, 'ses'] = (output.loc[smp, 'null_mean'] - output.loc[smp, 'MNTDq']) / output.loc[smp, 'null_std']
     print('100%')
     return output
 

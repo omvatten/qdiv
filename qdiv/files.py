@@ -4,171 +4,160 @@ from . import hfunc
 
 # FUNCTIONS FOR LOADING AND SAVING DATA FILES
 
-# Returns dictionary object containing data as pandas dataframes ('tab', 'ra', 'tax', 'seq', and 'meta')
-# path is path to input files
+# Returns dictionary object containing data as pandas dataframes ('tab', 'tax', 'seq', and 'meta')
 # tab is frequency table is frequency table. OTU/ASV names should be in first column, taxa should be in the final columns and start with Kingdom or Domain
 # fasta is fasta file with sequences. OTU/ASV names should correspond to those in tab
+# tax is table with taxonomic information. OTU/ASV names should correspond to those in tab
 # meta is meta data
 # sep specifies separator used in input files e.g. ',' or '\t'
 # if addTaxonPrefix is True (default), g__ is added before genera, f__ before families, etc.
-# if orderSeqs is True (default), sequences names are sorted numerically (if they contain numbers)
+# if orderSeqs is True (default), sequences names are sorted numerically (if they contain numbers in the end of the names)
 
-def load(path='', tab='None', fasta='None', meta='None', tree='None', sep=',', addTaxonPrefix=True, orderSeqs=True):  # Import file and convert them to suitable format
-    print('Running files.load .. ', end='')    
-    sv_name_lists = {} #To check and compare ASVs in the different input files
+def load(tab=None, tax=None, fasta=None, meta=None, tree=None, addTaxonPrefix=True, orderSeqs=True, **kwargs):  # Import file and convert them to suitable format
+    print('Running files.load .. ', end='')
+    defaultKwargs = {'tab_sep':',', 'meta_sep':',', 'tax_sep':',', 'fasta_seq_name_splitter':None, 'path':''}
+    kwargs = {**defaultKwargs, **kwargs}
+
+    readtab = None
+    readtax = None
+    readmeta = None
+    seqtab = None
+    branch_df = None
     
-    #Prepare tab and tax
-    if tab != 'None':
-        # Read count table with taxa information
-        readtab = pd.read_csv(path + tab, sep=sep, header=0, index_col=0)
+    if tab != None:
+        try:
+            readtab = pd.read_csv(kwargs['path']+tab, sep=kwargs['tab_sep'], header=0, index_col=0)
+        except:
+            print('ERROR: Cannot read tab file. Is the separator incorrectly specified? (e.g. tab_sep="," or tab_sep="\t"). Or is the path to the file incorrectly specified?')
+            return None
 
-        #Check if taxa information is in table
-        possibleLevels = ['Superkingdom', 'Real', 'Clade', 'Domain', 'Kingdom', 'Phylum', 'Class', 'Order', 'Family', 'Genus', 'Speces']
-        taxaavailable = 0
-        taxpos = len(readtab.columns)
-        for level in possibleLevels:
-            if level in readtab.columns:
-                pos = readtab.columns.get_loc(level)
-                if pos < taxpos:
-                    taxpos = pos
-                    taxaavailable = 1
-
-        #Check position of number in asv name
-        pos_of_nr = -1
         if orderSeqs:
-            asvname_test = readtab.index.tolist()[0]
-            for i in range(len(asvname_test)):
-                try:
-                    int(asvname_test[i])
-                    pos_of_nr = i
-                    break
-                except:
-                    continue
-            if pos_of_nr == -1:
-                nametype = 'ASV'
-            else:
-                nametype = asvname_test[:pos_of_nr]
-            readtab.index.name = nametype
+            readtab = hfunc.orderSeqs(readtab)
 
-        ctab = readtab.iloc[:, :taxpos]
-        ratab = 100 * ctab / ctab.sum()
+        if tax == None: #Check if tax in tab
+            taxlevels = ['domain', 'kingdom', 'phylum', 'class', 'order', 'family', 'genus', 'species', 'strain', 'realm', 'superkingdom']
+            taxdict = {}
+            for c in readtab.columns:
+                if str(c).lower() in taxlevels:
+                    taxdict[c] = readtab[c].tolist()
+                    readtab = readtab.drop(c, axis=1)
+            if len(taxdict.keys())>0:
+                readtax = pd.DataFrame(taxdict, index=readtab.index)
 
-        if pos_of_nr == -1:
-            ctab = ctab.sort_index()
-            ratab = ratab.sort_index()
-        else:
-            ctab = ctab.sort_index(key=lambda idx: idx.str.slice(start=pos_of_nr).astype(int))
-            ratab = ratab.sort_index(key=lambda idx: idx.str.slice(start=pos_of_nr).astype(int))
-        sv_name_lists['tab'] = ctab.index.tolist()
+        try:
+            readtab = readtab.map(float)
+        except:
+            print('ERROR: All values in the tab file must be numeric. Taxonomic information should be placed in a separate file.')
+            return None
 
-        # Prepare taxa dataframe
-        if taxaavailable == 1:
-            taxtab = readtab.iloc[:, taxpos:]
-            taxtab.dropna(axis=1, how='all', inplace=True)
-            if pos_of_nr == -1:
-                taxtab = taxtab.sort_index()
-            else:
-                taxtab = taxtab.sort_index(key=lambda idx: idx.str.slice(start=pos_of_nr).astype(int))
-            taxtab = taxtab.applymap(str)
-            for name in taxtab.columns: #Remove items containing only one letter
-                taxtab[name][taxtab[name].str.len() == 1] = np.nan
-                taxtab[name][taxtab[name] == 'nan'] = np.nan
+    # Read meta data
+    if meta != None:
+        try:
+            readmeta = pd.read_csv(kwargs['path']+meta, sep=kwargs['meta_sep'], header=0, index_col=0)
+        except:
+            print('ERROR: Cannot read meta file. Is the separator correctly specified? (e.g. meta_sep="," or meta_sep="\t").')
+            return None
 
+        # Go through metadata and remove lines not in tab
+        if tab != None:
+            for ix in readmeta.index:
+                if ix not in readtab.columns:
+                    readmeta = readmeta.drop([ix])
+    
+            # Sort samples in tab in same order as in meta data
+            readtab = readtab[readmeta.index]
+
+    if tax != None:
+        try:
+            readtax = pd.read_csv(kwargs['path']+tax, sep=kwargs['tax_sep'], header=0, index_col=0)
+        except:
+            print('Cannot read tax file. Is the separator correctly specified? (e.g. tax_sep="," or tax_sep="\t").')
+
+        # Prepare taxa dataframe if it exists
+        if isinstance(readtax, pd.DataFrame):
+            readtax.dropna(axis=1, how='all', inplace=True)
+            readtax = readtax.map(str)
+            for name in readtax.columns: #Remove items containing only one letter
+                readtax[name][readtax[name].str.len() == 1] = pd.NA
+                readtax[name][readtax[name] == 'nan'] = pd.NA
+    
             #Check if __ is in taxa names
             if addTaxonPrefix:
-                prefixdict = {'Domain':'d__', 'Kingdom':'k__', 'Phylum':'p__','Class':'c__', 'Order':'o__',
-                              'Family':'f__', 'Genus':'g__', 'Species':'s__', 'Realm':'r__'}
-                for c in taxtab.columns.tolist():
-                    if c in prefixdict.keys():
-                        prefix = prefixdict[c]
-                    elif 'Sub' in c and len(c) > 4:
+                prefixdict = {'domain':'d__', 'kingdom':'k__', 'phylum':'p__','class':'c__', 'order':'o__',
+                              'family':'f__', 'genus':'g__', 'species':'s__', 'realm':'r__', 'superkingdom':'z__', 'strain':'x__'}
+                for c in readtax.columns.tolist():
+                    if c.lower() in prefixdict.keys():
+                        prefix = prefixdict[c.lower()]
+                    elif 'sub' in c.lower() and len(c) > 4:
                         prefix = c[:4]+'__'
                     else:
                         prefix = ''
-                    mask = taxtab[c][taxtab[c].notna()]
+                    mask = readtax[c][readtax[c].notna()]
                     if len(mask) > 0:
                         mask2 = mask[~mask.str.contains('__', na=False)]
                         if len(mask2) > 0:
-                            taxtab.loc[mask2.index, c] = prefix + taxtab.loc[mask2.index, c]
+                            readtax.loc[mask2.index, c] = prefix + readtax.loc[mask2.index, c]
+    
+                #Sanity check by comparing to tab
+                if tab != None:
+                    if sorted(readtab.index.tolist()) != sorted(readtax.index.tolist()):
+                        print('Warning, different index names in tab and tax')
+                    else:
+                        readtax = readtax.loc[readtab.index]
+                elif orderSeqs:
+                    readtax = hfunc.orderSeqs(readtax)
 
     # Read fasta file with ASV sequences
-    if fasta != 'None':
-        fastalist = [[nametype, 'seq']]
-        with open(path + fasta, 'r') as f:
+    if fasta != None:
+        fastalist = [['taxon', 'seq']]
+        with open(kwargs['path']+fasta, 'r') as f:
             for line in f:
                 if line[0] == '>':
-                    fastalist.append([line[1:].strip().split(';')[0], ''])
+                    name = line[1:].strip()
+                    if kwargs['fasta_seq_name_splitter'] != None:
+                        name = name.split(kwargs['fasta_seq_name_splitter'])[0]
+                    fastalist.append([name, ''])
                 else:
                     fastalist[-1][1] = fastalist[-1][1] + line.strip()
         seqtab = pd.DataFrame(fastalist[1:], columns=fastalist[0])
-        seqtab = seqtab.set_index(nametype)
-        if pos_of_nr == -1:
-            seqtab = seqtab.sort_index()
-        else:
-            seqtab = seqtab.sort_index(key=lambda idx: idx.str.slice(start=pos_of_nr).astype(int))
-        sv_name_lists['fasta'] = seqtab.index.tolist()
+        seqtab = seqtab.set_index('taxon')
+
+        #Sanity check by comparing to tab
+        if tab != None:
+            if sorted(readtab.index.tolist()) != sorted(seqtab.index.tolist()):
+                print('Warning, different index names in tab and seq')
+            else:
+                seqtab = seqtab.loc[readtab.index]
+        elif orderSeqs:
+            seqtab = hfunc.orderSeqs(seqtab)
+        if tax != None:
+            if sorted(readtax.index.tolist()) != sorted(seqtab.index.tolist()):
+                print('Warning, different index names in tax and seq')
 
     # Read Newick tree file
-    if tree != 'None':
-        branch_df = hfunc.parse_newick(path + tree)
-        asvlist = []
-        for ix in branch_df.index:
-            asvlist = asvlist + branch_df.loc[ix, 'ASVs']
-        asvlist = sorted(list(set(asvlist)))
-        sv_name_lists['tree'] = asvlist
+    if tree != None:
+        branch_df = hfunc.parse_newick(kwargs['path']+tree)
 
-    # Compare number of ASVs in tab, fasta and tree
-    adjustment_necessary = False
-    if len(sv_name_lists) > 1:
-        sv_name_lists_keys = list(sv_name_lists.keys())
-        key0 = sv_name_lists_keys[0]
-        set0 = set(sv_name_lists[key0])
-        for i in range(1, len(sv_name_lists_keys)):
-            key1 = sv_name_lists_keys[i]
-            set1 = set(sv_name_lists[key1])
-            if len(set1) != len(set0):
-                print('Comparing number of OTUs/ASVs: ', end='')
-                print(key0, len(sv_name_lists[key0]), key1, len(sv_name_lists[key1]))
-                set0 = set1.intersection(set0)
-                key0 = key1
-                adjustment_necessary = True
-
-    if adjustment_necessary:
-        keepSVs = sorted(list(set0))
-        if tab != 'None':
-            ctab = ctab.loc[keepSVs]
-            ratab = ratab.loc[keepSVs]
-        if fasta != 'None':
-            seqtab = seqtab.loc[keepSVs]
-        print('The numbers of OTUs/ASVs were unequal in the tab, fasta, or tree files.')
-        print('The object was subset to common OTUs/ASVs (but the tree is intact).')
-
-    # Read meta data
-    if meta != 'None':
-        readmeta = pd.read_csv(path + meta, sep=sep, header=0, index_col=0)
-    # Go through metadata and remove lines not in tab
-    if meta != 'None' and tab != 'None':
-        for ix in readmeta.index:
-            if ix not in ctab.columns:
-                readmeta = readmeta.drop([ix])
-
-        # Sort samples in tab in same order as in meta data
-        metalist_samples = readmeta.index.tolist()
-        ctab = ctab[metalist_samples]
-        ratab = ratab[metalist_samples]
+        #Sanity check by comparing to tab
+        if tab != None:
+            asvlist = []
+            for ix in branch_df.index:
+                asvlist = asvlist + branch_df.loc[ix, 'ASVs']
+            asvlist = sorted(list(set(asvlist)))
+            if sorted(readtab.index.tolist()) != sorted(asvlist):
+                print('Warning, different index names in tab and tree')
 
     # Return dictionary object with all dataframes
     out = {}
-    if tab != 'None':
-        out['tab'] = ctab
-        out['ra'] = ratab
-    if tab != 'None' and taxaavailable == 1:
-        out['tax'] = taxtab
-    if fasta != 'None':
+    if isinstance(readtab, pd.DataFrame):
+        out['tab'] = readtab
+    if isinstance(readtax, pd.DataFrame):
+        out['tax'] = readtax
+    if isinstance(seqtab, pd.DataFrame):
         out['seq'] = seqtab
-    if tree != 'None':
+    if isinstance(branch_df, pd.DataFrame):
         out['tree'] = branch_df
-    if meta != 'None':
+    if isinstance(readmeta, pd.DataFrame):
         out['meta'] = readmeta
     print('Done!')
     return out
@@ -178,24 +167,15 @@ def load(path='', tab='None', fasta='None', meta='None', tree='None', sep=',', a
 # savename is optional
 def printout(obj, path='', savename='output', sep=','):  # Saves files in the same format as they were loaded
     # Return taxa-count table
-    if 'tab' in obj and 'tax' in obj:
+    if 'tab' in obj:
         tab = obj['tab']
+        tab.to_csv(path + savename + '_tab.csv', sep=sep)
+    if 'tax' in obj:
         tax = obj['tax']
-        tab_tax = pd.concat([tab, tax], axis=1)
-        tab_tax.to_csv(path + savename + '_table.csv', sep=sep)
-    elif 'tab' in obj:
-        tab = obj['tab']
-        tab.to_csv(path + savename + '_table.csv', sep=sep)
-        print('No tax')
-    else:
-        print('No tab and tax')
-
+        tax.to_csv(path + savename + '_tax.csv', sep=sep)
     if 'meta' in obj:
         meta = obj['meta']
         meta.to_csv(path + savename + '_meta.csv', sep=sep)
-    else:
-        print('No meta')
-
     if 'seq' in obj:
         seq = obj['seq']
         fasta = []
@@ -205,176 +185,53 @@ def printout(obj, path='', savename='output', sep=','):  # Saves files in the sa
         with open(path + savename + '_seq.fa', 'w') as f:
             for i in fasta:
                 f.write(i)
-    else:
-        print('No seq')
-
     if 'tree' in obj:
         print('Tree file cannot be saved.')
-
     print('Files saved')
-
-# Adds rdp taxonomy to object
-# obj is the qdiv object,
-# filename is a text file containing rdp taxonomy, generated here: https://rdp.cme.msu.edu/classifier/classifier.jsp
-# at the website, click show assignment detail for Root only, then click download allrank results.
-# cutoff is the minimum % cutoff to include a taxonomic level in the classification
-def read_rdp(obj, filename, cutoff=70):
-    read_in_lines = []
-    with open(filename, 'r') as f:
-        for line in f:
-            if '+' in line and ';' in line:
-                read_in_lines.append(line.strip())
-    
-    headings = ['Domain', 'Phylum', 'Class', 'Order', 'Family', 'Genus', 'Species']
-    prefixes = ['d__', 'p__', 'c__', 'o__', 'f__', 'g__', 's__']
-    df_dict = {}
-    for i in range(len(read_in_lines)):
-        lines = read_in_lines[i].replace('"','').split(';+')
-        if len(lines) == 2:       
-            asvname = lines[0]
-            taxnames = lines[1].split('%;')
-        else:
-            asvname = 'None'
-            taxnames = []
-        
-        if len(taxnames) > 1:
-            templist = []
-            for j in range(1, len(taxnames)):
-                tax_perc = taxnames[j].split(';')
-                perc = tax_perc[1].replace('%','')
-                if float(perc) >= cutoff and j <= len(prefixes):
-                    templist.append(prefixes[j-1] + tax_perc[0])
-            if len(templist) < 7:
-                templist = templist + [np.nan] * (7 - len(templist))
-        
-        if asvname != 'None':
-            df_dict[asvname] = templist
-
-    df = pd.DataFrame(np.nan, index=df_dict.keys(), columns=headings)
-    for ix in df.index:
-        df.loc[ix, :] = df_dict[ix]
-    df.sort_index(axis=0, inplace=True)
-
-    tax_svlist = df.index.tolist()
-    if 'seq' in obj:
-        seq_svlist = obj['seq'].index.tolist()
-        common = list(set(tax_svlist).intersection(set(seq_svlist)))
-        print(len(common))
-        if len(common) != len(seq_svlist):
-            print('Warning: the sequences in tax and seq are different')
-            print('tax:', len(tax_svlist), 'seq:', len(seq_svlist), 'in common:', len(common))
-    if 'tab' in obj:
-        tab_svlist = obj['tab'].index.tolist()
-        common = list(set(tax_svlist).intersection(set(tab_svlist)))
-        if len(common) != len(tab_svlist):
-            print('Warning: the sequences in tax and tab are different')
-            print('tax:', len(tax_svlist), 'tab:', len(seq_svlist), 'in common:', len(common))
-
-    obj['tax'] = df
-    return obj
 
 # Adds sintax generated taxonomy to object
 # obj is the qdiv object,
 # filename is a text file containing the sintax output file
 def read_sintax(obj, filename):
-    read_in_lines = []
-    with open(filename, 'r') as f:
-        for line in f:
-            read_in_lines.append(line.strip())
-
-    df_dict = {}
-    for i in range(len(read_in_lines)):
-        lines = read_in_lines[i].replace('"','').replace(':','__')
-        if i%2 == 0:
-            asvname = read_in_lines[i]
-        else:
-            taxlist = []
-            if '+' in lines:
-                lines = lines.split('+')
-                taxlist = lines[-1].strip()
-                taxlist = taxlist.split(',')
-            df_dict[asvname] = taxlist
 
     headings = ['Kingdom', 'Domain', 'Phylum', 'Class', 'Order', 'Family', 'Genus', 'Species']
     heading_dict = {'k':'Kingdom', 'd':'Domain', 'p':'Phylum', 'c':'Class', 'o':'Order',
                     'f':'Family', 'g':'Genus', 's':'Species'}
-    df = pd.DataFrame(np.nan, index=df_dict.keys(), columns=headings)
-    for ix in df_dict.keys():
-        taxlist = df_dict[ix]
-        for tax in taxlist:
-            firstletter = tax[0]
-            df.loc[ix, heading_dict[firstletter]] = tax
-    df.dropna(axis=1, how='all', inplace=True)
-    df.sort_index(axis=0, inplace=True)
 
-    tax_svlist = df.index.tolist()
-    if 'seq' in obj:
-        seq_svlist = obj['seq'].index.tolist()
-        common = list(set(tax_svlist).intersection(set(seq_svlist)))
-        if len(common) != len(seq_svlist):
-            print('Warning: the sequences in tax and seq are different')
-            print('tax:', len(tax_svlist), 'seq:', len(seq_svlist), 'in common:', len(common))
-    if 'tab' in obj:
-        tab_svlist = obj['tab'].index.tolist()
-        common = list(set(tax_svlist).intersection(set(tab_svlist)))
-        if len(common) != len(tab_svlist):
-            print('Warning: the sequences in tax and tab are different')
-            print('tax:', len(tax_svlist), 'tab:', len(seq_svlist), 'in common:', len(common))
-        
-    obj['tax'] = df
-    return obj
-
-# Adds SINA generated taxonomy to object
-# obj is the qdiv object,
-# filename is a text file containing output from the SINA classifier, generated here: https://www.arb-silva.de/aligner/
-# taxonomy is the taxonomy database used with the SINA classifier. Options are: silva, ltp, rdp, gtdb, embl_ebi_ena
-def read_sina(obj, filename, taxonomy='silva'):
-    read_in_lines = []
-    with open(filename, 'r') as f:
-        for line in f:
-            line = line.replace('""""', '')
-            line = line.replace('"";""', 'SPLITTER')
-            line = line.replace('"', '')
-            read_in_lines.append(line.strip().split('SPLITTER'))
+    read_in_lines = {}
+    try:
+        with open(filename, 'r') as f:
+            for line in f:
+                linelist = line.strip().split('\t')
+                asv = linelist[0]
+                if len(linelist) == 4:
+                    tax = linelist[-1].replace('"','').replace(':','__').split(',')
+                read_in_lines[asv] = tax
     
-    df = pd.DataFrame(read_in_lines[1:], columns=read_in_lines[0])
-
-    headings = ['Domain', 'Phylum', 'Class', 'Order', 'Family', 'Genus', 'Species']
-    prefixes = ['d__', 'p__', 'c__', 'o__', 'f__', 'g__', 's__']
-    output = pd.DataFrame(np.nan, index=df['sequence_identifier'], columns=headings)
-    returntext = ''
-
-    for ix in df.index:
-        asvname = df.loc[ix, 'sequence_identifier']
-        taxlist = 'None'
-        if taxonomy == 'silva':
-            taxlist = df.loc[ix, 'lca_tax_slv'].split(';')
-        elif taxonomy == 'rdp':
-            taxlist = df.loc[ix, 'lca_tax_rdp'].split(';')
-        elif taxonomy == 'ltp':
-            taxlist = df.loc[ix, 'lca_tax_ltp'].split(';')
-        elif taxonomy == 'gtdb':
-            taxlist = df.loc[ix, 'lca_tax_gtdb'].split(';')
-        elif taxonomy == 'embl_ebi_ena':
-            taxlist = df.loc[ix, 'lca_tax_embl_ebi_ena'].split(';')
-
-        if isinstance(taxlist, list) and len(taxlist) > len(headings):
-            returntext = returntext + 'Line ' + str(ix+2) + ': '
+        df = pd.DataFrame(pd.NA, index=read_in_lines.keys(), columns=headings)
+        for ix in df.index:
+            taxlist = read_in_lines[ix]
             for tax in taxlist:
-                returntext = returntext + tax + '; '
-            returntext += '\n'
-        elif isinstance(taxlist, list):
-            for j in range(len(taxlist)):
-                tax = taxlist[j]
-                if len(tax) > 2:
-                    output.loc[asvname, headings[j]] = prefixes[j] + tax
-
-    if len(returntext) > 1:
-        print('There are too many taxonomic levels on some of the lines in the input file.', end='')
-        print('They should conform to:', 'Domain', 'Phylum', 'Class', 'Order', 'Family', 'Genus', 'Species.', 'Check the following lines:')
-        print(returntext)
-    else:
-        output.dropna(axis=1, how='all', inplace=True)
-        output.sort_index(axis=0, inplace=True)
-        obj['tax'] = output
+                firstletter = tax[0]
+                df.loc[ix, heading_dict[firstletter]] = tax
+        df.dropna(axis=1, how='all', inplace=True)
+        df.sort_index(axis=0, inplace=True)
+    
+        tax_svlist = df.index.tolist()
+        if 'seq' in obj:
+            seq_svlist = obj['seq'].index.tolist()
+            common = list(set(tax_svlist).intersection(set(seq_svlist)))
+            if len(common) != len(seq_svlist):
+                print('Warning: the sequences in tax and seq are different')
+                print('tax:', len(tax_svlist), 'seq:', len(seq_svlist), 'in common:', len(common))
+        if 'tab' in obj:
+            tab_svlist = obj['tab'].index.tolist()
+            common = list(set(tax_svlist).intersection(set(tab_svlist)))
+            if len(common) != len(tab_svlist):
+                print('Warning: the sequences in tax and tab are different')
+                print('tax:', len(tax_svlist), 'tab:', len(seq_svlist), 'in common:', len(common))
+            
+        obj['tax'] = df
         return obj
+    except:
+        print('Error in read_sintax. Cannot read input file.')

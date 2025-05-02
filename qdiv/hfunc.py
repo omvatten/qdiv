@@ -15,11 +15,11 @@ def parse_newick(filename):
             newick = newick + line.strip()
     if ':' not in newick:
         print('Error, no branch lengths in file')
-        return 0
+        return None
     if newick[0] == '(':
         newick = newick[1:-2]
 
-    #Parsing: get all nodes, the end nodes the contain, and the branch lengths
+    #Parsing: get all nodes, the end nodes they contain, and the branch lengths
     intnodenames = []
     intnodecounter = 0
     temp_endnodes = []
@@ -129,78 +129,101 @@ def get_colors_markers(type='colors', plot=False):
 # levels specifies taxonomic levels to use in the grouping
 # nameType specifies the abbreviation to be used for unclassified sequences
 # if nameType='merge', all unclassified sequences will be merged
-def groupbytaxa(obj, levels=['Phylum', 'Genus'], merge=False):
-    # Clean up tax data frame
+def groupbytaxa(obj, levels=['Phylum', 'Genus'], includeIndex=False):
+    if 'tax' not in obj:
+        print('Error: tax not in obj.')
+        return None
+    if 'tab' not in obj:
+        print('Error: tab not in obj.')
+        return None
+
+    levdict = {'Kingdom':'k__','Domain':'d__','Realm':'r__','Phylum':'p__','Class':'c__','Order':'o__','Family':'f__','Genus':'g__','Species':'s__'}
+
+    # Simplify tax data frame and fill with names in all empty fields
     taxM = obj['tax'].copy()
-    taxS = obj['tax'].copy()
 
     taxlevels = taxM.columns.tolist()
     group_level = levels[-1]
     if group_level not in taxlevels:
         print('Error in groupbytaxa, level not found')
         return None
-
     pos = taxlevels.index(group_level)
-    taxM[taxlevels[0]][taxM[taxlevels[0]].isna()] = 'Unclassified'
-    if pos != 0:
-        for i in range(1, pos+1):
-            t0 = taxlevels[i-1]
-            t1 = taxlevels[i]
-            taxM[t1][taxM[t1].isna()] = taxM[t0][taxM[t1].isna()]
+    taxlevels = taxlevels[:pos+1]
+    taxM = taxM[taxlevels]
 
-    taxS['Name'] = ''
-    if merge and len(levels) == 1:
-        taxS['Name'] = taxM[group_level]
-    elif merge and len(levels) > 1:
-        taxS['Name'] = taxM[levels[0]]
+    highest = taxlevels[0]
+    taxM.loc[taxM[highest].isna(), highest] = levdict[highest]+'Unclassified'
+    if len(taxlevels) > 1:
+        for i in range(1, len(taxlevels)):
+            t0 = taxlevels[i-1]; t1 = taxlevels[i]
+            taxM.loc[taxM[t1].isna(), t1] = taxM.loc[taxM[t1].isna(), t0]
+
+    #Accumulate names from highest to lowest taxonomic level
+    taxAcc = taxM.copy()
+
+    if includeIndex: #Include index name at lowest level
+        taxAcc[group_level] = taxAcc[group_level]+':'+taxAcc.index
+        taxAcc['index'] = taxAcc.index
+
+    if len(taxlevels) > 1:
+        for i in range(1, len(taxlevels)):
+            t0 = taxlevels[i-1]; t1 = taxlevels[i]
+            taxAcc[t1] = taxAcc[t0] + taxAcc[t1]
+
+    #Set groupname for all relevant dataframe and groupby
+    taxAcc['gName'] = taxAcc[group_level]
+    taxM['gName'] = taxAcc['gName']
+    tab = obj['tab'].copy()
+    tab['gName'] = taxAcc['gName']
+    
+    if 'seq' in obj:
+        seq = obj['seq'].copy()
+        seq['gName'] = taxAcc['gName']
+        seq = seq.groupby('gName').first()
+    taxAcc = taxAcc.groupby('gName').first()
+    taxM = taxM.groupby('gName').first()
+    tab = tab.groupby('gName').sum()
+    
+    #Fix italics in taxM
+    for c in taxM.columns:
+        candidatus = taxM[(taxM[c].notna())&((taxM[c].str.contains('Candidatus'))|(taxM[c].str.contains('Ca.', regex=False)))].index.tolist()
+        for asv in candidatus:
+            taxM.loc[asv, c] = taxM.loc[asv, c].replace('Ca.', '$\it{Ca.}$').replace('Candidatus', '$\it{Ca.}$')
+        unclassified = taxM.loc[taxM[c].str.contains('unclassified', case=False), c].index.tolist()
+        underscores = taxM[(taxM[c].notna())&(taxM[c].str.contains('__'))].index.tolist()
+        underscores = list(set(underscores)-set(candidatus)-set(unclassified))
+        taxM.loc[underscores, c] = taxM.loc[underscores, c].str.split('__').str[0]+'__$\it{'+taxM.loc[underscores, c].str.split('__').str[1].str.replace(' ','\ ').str.replace('_','\ ')+'}$'
+        rest = taxM[taxM[c].notna()].index.tolist()
+        rest = list(set(rest)-set(candidatus)-set(underscores)-set(unclassified))
+        taxM.loc[rest, c] = '$\it{'+taxM.loc[rest, c].str.replace(' ','\ ').str.replace('_','\ ')+'}$'
+
+
+    #Make new index name based on levels
+    if len(levels) == 1:
+        taxM['Name'] = taxM[group_level]
+    elif len(levels) > 1:
+        taxM['Name'] = taxM[levels[0]]
         for i in range(1, len(levels)):
-            t0 = levels[i-1]
-            t1 = levels[i]
-            taxS['Name'][taxM[t0] != taxM[t1]] = taxS['Name'][taxM[t0] != taxM[t1]] + '; ' + taxM[t1][taxM[t0] != taxM[t1]]
-    if merge:
-        mask = (taxS[group_level].isna()) & (taxM[group_level] != 'Unclassified')
-        taxS['Name'][mask] = taxS['Name'][mask] + ':unclassified'
-        
-    elif not merge and len(levels) == 1:
-        taxS['Name'][taxS[group_level].notna()] = taxS[group_level][taxS[group_level].notna()]
-        taxS['Name'][taxS[group_level].isna()] = taxM[group_level][taxS[group_level].isna()] + ':' + list(map(str, taxM[group_level][taxS[group_level].isna()].index))
-    elif not merge and len(levels) > 1:
-        taxS['Name'] = taxM[levels[0]]
-        for i in range(1, len(levels)):
-            t0 = levels[i-1]
-            t1 = levels[i]
-            if t1 != group_level:
-                taxS['Name'][taxM[t0] != taxM[t1]] = taxS['Name'][taxM[t0] != taxM[t1]] + '; ' + taxM[t1][taxM[t0] != taxM[t1]]
-            else:
-                mask = (taxS[t1].isna()) & (taxM[t0] != taxM[t1])
-                taxS['Name'][mask] = taxS['Name'][mask] + '; ' + taxM[t1][mask] + ':' + list(map(str, taxM[t1][mask].index))
-                mask = (taxS[t1].notna()) & (taxM[t0] != taxM[t1])
-                taxS['Name'][mask] = taxS['Name'][mask] + '; ' + taxM[t1][mask]
-                mask = (taxS[t1].isna()) & (taxM[t0] == taxM[t1])
-                taxS['Name'][mask] = taxS['Name'][mask] + ':' + list(map(str, taxM[t1][mask].index))
+            t0 = levels[i-1]; t1 = levels[i]
+            taxM.loc[taxM[t0] != taxM[t1], 'Name'] = taxM.loc[taxM[t0] != taxM[t1], 'Name'] + '; ' + taxM.loc[taxM[t0] != taxM[t1], t1]
+
+    if includeIndex: #Include index name at lowest level
+        taxM['Name'] = taxM['Name']+':'+taxAcc['index']
 
     #Grouby Name and return object
     out = {}
-    if 'tab' in obj:
-        tab = obj['tab'].copy()
-        tab['Name'] = taxS['Name']
-        tab = tab.set_index(['Name'])
-        tab = tab.groupby(tab.index).sum()
-        out['tab'] = tab
-    if 'ra' in obj:
-        ra = obj['ra'].copy()
-        ra['Name'] = taxS['Name']
-        ra = ra.set_index('Name')
-        ra = ra.groupby(ra.index).sum()
-        out['ra'] = ra
+    tab['Name'] = taxM['Name']
+    out['tab'] = tab.groupby('Name').sum()
+    
+    if 'seq' in obj:
+        seq['Name'] = taxM['Name']
+        out['seq'] = seq.groupby('Name').first()
+
+    out['tax'] = taxM.groupby('Name').first()
+    
     if 'meta' in obj:
         out['meta'] = obj['meta'].copy()
-    if 'tax' in obj:
-        newtax = obj['tax'].copy()
-        newtax['Name'] = taxS['Name']
-        newtax = newtax.set_index(['Name'])
-        newtax = newtax.groupby(newtax.index).first()
-        out['tax'] = newtax
+
     return out
 
 # Converts beta value to distances, specify q and type associated with the beta (assuming pairwise)
@@ -208,7 +231,7 @@ def groupbytaxa(obj, levels=['Phylum', 'Genus'], merge=False):
 # The viewpoint refers to either the local or regional perspective as defined in Chao et al. 2014
 def beta2dist(beta, q=1, N=2, divType='naive', viewpoint='local'):
     if isinstance(beta, pd.DataFrame): #if beta is a pd.DataFrame
-        beta = beta.applymap(float)
+        beta = beta.map(float)
         mask = beta > 0
         dist = beta.copy()
 
@@ -250,7 +273,7 @@ def rao(tab, distmat):
     svlist = list(ra.index)
     distmat = distmat.loc[svlist, svlist]
     if isinstance(tab, pd.DataFrame):
-        outdf = pd.Series(0, index=ra.columns)
+        outdf = pd.Series(0.0, index=ra.columns)
         for smp in ra.columns:
             ra2mat = pd.DataFrame(np.outer(ra.loc[:, smp].values, ra.loc[:, smp].values), index=ra.index, columns=ra.index)
             rao_mat = ra2mat.mul(distmat)
@@ -297,3 +320,68 @@ def pcoa_ellipse(x, y, n_std=2): #Method from https://matplotlib.org/3.1.0/galle
 
     return [ell_radius_x, ell_radius_y, scale_x, scale_y, mean_x, mean_y]
 
+def pcoa_calculation(dist):
+    #Function for centering and eigen-decomposition of distance matrix
+    def get_eig(d): 
+        dist2 = -0.5*(d**2)
+        col_mean = dist2.mean(axis=0)
+        row_mean = dist2.mean(axis=1)
+        tot_mean = np.array(dist2).flatten().mean()
+        dist2_cent = dist2.subtract(col_mean, axis=1)
+        dist2_cent = dist2_cent.subtract(row_mean, axis=0)
+        dist2_cent = dist2_cent.add(tot_mean)
+        vals, vects = np.linalg.eig(dist2_cent)
+        return [vals, vects]
+
+    #Get eigenvalues and eigenvectors from the dissimilarity matrix
+    dist.fillna(0, inplace=True)
+    ev_ev = get_eig(dist)
+    #Correction method for negative eigenvalues
+    if min(ev_ev[0]) < 0: #From Legendre 1998, method 1 (derived from Lingoes 1971) chapter 9, page 502
+        mask = np.eye(N=len(dist.index))
+        mask = mask == 0
+        mask = pd.DataFrame(mask, index=dist.index, columns=dist.columns)
+        d2 = dist.copy()
+        d2[mask] = d2[mask].pow(2) + 2*abs(min(ev_ev[0]))
+        d2[mask] = d2[mask].pow(0.5)
+        d2 = d2.fillna(0)
+        ev_ev = get_eig(d2)
+        ev_ev[0] = np.real(ev_ev[0])
+        ev_ev[1] = np.real(ev_ev[1])
+
+    #Get proportions and coordinates
+    vv = pd.DataFrame(pd.NA, index=range(len(ev_ev[0])), columns=dist.columns)
+    for i in range(len(ev_ev[0])):
+        e_val = ev_ev[0][i]
+        if e_val > 0:
+            vv.iloc[i, :] = (e_val**0.5)*ev_ev[1][:, i]
+        else:
+            vv.iloc[i, :] = 0*ev_ev[1][:, i]
+    e_val_frac = 100*ev_ev[0]/sum(ev_ev[0])
+    vv['eig_vals'] = ev_ev[0]
+    vv['frac'] = e_val_frac
+    vv['frac'] = vv['frac'].apply(lambda x: round(x, 2))
+    vv = vv.sort_values('frac', ascending=False)
+    vv['PCo'] = np.arange(len(e_val_frac)) + 1
+    vv['PCo'] = 'PCo'+vv['PCo'].apply(str)
+    vv['PCo'] = vv['PCo'] + ' ('+vv['frac'].apply(str) + '%)'
+    vv = vv.set_index('PCo')
+    vv = vv.drop('frac', axis=1)
+    eig_vals = vv['eig_vals']
+    vv = vv.drop('eig_vals', axis=1)
+    vv = vv.transpose()
+    return vv, eig_vals
+
+#Order the index of a dataframe based on trailing numbers
+def orderSeqs(df):
+    df['letterstartX'] = df.index.str.rstrip('0123456789').tolist()
+    df['letterstartLEN'] = df['letterstartX'].str.len()
+    df['numberendX'] = [x[i:] for x, i in zip(df.index, df['letterstartLEN'])]
+    df.loc[df['numberendX'] == '', 'numberendX'] = 0
+    df['numberendX'] = df['numberendX'].apply(int)
+    df = df.sort_values(by='numberendX', ascending=True)
+    df = df.drop('letterstartX', axis=1)
+    df = df.drop('letterstartLEN', axis=1)
+    df = df.drop('numberendX', axis=1)
+    return df
+    
