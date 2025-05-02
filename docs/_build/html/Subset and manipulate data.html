@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="./">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Subset and manipulate data &#8212; qdiv  documentation</title>
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=5ecbeea2" />
+    <link rel="stylesheet" type="text/css" href="_static/basic.css?v=b08954a9" />
+    <link rel="stylesheet" type="text/css" href="_static/alabaster.css?v=27fed22d" />
+    <script src="_static/documentation_options.js?v=5929fcd5"></script>
+    <script src="_static/doctools.js?v=9bcbadda"></script>
+    <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Diversity calculations" href="Diversity%20calculations.html" />
+    <link rel="prev" title="Information and statistics" href="Information%20and%20statistics.html" />
+   
+  <link rel="stylesheet" href="_static/custom.css" type="text/css" />
+  
+
+  
+  
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <section id="subset-and-manipulate-data">
+<h1>Subset and manipulate data<a class="headerlink" href="#subset-and-manipulate-data" title="Link to this heading">¶</a></h1>
+<section id="subset-to-specific-samples">
+<h2>Subset to specific samples<a class="headerlink" href="#subset-to-specific-samples" title="Link to this heading">¶</a></h2>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">subset</span><span class="o">.</span><span class="n">samples</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">var</span><span class="o">=</span><span class="s1">&#39;index&#39;</span><span class="p">,</span> <span class="n">slist</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">keep0</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+</pre></div>
+</div>
+<p>Returns an object subsetted to the selected samples.</p>
+<p><em>obj</em> is the object generated with files.load</p>
+<p><em>var</em> is the column heading in the meta data used for subsetting, if var=’index’ the actual sample names will be used</p>
+<p><em>slist</em> is a list of samples or meta data labels to keep</p>
+<p>if <em>keep0</em> =True, OTUs/ASVs, which have zero reads associated with them after subsetting will be kept, otherwise they will be removed from the data.</p>
+</section>
+<section id="subset-to-specific-otus-asvs">
+<h2>Subset to specific OTUs/ASVs<a class="headerlink" href="#subset-to-specific-otus-asvs" title="Link to this heading">¶</a></h2>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">subset</span><span class="o">.</span><span class="n">sequences</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">asvlist</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Returns an object subsetted to the selected OTUs/ASVs.</p>
+<p><em>obj</em> is the object generated with files.load</p>
+<p><em>asvlist</em> is a list of OTU or ASV names that should be kept in the data set.</p>
+</section>
+<section id="subset-to-the-most-abundant-otus-asvs">
+<h2>Subset to the most abundant OTUs/ASVs<a class="headerlink" href="#subset-to-the-most-abundant-otus-asvs" title="Link to this heading">¶</a></h2>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">subset</span><span class="o">.</span><span class="n">abundant_sequences</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">number</span><span class="o">=</span><span class="mi">25</span><span class="p">,</span> <span class="n">method</span><span class="o">=</span><span class="s1">&#39;sum&#39;</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Returns an object with only the most abundant OTUs/ASVs.</p>
+<p><em>obj</em> is the object generated with files.load</p>
+<p><em>number</em> specifies the number of ASVs to keep</p>
+<p><em>method</em> is the method used to rank OTUs/ASVs.
+If <em>method</em> =’sum’, the OTUs/ASVs are ranked based on the sum of the relative abundances in all samples.
+If <em>method</em> =’max’, they are ranked based on the max relative abundance in a sample.</p>
+</section>
+<section id="subset-based-on-taxonomic-classification">
+<h2>Subset based on taxonomic classification<a class="headerlink" href="#subset-based-on-taxonomic-classification" title="Link to this heading">¶</a></h2>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">subset</span><span class="o">.</span><span class="n">text_patterns</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">subsetLevels</span><span class="o">=</span><span class="p">[],</span> <span class="n">subsetPatterns</span><span class="o">=</span><span class="p">[]):</span>
+</pre></div>
+</div>
+<p>Searches for specific text patterns among the taxonomic classifications. Returns an object subsetted to OTUs/ASVs matching those text patterns.</p>
+<p><em>subsetLevels</em> is a list taxonomic levels in which text patterns are searched for, e.g. [‘Family’, ‘Genus’]. If no levels are provided, all levels will be searched.</p>
+<p><em>subsetPatterns</em> is a list of text patterns to search for, e.g. [‘Nitrosom’, ‘Brochadia’]</p>
+</section>
+<section id="merge-samples">
+<h2>Merge samples<a class="headerlink" href="#merge-samples" title="Link to this heading">¶</a></h2>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">subset</span><span class="o">.</span><span class="n">merge_samples</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">var</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">slist</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">method</span><span class="o">=</span><span class="s1">&#39;sum&#39;</span><span class="p">,</span> <span class="n">keep0</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Returns an object where samples belonging the same category (as defined in the meta data) have been merged.</p>
+<p><em>var</em> is the column heading in metadata used to merge samples, the read counts for all samples with the same text in var column will be merged</p>
+<p><em>slist</em> is a list of names in meta data column which specify samples to keep, if slist=’None’ (default), all samples are kept</p>
+<p><em>method</em> is the method used to rank OTUs/ASVs.
+If <em>method</em> =’sum’, the counts or relative abundances of the OTUs/ASVs in a catogory are summed.
+If <em>method</em> =’mean’, the means of the counts or relative abundances of the OTUs/ASVs in a catogory are used.</p>
+<p>if <em>keep0</em> =False, all OTUs/ASVs with 0 counts after merging will be discarded from the data.</p>
+</section>
+<section id="rarefy">
+<h2>Rarefy<a class="headerlink" href="#rarefy" title="Link to this heading">¶</a></h2>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">subset</span><span class="o">.</span><span class="n">rarefy_table</span><span class="p">(</span><span class="n">tab</span><span class="p">,</span> <span class="n">depth</span><span class="o">=</span><span class="s1">&#39;min&#39;</span><span class="p">,</span> <span class="n">seed</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">replacement</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+
+<span class="n">subset</span><span class="o">.</span><span class="n">rarefy_object</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">depth</span><span class="o">=</span><span class="s1">&#39;min&#39;</span><span class="p">,</span> <span class="n">seed</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">replacement</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+</pre></div>
+</div>
+<p>Rarefies a count table to a specific number of reads per sample. The function subset.rarefy_table() operates only on the count table and returns only a rarefied table.
+The function subset.rarefy_object() operates on the whole object and returns a whole object.
+This means that samples and OTUs/ASVs which might have been dropped from the count table during rarefaction
+are also dropped from the ‘tax’, ‘seq’, and ‘meta’ dataframes of the object.</p>
+<p><em>tab</em> is the count table to be rarefied</p>
+<p><em>object</em> is the object containing the count table to be rarefied</p>
+<p>if <em>depth</em> =’min’, the minimum number of reads in a sample is used as rarefaction depth, otherwise a number can be specified</p>
+<p><em>seed</em> sets a random state for reproducible results, use an integer.</p>
+<p>if <em>replacement</em> =False, the function is similar to rarefaction without replacement, if <em>replacement</em> =True, it does rarefaction with replacement.</p>
+</section>
+<section id="consensus-table">
+<h2>Consensus table<a class="headerlink" href="#consensus-table" title="Link to this heading">¶</a></h2>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">subset</span><span class="o">.</span><span class="n">consensus</span><span class="p">(</span><span class="n">objlist</span><span class="p">,</span> <span class="n">keepObj</span><span class="o">=</span><span class="s1">&#39;best&#39;</span><span class="p">,</span> <span class="n">alreadyAligned</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">differentLengths</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">nameType</span><span class="o">=</span><span class="s1">&#39;ASV&#39;</span><span class="p">,</span> <span class="n">keep_cutoff</span><span class="o">=</span><span class="mf">0.2</span><span class="p">,</span> <span class="n">onlyReturnSeqs</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Takes a list of objects and returns a consensus object based on ASVs found in all. Information about the fraction of reads retained from the original objects is also provided.</p>
+<p><em>objlist</em> is a list of objects</p>
+<p><em>keepObj</em> makes it possible to specify which object in objlist that should be kept after filtering based on common ASVs, specify with integer
+(0 is the first object, 1 is the second, etc), ‘best’ means that the object which has the highest fraction of its reads mapped to the common ASVs is kept</p>
+<p>if <em>alreadyAligned</em> =True, the subset.align_sequences function has already been run on the objects to make sure the same sequences in different objects have the same names</p>
+<p>if <em>differentLengths</em> =True, it assumes that the same ASV inferred with different bioinformatics pipelines could have different sequence lengths.</p>
+<p><em>nameType</em> is the label used for sequences (e.g. ASV or OTU).</p>
+<p><em>keep_cutoff</em> species percentage cutoff to keep ASVs irrespective of them being found in multiple objects. Default is 0.2%.</p>
+<p>if <em>onlyReturnSeqs</em> =True, only a dataframe with the shared ASVs is returned.</p>
+<p>Example</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">qdiv</span>
+
+<span class="n">cons_obj</span><span class="p">,</span> <span class="n">info</span> <span class="o">=</span> <span class="n">qdiv</span><span class="o">.</span><span class="n">subset</span><span class="o">.</span><span class="n">consensus</span><span class="p">([</span><span class="n">obj1</span><span class="p">,</span> <span class="n">obj2</span><span class="p">])</span>
+
+<span class="n">qdiv</span><span class="o">.</span><span class="n">stats</span><span class="o">.</span><span class="n">print_info</span><span class="p">(</span><span class="n">cons_obj</span><span class="p">)</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="n">info</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>In the example above, <em>cons_obj</em> is the new consensus object constructed based on obj1 and obj2.</p>
+<p><em>info</em> contains information about the fraction of reads associated with consensus ASVs in obj1 and obj2, as well as the maximum relative abundance of reads associated with non-consensus ASVs.
+It also states the fraction of reads kept and lost in the consensus object that is returned (which includes non-consensus ASVs with a relative abundance above the keep_cutoff).</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">qdiv</span>
+
+<span class="n">shared_seqs</span><span class="p">,</span> <span class="n">info</span> <span class="o">=</span> <span class="n">qdiv</span><span class="o">.</span><span class="n">subset</span><span class="o">.</span><span class="n">consensus</span><span class="p">([</span><span class="n">obj1</span><span class="p">,</span> <span class="n">obj2</span><span class="p">],</span> <span class="n">onlyReturnSeqs</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>In the example above, <em>shared_seqs</em> is a pandas dataframe with the shared sequences</p>
+<p><em>info</em> just contains a text string saying that the shared ASVs were returned.</p>
+</section>
+<section id="merge-objects">
+<h2>Merge objects<a class="headerlink" href="#merge-objects" title="Link to this heading">¶</a></h2>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">subset</span><span class="o">.</span><span class="n">merge_objects</span><span class="p">(</span><span class="n">objlist</span><span class="p">,</span> <span class="n">alreadyAligned</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">differentLengths</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">nameType</span><span class="o">=</span><span class="s1">&#39;ASV&#39;</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Takes a list of objects and a merged objects including all OTUs/ASVs and samples.</p>
+<p><em>objlist</em> is a list of objects</p>
+<p>if <em>alreadyAligned</em> =True, the subset.align_sequences function has already been run on the objects to make sure the same sequences in different objects have the same names.</p>
+<p>if <em>differentLengths</em> =True, it assumes that the same ASV inferred with different bioinformatics pipelines could have different sequence lengths.</p>
+<p><em>nameType</em> is the label used for sequences (e.g. ASV or OTU)</p>
+<p>Example</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">qdiv</span>
+
+<span class="n">merged_obj</span> <span class="o">=</span> <span class="n">qdiv</span><span class="o">.</span><span class="n">subset</span><span class="o">.</span><span class="n">merge_objects</span><span class="p">([</span><span class="n">obj1</span><span class="p">,</span> <span class="n">obj2</span><span class="p">])</span>
+
+<span class="n">qdiv</span><span class="o">.</span><span class="n">stats</span><span class="o">.</span><span class="n">print_info</span><span class="p">(</span><span class="n">merged_obj</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>In the example above, <em>merged_obj</em> is the new object constructed by combining obj1 and obj2.</p>
+</section>
+</section>
+
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="Main">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="index.html">qdiv</a></h1>
+
+
+
+
+
+
+
+
+
+<search id="searchbox" style="display: none" role="search">
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Search"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script><h3>Navigation</h3>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="Installation.html">Installation instructions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="Input%20files.html">Input files</a></li>
+<li class="toctree-l1"><a class="reference internal" href="Load%20and%20print%20files.html">Load and print files</a></li>
+<li class="toctree-l1"><a class="reference internal" href="Information%20and%20statistics.html">Information and statistics</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Subset and manipulate data</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#subset-to-specific-samples">Subset to specific samples</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#subset-to-specific-otus-asvs">Subset to specific OTUs/ASVs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#subset-to-the-most-abundant-otus-asvs">Subset to the most abundant OTUs/ASVs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#subset-based-on-taxonomic-classification">Subset based on taxonomic classification</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#merge-samples">Merge samples</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#rarefy">Rarefy</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#consensus-table">Consensus table</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#merge-objects">Merge objects</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="Diversity%20calculations.html">Diversity calculations</a></li>
+<li class="toctree-l1"><a class="reference internal" href="Null%20models.html">Null models</a></li>
+<li class="toctree-l1"><a class="reference internal" href="Plotting.html">Plotting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="Citations.html">Citations</a></li>
+<li class="toctree-l1"><a class="reference internal" href="Tutorial_1.html">Tutorial 1</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="index.html">Documentation overview</a><ul>
+      <li>Previous: <a href="Information%20and%20statistics.html" title="previous chapter">Information and statistics</a></li>
+      <li>Next: <a href="Diversity%20calculations.html" title="next chapter">Diversity calculations</a></li>
+  </ul></li>
+</ul>
+</div>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &#169;2019, Oskar Modin.
+      
+      |
+      Powered by <a href="https://www.sphinx-doc.org/">Sphinx 8.2.3</a>
+      &amp; <a href="https://alabaster.readthedocs.io">Alabaster 1.0.0</a>
+      
+      |
+      <a href="_sources/Subset and manipulate data.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>

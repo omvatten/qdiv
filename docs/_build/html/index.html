@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="./">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Welcome to qdiv’s documentation! &#8212; qdiv  documentation</title>
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=5ecbeea2" />
+    <link rel="stylesheet" type="text/css" href="_static/basic.css?v=b08954a9" />
+    <link rel="stylesheet" type="text/css" href="_static/alabaster.css?v=27fed22d" />
+    <script src="_static/documentation_options.js?v=5929fcd5"></script>
+    <script src="_static/doctools.js?v=9bcbadda"></script>
+    <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Installation instructions" href="Installation.html" />
+   
+  <link rel="stylesheet" href="_static/custom.css" type="text/css" />
+  
+
+  
+  
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <section id="welcome-to-qdiv-s-documentation">
+<h1>Welcome to qdiv’s documentation!<a class="headerlink" href="#welcome-to-qdiv-s-documentation" title="Link to this heading">¶</a></h1>
+<p>qdiv is a Python package for analyzing results from rRNA gene amplicon sequencing or similar data.</p>
+<p>With qdiv you can subset and rarefy the data, generate a consensus table based on several count tables,
+calculate alpha- and beta diversity indices (focusing on Hill-based indices),
+plot a heatmap or PCoA, carry out null model analysis (Raup-Crick, NRI, NTI, beta NRI, and beta NTI, extended to all possible diversity orders),
+and run the Mantel- and Permanova tests.</p>
+<p>Several scientific papers have been studied to program the algorithms used in qdiv. The key references can be found under Citations.</p>
+<div class="toctree-wrapper compound">
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="Installation.html">Installation instructions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="Input%20files.html">Input files</a></li>
+<li class="toctree-l1"><a class="reference internal" href="Load%20and%20print%20files.html">Load and print files</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="Load%20and%20print%20files.html#loading-files">Loading files</a></li>
+<li class="toctree-l2"><a class="reference internal" href="Load%20and%20print%20files.html#save-files">Save files</a></li>
+<li class="toctree-l2"><a class="reference internal" href="Load%20and%20print%20files.html#load-new-taxonomy">Load new taxonomy</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="Information%20and%20statistics.html">Information and statistics</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="Information%20and%20statistics.html#get-information">Get information</a></li>
+<li class="toctree-l2"><a class="reference internal" href="Information%20and%20statistics.html#mantel-test">Mantel test</a></li>
+<li class="toctree-l2"><a class="reference internal" href="Information%20and%20statistics.html#permanova">Permanova</a></li>
+<li class="toctree-l2"><a class="reference internal" href="Information%20and%20statistics.html#distance-between-sequences">Distance between sequences</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="Subset%20and%20manipulate%20data.html">Subset and manipulate data</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="Subset%20and%20manipulate%20data.html#subset-to-specific-samples">Subset to specific samples</a></li>
+<li class="toctree-l2"><a class="reference internal" href="Subset%20and%20manipulate%20data.html#subset-to-specific-otus-asvs">Subset to specific OTUs/ASVs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="Subset%20and%20manipulate%20data.html#subset-to-the-most-abundant-otus-asvs">Subset to the most abundant OTUs/ASVs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="Subset%20and%20manipulate%20data.html#subset-based-on-taxonomic-classification">Subset based on taxonomic classification</a></li>
+<li class="toctree-l2"><a class="reference internal" href="Subset%20and%20manipulate%20data.html#merge-samples">Merge samples</a></li>
+<li class="toctree-l2"><a class="reference internal" href="Subset%20and%20manipulate%20data.html#rarefy">Rarefy</a></li>
+<li class="toctree-l2"><a class="reference internal" href="Subset%20and%20manipulate%20data.html#consensus-table">Consensus table</a></li>
+<li class="toctree-l2"><a class="reference internal" href="Subset%20and%20manipulate%20data.html#merge-objects">Merge objects</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="Diversity%20calculations.html">Diversity calculations</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="Diversity%20calculations.html#alpha-diversity">Alpha diversity</a></li>
+<li class="toctree-l2"><a class="reference internal" href="Diversity%20calculations.html#beta-diversity-dissimilarity">Beta diversity (dissimilarity)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="Diversity%20calculations.html#evenness">Evenness</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="Null%20models.html">Null models</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="Null%20models.html#raup-crick">Raup-Crick</a></li>
+<li class="toctree-l2"><a class="reference internal" href="Null%20models.html#phylogenetic-null-models">Phylogenetic null models</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="Plotting.html">Plotting</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="Plotting.html#heatmap">Heatmap</a></li>
+<li class="toctree-l2"><a class="reference internal" href="Plotting.html#alpha-diversity">Alpha diversity</a></li>
+<li class="toctree-l2"><a class="reference internal" href="Plotting.html#pcoa">PCoA</a></li>
+<li class="toctree-l2"><a class="reference internal" href="Plotting.html#rarefaction-curve">Rarefaction curve</a></li>
+<li class="toctree-l2"><a class="reference internal" href="Plotting.html#octave-frequency-histogram">Octave (frequency histogram)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="Plotting.html#dissimilarity-contributions-of-taxa">Dissimilarity contributions of taxa</a></li>
+<li class="toctree-l2"><a class="reference internal" href="Plotting.html#phylogenetic-tree">Phylogenetic tree</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="Citations.html">Citations</a></li>
+<li class="toctree-l1"><a class="reference internal" href="Tutorial_1.html">Tutorial 1</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="Tutorial_1.html#TABLE-OF-CONTENTS">TABLE OF CONTENTS</a></li>
+<li class="toctree-l2"><a class="reference internal" href="Tutorial_1.html#PREPARE-THE-DATA-FILES">PREPARE THE DATA FILES</a></li>
+<li class="toctree-l2"><a class="reference internal" href="Tutorial_1.html#A-FIRST-LOOK-AT-THE-DATA">A FIRST LOOK AT THE DATA</a></li>
+<li class="toctree-l2"><a class="reference internal" href="Tutorial_1.html#RAREFYING">RAREFYING</a></li>
+<li class="toctree-l2"><a class="reference internal" href="Tutorial_1.html#ALPHA-DIVERSITY">ALPHA DIVERSITY</a></li>
+<li class="toctree-l2"><a class="reference internal" href="Tutorial_1.html#BETA-DIVERSITY">BETA DIVERSITY</a></li>
+</ul>
+</li>
+</ul>
+</div>
+<ul class="simple">
+<li><p><a class="reference internal" href="search.html"><span class="std std-ref">Search Page</span></a></p></li>
+</ul>
+</section>
+
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="Main">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="#">qdiv</a></h1>
+
+
+
+
+
+
+
+
+
+<search id="searchbox" style="display: none" role="search">
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Search"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script><h3>Navigation</h3>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="Installation.html">Installation instructions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="Input%20files.html">Input files</a></li>
+<li class="toctree-l1"><a class="reference internal" href="Load%20and%20print%20files.html">Load and print files</a></li>
+<li class="toctree-l1"><a class="reference internal" href="Information%20and%20statistics.html">Information and statistics</a></li>
+<li class="toctree-l1"><a class="reference internal" href="Subset%20and%20manipulate%20data.html">Subset and manipulate data</a></li>
+<li class="toctree-l1"><a class="reference internal" href="Diversity%20calculations.html">Diversity calculations</a></li>
+<li class="toctree-l1"><a class="reference internal" href="Null%20models.html">Null models</a></li>
+<li class="toctree-l1"><a class="reference internal" href="Plotting.html">Plotting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="Citations.html">Citations</a></li>
+<li class="toctree-l1"><a class="reference internal" href="Tutorial_1.html">Tutorial 1</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="#">Documentation overview</a><ul>
+      <li>Next: <a href="Installation.html" title="next chapter">Installation instructions</a></li>
+  </ul></li>
+</ul>
+</div>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &#169;2019, Oskar Modin.
+      
+      |
+      Powered by <a href="https://www.sphinx-doc.org/">Sphinx 8.2.3</a>
+      &amp; <a href="https://alabaster.readthedocs.io">Alabaster 1.0.0</a>
+      
+      |
+      <a href="_sources/index.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>

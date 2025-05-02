@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="./">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Tutorial 1 &#8212; qdiv  documentation</title>
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=5ecbeea2" />
+    <link rel="stylesheet" type="text/css" href="_static/basic.css?v=b08954a9" />
+    <link rel="stylesheet" type="text/css" href="_static/alabaster.css?v=27fed22d" />
+    <link rel="stylesheet" type="text/css" href="_static/nbsphinx-code-cells.css?v=2aa19091" />
+    <script src="_static/documentation_options.js?v=5929fcd5"></script>
+    <script src="_static/doctools.js?v=9bcbadda"></script>
+    <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+    <script>window.MathJax = {"tex": {"inlineMath": [["$", "$"], ["\\(", "\\)"]], "processEscapes": true}, "options": {"ignoreHtmlClass": "tex2jax_ignore|mathjax_ignore|document", "processHtmlClass": "tex2jax_process|mathjax_process|math|output_area"}}</script>
+    <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="prev" title="Citations" href="Citations.html" />
+   
+  <link rel="stylesheet" href="_static/custom.css" type="text/css" />
+  
+
+  
+  
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <section id="Tutorial-1">
+<h1>Tutorial 1<a class="headerlink" href="#Tutorial-1" title="Link to this heading">¶</a></h1>
+<p>This shows how qdiv can be used to analyze data from 16S amplicon sequencing experiments. In this tutorial, we focus on preparing the data for analysis, checking the most abundant taxa, and calculating alpha and beta diversity.</p>
+<p>The example data in this tutorial is from an experiment with microbial fuel cells (MFCs) and can be found at <a class="reference external" href="https://github.com/omvatten/qdiv/tree/master/example_files">qdiv’s github pages</a>. The data set has 8 samples: 4 samples are from acetate-fed MFCs and 4 are from glucose-fed MFC. The meta data file shows information about the samples.</p>
+<section id="TABLE-OF-CONTENTS">
+<h2>TABLE OF CONTENTS<a class="headerlink" href="#TABLE-OF-CONTENTS" title="Link to this heading">¶</a></h2>
+<ul class="simple">
+<li><p><a class="reference internal" href="#PREPARE-THE-DATA-FILES"><span class="std std-ref">Prepare the data files</span></a></p></li>
+<li><p><a class="reference internal" href="#A-FIRST-LOOK-AT-THE-DATA"><span class="std std-ref">A first look at the data</span></a></p></li>
+<li><p><a class="reference internal" href="#RAREFYING"><span class="std std-ref">Rarefying</span></a></p></li>
+<li><p><a class="reference internal" href="#ALPHA-DIVERSITY"><span class="std std-ref">Alpha diversity</span></a></p></li>
+<li><p><a class="reference internal" href="#BETA-DIVERSITY"><span class="std std-ref">Beta diversity</span></a></p></li>
+</ul>
+</section>
+<section id="PREPARE-THE-DATA-FILES">
+<h2>PREPARE THE DATA FILES<a class="headerlink" href="#PREPARE-THE-DATA-FILES" title="Link to this heading">¶</a></h2>
+<p>Let’s assume we have two count tables: one generated with DADA2 and one with UNOISE. For each count table we also have a fasta file with the sequences and a meta data file. All files are located in a folder called ‘tutorial/’. We will inspect the data, make a consensus count table, and save the results.</p>
+<ul class="simple">
+<li><p><a class="reference internal" href="#Inspect-the-data"><span class="std std-ref">Inspect the data</span></a></p></li>
+<li><p><a class="reference internal" href="#Consensus-count-table"><span class="std std-ref">Consensus count table</span></a></p></li>
+<li><p>Changing taxonomic information</p></li>
+<li><p><a class="reference internal" href="#Save-files"><span class="std std-ref">Save files</span></a></p></li>
+</ul>
+<section id="Inspect-the-data">
+<h3>Inspect the data<a class="headerlink" href="#Inspect-the-data" title="Link to this heading">¶</a></h3>
+<p>Run the code below to inspect the data.</p>
+<div class="nbinput nblast docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[ ]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">qdiv</span>
+
+<span class="n">path_to_folder</span> <span class="o">=</span> <span class="s1">&#39;example_files/&#39;</span>
+<span class="n">metadata</span> <span class="o">=</span> <span class="s1">&#39;example_metadata.csv&#39;</span>
+<span class="n">unoise_tab</span> <span class="o">=</span> <span class="s1">&#39;example_Unoise_table.csv&#39;</span>
+<span class="n">unoise_seq</span> <span class="o">=</span> <span class="s1">&#39;example_Unoise_seq.fa&#39;</span>
+<span class="n">dada2_tab</span> <span class="o">=</span> <span class="s1">&#39;example_DADA2_table.csv&#39;</span>
+<span class="n">dada2_seq</span> <span class="o">=</span> <span class="s1">&#39;example_DADA2_seq.fa&#39;</span>
+
+<span class="c1">#Load the files into qdiv objects and inspect the data</span>
+<span class="nb">print</span><span class="p">(</span><span class="s1">&#39;CHECKING THE DADA2 DATA:&#39;</span><span class="p">)</span>
+<span class="n">dada2_obj</span> <span class="o">=</span> <span class="n">qdiv</span><span class="o">.</span><span class="n">files</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">tab</span><span class="o">=</span><span class="n">dada2_tab</span><span class="p">,</span> <span class="n">fasta</span><span class="o">=</span><span class="n">dada2_seq</span><span class="p">,</span> <span class="n">meta</span><span class="o">=</span><span class="n">metadata</span><span class="p">,</span> <span class="n">path</span><span class="o">=</span><span class="n">path_to_folder</span><span class="p">)</span>
+<span class="n">qdiv</span><span class="o">.</span><span class="n">stats</span><span class="o">.</span><span class="n">print_info</span><span class="p">(</span><span class="n">dada2_obj</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s1">&#39;--------------&#39;</span><span class="p">)</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="s1">&#39;CHECKING THE UNOISE DATA:&#39;</span><span class="p">)</span>
+<span class="n">unoise_obj</span> <span class="o">=</span> <span class="n">qdiv</span><span class="o">.</span><span class="n">files</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">path</span><span class="o">=</span><span class="n">path_to_folder</span><span class="p">,</span> <span class="n">tab</span><span class="o">=</span><span class="n">unoise_tab</span><span class="p">,</span> <span class="n">fasta</span><span class="o">=</span><span class="n">unoise_seq</span><span class="p">,</span> <span class="n">meta</span><span class="o">=</span><span class="n">metadata</span><span class="p">)</span>
+<span class="n">qdiv</span><span class="o">.</span><span class="n">stats</span><span class="o">.</span><span class="n">print_info</span><span class="p">(</span><span class="n">unoise_obj</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s1">&#39;--------------&#39;</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+<p>We see that we have 8 samples in the data set. We can also see that in the DADA2 count table we have 108 ASVs and in the UNOISE table with have 98. The DADA2 count table also contain taxonomic information, the UNOISE table does not. We decide to make a consensus table based on the two count tables.</p>
+</section>
+<section id="Consensus-count-table">
+<h3>Consensus count table<a class="headerlink" href="#Consensus-count-table" title="Link to this heading">¶</a></h3>
+<p>The input to the <em>subset.consensus</em> command is a list of the qdiv objects used to build the consensus table. We input the following list [dada2_obj, unoise_obj]. Since we only have taxonomic information in the DADA2 table, we specify that we want to keep this object information in the consensus table. This is done by setting the input parameter <em>keepObj</em> to the position in the list occupied by the DADA2 object. In Python, the first item in a list is at position 0, so we specify <em>keepObj=0</em>.</p>
+<div class="nbinput nblast docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[ ]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">cons_obj</span><span class="p">,</span> <span class="n">info</span> <span class="o">=</span> <span class="n">qdiv</span><span class="o">.</span><span class="n">subset</span><span class="o">.</span><span class="n">consensus</span><span class="p">([</span><span class="n">dada2_obj</span><span class="p">,</span> <span class="n">unoise_obj</span><span class="p">],</span> <span class="n">keepObj</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+<p>From the printed information, we can see the the object in position 0 in the input list was kept and subsetted to the consensus ASVs, 98.06% of the reads were associated with consensus ASVs, but since we also keep all ASVs with a relative abundance above 0.2% (default input to <em>keep_cutoff</em>), we retain 99.30% of the reads, and the maximum relative abundance associated with discarded ASVs in a sample was 1.16%. We can also use the qdiv.stats.print_info function to get more information about the
+consensus object we have generated.</p>
+<div class="nbinput nblast docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[ ]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">qdiv</span><span class="o">.</span><span class="n">stats</span><span class="o">.</span><span class="n">print_info</span><span class="p">(</span><span class="n">cons_obj</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+<p>Here we can see we have a total of 84 ASVs in the consensus object. This can be compared to 108 and 98 ASVs in the original DADA2 and Unoise count tables, respectively.</p>
+</section>
+<section id="Save-files">
+<h3>Save files<a class="headerlink" href="#Save-files" title="Link to this heading">¶</a></h3>
+<p>Ok, now we are happy with our consensus object. We save the files to have them for later analysis.</p>
+<div class="nbinput nblast docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[ ]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">qdiv</span><span class="o">.</span><span class="n">files</span><span class="o">.</span><span class="n">printout</span><span class="p">(</span><span class="n">cons_obj</span><span class="p">,</span> <span class="n">path</span><span class="o">=</span><span class="s1">&#39;example_files/&#39;</span><span class="p">,</span> <span class="n">savename</span><span class="o">=</span><span class="s1">&#39;Consensus&#39;</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+</section>
+</section>
+<section id="A-FIRST-LOOK-AT-THE-DATA">
+<h2>A FIRST LOOK AT THE DATA<a class="headerlink" href="#A-FIRST-LOOK-AT-THE-DATA" title="Link to this heading">¶</a></h2>
+<ul class="simple">
+<li><p><a class="reference internal" href="#Number-of-different-taxa"><span class="std std-ref">Number of different taxa</span></a></p></li>
+<li><p><a class="reference internal" href="#Heatmap"><span class="std std-ref">Heatmap</span></a></p></li>
+</ul>
+<p>Ok, we are done with making a consensus table and preparing the data and now want to see how the data looks. First, we load our consensus files into a qdiv object.</p>
+<div class="nbinput docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[1]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">qdiv</span>
+
+<span class="n">path_to_folder</span> <span class="o">=</span> <span class="s1">&#39;example_files/&#39;</span>
+<span class="n">metadata</span> <span class="o">=</span> <span class="s1">&#39;Consensus_meta.csv&#39;</span>
+<span class="n">cons_tab</span> <span class="o">=</span> <span class="s1">&#39;Consensus_table.csv&#39;</span>
+<span class="n">cons_seq</span> <span class="o">=</span> <span class="s1">&#39;Consensus_seq.fa&#39;</span>
+
+<span class="n">obj</span> <span class="o">=</span> <span class="n">qdiv</span><span class="o">.</span><span class="n">files</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">tab</span><span class="o">=</span><span class="n">cons_tab</span><span class="p">,</span> <span class="n">fasta</span><span class="o">=</span><span class="n">cons_seq</span><span class="p">,</span> <span class="n">meta</span><span class="o">=</span><span class="n">metadata</span><span class="p">,</span> <span class="n">path</span><span class="o">=</span><span class="n">path_to_folder</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+<div class="nboutput nblast docutils container">
+<div class="prompt empty docutils container">
+</div>
+<div class="output_area docutils container">
+<div class="highlight"><pre>
+Running files.load .. Warning, different index names in tab and seq
+Done!
+</pre></div></div>
+</div>
+<p>Now our files are loaded as a qdiv object called <em>obj</em>. We will use a heatmap to see the relative abundance of the most abundant taxa and we will save a file with information about the number of different taxa in the samples.</p>
+<section id="Number-of-different-taxa">
+<h3>Number of different taxa<a class="headerlink" href="#Number-of-different-taxa" title="Link to this heading">¶</a></h3>
+<p>Here we will get information about the number of different taxa in the samples. The following command will save a csv-file with the name ‘Stats_on_taxa.csv’ in the folder specified by the variable <em>path</em> in the code block above (i.e. ‘../example_files/’). The results will also be stored in a variable called <em>results</em>, which we will display with the print command.</p>
+<div class="nbinput docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[2]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">result</span> <span class="o">=</span> <span class="n">qdiv</span><span class="o">.</span><span class="n">stats</span><span class="o">.</span><span class="n">taxa</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">savename</span><span class="o">=</span><span class="n">path_to_folder</span><span class="o">+</span><span class="s1">&#39;Stats_on_taxa&#39;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">result</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+<div class="nboutput nblast docutils container">
+<div class="prompt empty docutils container">
+</div>
+<div class="output_area docutils container">
+<div class="highlight"><pre>
+        ASVs      Reads  Domain  Phylum  Class  Order  Family  Genus  Species
+Sample
+Total     82  1048274.0       1       9     17     19      26     31       33
+Smp1      64   192457.0       1       8     14     15      23     26       25
+Smp2      67    79318.0       1       8     15     16      23     27       26
+Smp3      68   164746.0       1       8     16     17      24     28       27
+Smp4      66    77709.0       1       8     15     17      25     29       28
+Smp5      69    97577.0       1       9     15     17      23     28       30
+Smp6      71   147216.0       1       9     17     19      25     29       30
+Smp7      67    62508.0       1       9     16     18      24     28       29
+Smp8      71   226743.0       1       9     17     19      25     29       30
+</pre></div></div>
+</div>
+<p>Here, we see that in total we have 9 phyla, 17 classes, 19 orders, 26 families, and 31 genera, and 33 different species classified taxonomically in our samples. For 16S amplicon sequencing data we will often get higher numbers under Genus than under Species. The reason is that very few ASVs are classified to the species level.</p>
+</section>
+<section id="Heatmap">
+<h3>Heatmap<a class="headerlink" href="#Heatmap" title="Link to this heading">¶</a></h3>
+<p>The following command plots a heatmap. We specify that we want to include the 20 most abundant taxa, that the ASVs should be grouped at the genus level, and that the phylum level taxonomy should also be shown. The <em>plot.heatmap</em> command has many options for customizing the plot. See the <a class="reference external" href="https://qdiv.readthedocs.io/en/latest/Plotting.html">documentation</a>.</p>
+<div class="nbinput docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[3]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">qdiv</span><span class="o">.</span><span class="n">plot</span><span class="o">.</span><span class="n">heatmap</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">numberToPlot</span><span class="o">=</span><span class="mi">20</span><span class="p">,</span> <span class="n">levels</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;Phylum&#39;</span><span class="p">,</span> <span class="s1">&#39;Genus&#39;</span><span class="p">])</span>
+</pre></div>
+</div>
+</div>
+<div class="nboutput nblast docutils container">
+<div class="prompt empty docutils container">
+</div>
+<div class="output_area docutils container">
+<img alt="_images/Tutorial_1_14_0.png" src="_images/Tutorial_1_14_0.png" />
+</div>
+</div>
+</section>
+</section>
+<section id="RAREFYING">
+<h2>RAREFYING<a class="headerlink" href="#RAREFYING" title="Link to this heading">¶</a></h2>
+<p>Before we start calculating diversity indices, we rarefy the count table. This makes sure that each sample has the same number of reads so that we can make a “fair” comparison of the diversity in the samples. The following command stores the rarefied qdiv object in a variable called <em>robj</em>. By setting the <em>seed</em> parameter to a number, the rarefying (which is a random process) becomes reproducible. Here, I decided to set the seed to 19 (just pick whatever number you like). This means that if I
+want to reproduce the rarefied data from the same input in the future, I can use the same seed.</p>
+<div class="nbinput nblast docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[4]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">robj</span> <span class="o">=</span> <span class="n">qdiv</span><span class="o">.</span><span class="n">subset</span><span class="o">.</span><span class="n">rarefy_object</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">seed</span><span class="o">=</span><span class="mi">19</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+</section>
+<section id="ALPHA-DIVERSITY">
+<h2>ALPHA DIVERSITY<a class="headerlink" href="#ALPHA-DIVERSITY" title="Link to this heading">¶</a></h2>
+<ul class="simple">
+<li><p><a class="reference internal" href="#Alpha-diversity-profiles"><span class="std std-ref">Alpha diversity profiles</span></a></p></li>
+<li><p><a class="reference internal" href="#Naive-,-phylogenetic-,-or-functional-diversity"><span class="std std-ref">Naive-, phylogenetic-, or functional diversity</span></a></p></li>
+</ul>
+<p>Alpha diversity is the diversity within each sample. Alpha diversity should be quantified using Hill numbers (also called effective numbers).</p>
+<p>Consider a hypothetical microbial community with 10 equally abundant species. The most logical diversity number for this community would be 10. Hill numbers are great because they will always result in a value of 10 for this community.</p>
+<p>Consider a hypothetical microbial community with 2 species with high relative abundance and 8 species with low relative abundance. What is the most logical diversity number now? If we don’t care about relative abundance information, 10 would be the most logical value. If we don’t care about rare species, 2 would be the most logical value. Hill numbers are great because we can fine-tune the importance of relative abundance using a single parameter called the diversity order.</p>
+<p>The equation for calculating Hill numbers is the following:</p>
+<p><span class="math notranslate nohighlight">\(^q\)</span>D=<span class="math notranslate nohighlight">\((\sum_{i=1}^{S} p_{i}^{q})^{\frac{1}{1-q}}\)</span></p>
+<p><span class="math notranslate nohighlight">\(^q\)</span>D is the Hill number (or effective number) of order q; q is the diversity order; p<span class="math notranslate nohighlight">\(_{i}\)</span> is the relative abundance of the i<span class="math notranslate nohighlight">\(^{th}\)</span> ASV in a sample; S is the total number of ASVs.</p>
+<p>When q=1, the above equation becomes:</p>
+<p><span class="math notranslate nohighlight">\(^1\)</span>D=<span class="math notranslate nohighlight">\(\exp(-\sum_{i=1}^{S} p_{i} \times ln(p_{i}))\)</span></p>
+<p>As you can see in the equations, when q=0, <span class="math notranslate nohighlight">\(^0\)</span>D is simply equal to the total number of ASVs in the sample (this is often referred to as <em>richness</em>). When q=1, each ASV is weighted exactly according to its relative abundance; and when q&gt;1, we give more weight to ASVs with high relative abundance. Thus, in a community with 2 abundant and 8 rare species, <span class="math notranslate nohighlight">\(^q\)</span>D will be 10 when q=0 and <span class="math notranslate nohighlight">\(^q\)</span>D will approach 2 as q gets higher and higher.</p>
+<section id="Alpha-diversity-profiles">
+<h3>Alpha diversity profiles<a class="headerlink" href="#Alpha-diversity-profiles" title="Link to this heading">¶</a></h3>
+<p>Now it is time to look at alpha diversity. We start by plotting diversity as a function of the diversity order (q) using the command <em>plot.alpha_diversity</em>. By setting the <em>var</em> parameter to a column heading in the meta data file, we can color code the lines in the plot. I use the rarefied qdiv object, <em>robj</em>, as input.</p>
+<div class="nbinput docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[5]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">qdiv</span><span class="o">.</span><span class="n">plot</span><span class="o">.</span><span class="n">alpha_diversity</span><span class="p">(</span><span class="n">robj</span><span class="p">,</span> <span class="n">var</span><span class="o">=</span><span class="s1">&#39;feed&#39;</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+<div class="nboutput nblast docutils container">
+<div class="prompt empty docutils container">
+</div>
+<div class="output_area docutils container">
+<img alt="_images/Tutorial_1_18_0.png" src="_images/Tutorial_1_18_0.png" />
+</div>
+</div>
+</section>
+<section id="Naive-,-phylogenetic-,-or-functional-diversity">
+<h3>Naive-, phylogenetic-, or functional diversity<a class="headerlink" href="#Naive-,-phylogenetic-,-or-functional-diversity" title="Link to this heading">¶</a></h3>
+<p>One way to calculate diversity is to consider all ASVs as separate entities and not care about relationships between individual ASVs. We call these diversity values <em>naive</em>.</p>
+<p>A second way to calculate diversity takes the relationships in a phylogenetic tree into account. Two ASVs that share many branches in the tree contribute less to diversity than two ASVs that are very far from each other in the tree. We call the diversity values that are calculated with a tree as input <em>phylogenetic</em>.</p>
+<p>A third way to calculate diversity takes the pairwise distances between ASVs into account. Two ASVs that have a small pairwise distance contribute less to diversity than two that have a high pairwise distance. We call the diversity values that are calculated with a distance matrix as input <em>functional</em>.</p>
+<p>Naive alpha diversity is simply the effective number of ASVs, phylogenetic alpha diversity is the effective branch diversity in the phylogenetic tree associated with the ASVs in the sample, and functional alpha diversity is the effective total distance between ASVs in the sample. The word “effective” used above refers to the relative abundance weighting by the diversity order, q.</p>
+<p>To calculate the naive alpha diversity for any diversity order (q), we can use the following command.</p>
+<div class="nbinput docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[7]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">alpha_q1</span> <span class="o">=</span> <span class="n">qdiv</span><span class="o">.</span><span class="n">diversity</span><span class="o">.</span><span class="n">naive_alpha</span><span class="p">(</span><span class="n">robj</span><span class="p">[</span><span class="s1">&#39;tab&#39;</span><span class="p">],</span> <span class="n">q</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">alpha_q1</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+<div class="nboutput nblast docutils container">
+<div class="prompt empty docutils container">
+</div>
+<div class="output_area docutils container">
+<div class="highlight"><pre>
+Smp1    4.082758
+Smp2    3.736072
+Smp3    4.294697
+Smp4    4.076211
+Smp5    5.550454
+Smp6    4.360946
+Smp7    4.382288
+Smp8    3.883477
+dtype: float64
+</pre></div></div>
+</div>
+</section>
+</section>
+<section id="BETA-DIVERSITY">
+<h2>BETA DIVERSITY<a class="headerlink" href="#BETA-DIVERSITY" title="Link to this heading">¶</a></h2>
+<ul class="simple">
+<li><p><a class="reference internal" href="#PCoA"><span class="std std-ref">PCoA</span></a></p></li>
+</ul>
+<p>The framework of naive-, phylogenetic-, and functional Hill numbers described under alpha diversity <a class="reference internal" href="#ALPHA-DIVERSITY"><span class="std std-ref">above</span></a> can be extended to beta diversity. When we study beta diversity, we often calculate dissimilarity values that are constrained between 0 and 1. A value of 0 means that two samples have identical community compostion. A value of 1 means they are completely different (no shared taxa). Also check the description of beta diversity at the
+<a class="reference external" href="https://qdiv.readthedocs.io/en/latest/Diversity%20calculations.html#beta-diversity-dissimilarity">documentation</a></p>
+<p>We can calculate matrices of pairwise naive Hill-based dissimilarity values between samples with the following commands.</p>
+<div class="nbinput docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[8]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">dis_1d</span> <span class="o">=</span> <span class="n">qdiv</span><span class="o">.</span><span class="n">diversity</span><span class="o">.</span><span class="n">naive_beta</span><span class="p">(</span><span class="n">robj</span><span class="p">[</span><span class="s1">&#39;tab&#39;</span><span class="p">],</span> <span class="n">q</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">dis_1d</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+<div class="nboutput nblast docutils container">
+<div class="prompt empty docutils container">
+</div>
+<div class="output_area docutils container">
+<div class="highlight"><pre>
+          Smp1      Smp2      Smp3      Smp4      Smp5      Smp6      Smp7  \
+Smp1  0.000000  0.203052  0.207850  0.204899  0.654659  0.809122  0.824744
+Smp2  0.203052  0.000000  0.002771  0.004165  0.590657  0.777056  0.791329
+Smp3  0.207850  0.002771  0.000000  0.004736  0.591257  0.775696  0.789560
+Smp4  0.204899  0.004165  0.004736  0.000000  0.587958  0.777243  0.789710
+Smp5  0.654659  0.590657  0.591257  0.587958  0.000000  0.096557  0.066893
+Smp6  0.809122  0.777056  0.775696  0.777243  0.096557  0.000000  0.011349
+Smp7  0.824744  0.791329  0.789560  0.789710  0.066893  0.011349  0.000000
+Smp8  0.809596  0.775089  0.774091  0.774143  0.055951  0.018114  0.004616
+
+          Smp8
+Smp1  0.809596
+Smp2  0.775089
+Smp3  0.774091
+Smp4  0.774143
+Smp5  0.055951
+Smp6  0.018114
+Smp7  0.004616
+Smp8  0.000000
+</pre></div></div>
+</div>
+<section id="PCoA">
+<h3>PCoA<a class="headerlink" href="#PCoA" title="Link to this heading">¶</a></h3>
+<p>Rather than looking at all the numbers in the dissimilarity matrices, principle coordinate analysis (PCoA) makes it easier to understand the data. The <em>plot.pcoa</em> command requires a minimum of three inputs: the dissimilarity matrix, the meta data, and a heading of a meta data column with categories that color code the samples. Here is an example for the naive dissimilarity values.</p>
+<div class="nbinput docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[9]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">qdiv</span><span class="o">.</span><span class="n">plot</span><span class="o">.</span><span class="n">pcoa</span><span class="p">(</span><span class="n">dis_1d</span><span class="p">,</span> <span class="n">robj</span><span class="p">[</span><span class="s1">&#39;meta&#39;</span><span class="p">],</span> <span class="n">var1</span><span class="o">=</span><span class="s1">&#39;feed&#39;</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+<div class="nboutput docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[9]:
+</pre></div>
+</div>
+<div class="output_area docutils container">
+<div class="highlight"><pre>
+&lt;Axes: xlabel=&#39;PCo1 (88.86%)&#39;, ylabel=&#39;PCo2 (4.37%)&#39;&gt;
+</pre></div></div>
+</div>
+<div class="nboutput nblast docutils container">
+<div class="prompt empty docutils container">
+</div>
+<div class="output_area docutils container">
+<img alt="_images/Tutorial_1_24_1.png" src="_images/Tutorial_1_24_1.png" />
+</div>
+</div>
+<p>We can see a clear separation between the acetate- and glucose-fed MFCs along the x-axis, which explains 88.9% of the variation in the data. There are many options for customizing the PCoA plot. For example, the width and height can be changed with the parameter <em>figsize</em>. See the <a class="reference external" href="https://qdiv.readthedocs.io/en/latest/Plotting.html">documentation</a>.</p>
+</section>
+</section>
+</section>
+
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="Main">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="index.html">qdiv</a></h1>
+
+
+
+
+
+
+
+
+
+<search id="searchbox" style="display: none" role="search">
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Search"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script><h3>Navigation</h3>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="Installation.html">Installation instructions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="Input%20files.html">Input files</a></li>
+<li class="toctree-l1"><a class="reference internal" href="Load%20and%20print%20files.html">Load and print files</a></li>
+<li class="toctree-l1"><a class="reference internal" href="Information%20and%20statistics.html">Information and statistics</a></li>
+<li class="toctree-l1"><a class="reference internal" href="Subset%20and%20manipulate%20data.html">Subset and manipulate data</a></li>
+<li class="toctree-l1"><a class="reference internal" href="Diversity%20calculations.html">Diversity calculations</a></li>
+<li class="toctree-l1"><a class="reference internal" href="Null%20models.html">Null models</a></li>
+<li class="toctree-l1"><a class="reference internal" href="Plotting.html">Plotting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="Citations.html">Citations</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Tutorial 1</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#TABLE-OF-CONTENTS">TABLE OF CONTENTS</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#PREPARE-THE-DATA-FILES">PREPARE THE DATA FILES</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#A-FIRST-LOOK-AT-THE-DATA">A FIRST LOOK AT THE DATA</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#RAREFYING">RAREFYING</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#ALPHA-DIVERSITY">ALPHA DIVERSITY</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#BETA-DIVERSITY">BETA DIVERSITY</a></li>
+</ul>
+</li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="index.html">Documentation overview</a><ul>
+      <li>Previous: <a href="Citations.html" title="previous chapter">Citations</a></li>
+  </ul></li>
+</ul>
+</div>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &#169;2019, Oskar Modin.
+      
+      |
+      Powered by <a href="https://www.sphinx-doc.org/">Sphinx 8.2.3</a>
+      &amp; <a href="https://alabaster.readthedocs.io">Alabaster 1.0.0</a>
+      
+      |
+      <a href="_sources/Tutorial_1.ipynb.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>

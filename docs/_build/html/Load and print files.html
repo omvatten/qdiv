@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="./">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Load and print files &#8212; qdiv  documentation</title>
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=5ecbeea2" />
+    <link rel="stylesheet" type="text/css" href="_static/basic.css?v=b08954a9" />
+    <link rel="stylesheet" type="text/css" href="_static/alabaster.css?v=27fed22d" />
+    <script src="_static/documentation_options.js?v=5929fcd5"></script>
+    <script src="_static/doctools.js?v=9bcbadda"></script>
+    <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Information and statistics" href="Information%20and%20statistics.html" />
+    <link rel="prev" title="Input files" href="Input%20files.html" />
+   
+  <link rel="stylesheet" href="_static/custom.css" type="text/css" />
+  
+
+  
+  
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <section id="load-and-print-files">
+<h1>Load and print files<a class="headerlink" href="#load-and-print-files" title="Link to this heading">¶</a></h1>
+<section id="loading-files">
+<h2>Loading files<a class="headerlink" href="#loading-files" title="Link to this heading">¶</a></h2>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">files</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">tab</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">tax</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">meta</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">fasta</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="n">tree</span><span class="o">=</span><span class="s1">&#39;None&#39;</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Loads files into an object, which is used for further analysis.</p>
+<p><em>tab</em> is the file with a table containing counts or relative abundances.</p>
+<p><em>tax</em> is the file with taxonomic information.</p>
+<p><em>meta</em> is the meta data file.</p>
+<p><em>fasta</em> is the fasta file.</p>
+<p><em>tree</em> is a Newick-formatted tree file</p>
+<p>**kwargs:</p>
+<ul class="simple">
+<li><p><em>tab_sep</em> is separator used in tab file. Default is ‘,’ (i.e. comma).</p></li>
+<li><p><em>tax_sep</em> is separator used in tax file. Default is ‘,’ (i.e. comma).</p></li>
+<li><p><em>meta_sep</em> is separator used in meta data file. Default is ‘,’ (i.e. comma).</p></li>
+<li><p><em>fasta_seq_name_splitter</em> is a text pattern used to split the names of ASVs in the fasta file and only keep the first part. Default is <em>None</em>.</p></li>
+<li><p><em>path</em> can be specified if all input files are located in the same folder. Then <em>path</em> is the location of the folder and the input files are only specified by file names. Default is ‘’.</p></li>
+<li><p><em>addTaxonPrefix</em> is True means that prefixes such a <a href="#id1"><span class="problematic" id="id2">d__</span></a> for domain, <a href="#id1"><span class="problematic" id="id3">c__</span></a> for class are added to the taxonomic names in the tax file. Default is True.</p></li>
+<li><p><em>orderSeqs</em> is True means that if the ASV/OTU/MAG/bin names are ending with a number, they will be ordered in that way in the loaded dataframes. Default is True.</p></li>
+</ul>
+<p>Example</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">qdiv</span>
+
+<span class="n">obj</span> <span class="o">=</span> <span class="n">qdiv</span><span class="o">.</span><span class="n">files</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">tab</span><span class="o">=</span><span class="s1">&#39;example_tab.csv&#39;</span><span class="p">,</span> <span class="n">fasta</span><span class="o">=</span><span class="s1">&#39;example_fasta.fa&#39;</span><span class="p">,</span> <span class="n">tree</span><span class="o">=</span><span class="s1">&#39;example_tree.txt&#39;</span><span class="p">,</span> <span class="n">meta</span><span class="o">=</span><span class="s1">&#39;example_meta.csv&#39;</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>obj is now a python dictionary containing five pandas dataframes ‘tab’, ‘tax’, ‘seq’, ‘tree’, and ‘meta’.</p>
+<ul class="simple">
+<li><p>‘tab’ holds the counts associated with each OTU/ASV (rows) and sample (columns).</p></li>
+<li><p>‘tax’ holds the taxonomic classification for each OTU/ASV. The row indices are OTU/ASV names, the column names are ‘Domain’, ‘Kingdom’, ‘Phylum’, ‘Class’, ‘Order’, ‘Family’, ‘Genus’, ‘Species’.</p></li>
+<li><p>‘seq’ holds the sequences. The row indices are the OTU/ASV names, the column ‘seq’ holds the sequences.</p></li>
+<li><p>‘tree’ holds tree branches. The column ‘nodes’ holds the node names (end nodes are the same as OTU/ASV names), ‘ASVs’ holds a list of OTUs/ASVs connected to each node, and ‘branchL’ holds the lengths of the branches connected to each node.</p></li>
+<li><p>‘meta’ holds the meta data. The row indices are the samples names (the same as the column headings in ‘tab’). The columns are variables that define each sample as determined by the user in the meta data input file.</p></li>
+</ul>
+</section>
+<section id="save-files">
+<h2>Save files<a class="headerlink" href="#save-files" title="Link to this heading">¶</a></h2>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">files</span><span class="o">.</span><span class="n">printout</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">path</span><span class="o">=</span><span class="s1">&#39;&#39;</span><span class="p">,</span> <span class="n">savename</span><span class="o">=</span><span class="s1">&#39;&#39;</span><span class="p">,</span> <span class="n">sep</span><span class="o">=</span><span class="s1">&#39;,&#39;</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Saves the python object as files of the same type as the input files. (The Newick tree file is not returned.)</p>
+<p><em>obj</em> is the object to be printed.</p>
+<p><em>path</em> is the path to the directory holding the printed files.</p>
+<p><em>savename</em> is the name used for the printed files</p>
+<p><em>sep</em> is the separator to be used in the printed count table and meta data files (‘,’ or ‘;’ or ‘\t’).</p>
+<p>Example</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">qdiv</span>
+
+<span class="n">qdiv</span><span class="o">.</span><span class="n">files</span><span class="o">.</span><span class="n">printout</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">path</span><span class="o">=</span><span class="s1">&#39;&#39;</span><span class="p">,</span> <span class="n">savename</span><span class="o">=</span><span class="s1">&#39;output&#39;</span><span class="p">,</span> <span class="n">sep</span><span class="o">=</span><span class="s1">&#39;,&#39;</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="load-new-taxonomy">
+<h2>Load new taxonomy<a class="headerlink" href="#load-new-taxonomy" title="Link to this heading">¶</a></h2>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">obj</span> <span class="o">=</span> <span class="n">files</span><span class="o">.</span><span class="n">read_sintax</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">filename</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Reads taxonomy from a file generated using sintax in USEARCH or VSEARCH.</p>
+<p><em>obj</em> is the object to which the taxonomy should be added. If the object already contains taxonomy information, it will be replaced by the new taxonomy.</p>
+<p><em>filename</em> is the text file with the new taxonomy.</p>
+</section>
+</section>
+
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="Main">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="index.html">qdiv</a></h1>
+
+
+
+
+
+
+
+
+
+<search id="searchbox" style="display: none" role="search">
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Search"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script><h3>Navigation</h3>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="Installation.html">Installation instructions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="Input%20files.html">Input files</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Load and print files</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#loading-files">Loading files</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#save-files">Save files</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#load-new-taxonomy">Load new taxonomy</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="Information%20and%20statistics.html">Information and statistics</a></li>
+<li class="toctree-l1"><a class="reference internal" href="Subset%20and%20manipulate%20data.html">Subset and manipulate data</a></li>
+<li class="toctree-l1"><a class="reference internal" href="Diversity%20calculations.html">Diversity calculations</a></li>
+<li class="toctree-l1"><a class="reference internal" href="Null%20models.html">Null models</a></li>
+<li class="toctree-l1"><a class="reference internal" href="Plotting.html">Plotting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="Citations.html">Citations</a></li>
+<li class="toctree-l1"><a class="reference internal" href="Tutorial_1.html">Tutorial 1</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="index.html">Documentation overview</a><ul>
+      <li>Previous: <a href="Input%20files.html" title="previous chapter">Input files</a></li>
+      <li>Next: <a href="Information%20and%20statistics.html" title="next chapter">Information and statistics</a></li>
+  </ul></li>
+</ul>
+</div>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &#169;2019, Oskar Modin.
+      
+      |
+      Powered by <a href="https://www.sphinx-doc.org/">Sphinx 8.2.3</a>
+      &amp; <a href="https://alabaster.readthedocs.io">Alabaster 1.0.0</a>
+      
+      |
+      <a href="_sources/Load and print files.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>

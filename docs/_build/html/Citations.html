@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="./">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Citations &#8212; qdiv  documentation</title>
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=5ecbeea2" />
+    <link rel="stylesheet" type="text/css" href="_static/basic.css?v=b08954a9" />
+    <link rel="stylesheet" type="text/css" href="_static/alabaster.css?v=27fed22d" />
+    <script src="_static/documentation_options.js?v=5929fcd5"></script>
+    <script src="_static/doctools.js?v=9bcbadda"></script>
+    <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Tutorial 1" href="Tutorial_1.html" />
+    <link rel="prev" title="Plotting" href="Plotting.html" />
+   
+  <link rel="stylesheet" href="_static/custom.css" type="text/css" />
+  
+
+  
+  
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <section id="citations">
+<h1>Citations<a class="headerlink" href="#citations" title="Link to this heading">¶</a></h1>
+<p>To see the citations in qdiv, use:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">qdiv</span>
+
+<span class="n">qdiv</span><span class="o">.</span><span class="n">citations</span><span class="p">(</span><span class="n">f</span><span class="o">=</span><span class="s1">&#39;all&#39;</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Prints a list of references used in the development of qdiv.</p>
+<p><em>f</em> is the qdiv function. For example, f=’diversity.naive_alpha’ prints the references that were especially relevant for developing the diversity.naive_alpha algorithm.
+f=’all’ prints all references listed below.</p>
+<p>qdiv package:</p>
+<ul class="simple">
+<li><p>Modin, O. <a class="reference external" href="https://github.com/omvatten/qdiv">https://github.com/omvatten/qdiv</a></p></li>
+<li><p>Modin, O., R. Liébana, S. Saheb-Alam, B.-M. Wilén, C. Suarez, M. Hermansson and F. Persson (2020). Microbiome 8, 132, DOI: 10.1186/s40168-020-00909-7</p></li>
+</ul>
+<p>Naive diversity (diversity.naive_alpha, diversity.naive_beta, diversity.naive_multi_beta):</p>
+<ul class="simple">
+<li><p>Hill, M. O. (1973). Ecology 54(2): 427-432.</p></li>
+<li><p>Jost, L. (2006). OIKOS 113(2): 363-375.</p></li>
+<li><p>Jost, L. (2007). Ecology 88(10): 2427-2439.</p></li>
+</ul>
+<p>Phylogenetic diversity (diversity.phyl_alpha, diversity.phyl_beta, diversity.phyl_multi_beta):</p>
+<ul class="simple">
+<li><p>Chao, A., C.-H. Chiu and L. Jost (2010). Philosophical Transactions of the Royal Society B: Biological Sciences 365(1558): 3599-3609.</p></li>
+<li><p>Chiu, C. H., L. Jost and A. Chao (2014). Ecological Monographs 84(1): 21-44.</p></li>
+</ul>
+<p>Functional diversity (diversity.func_alpha, diversity.func_beta, diversity.func_multi_beta):</p>
+<ul class="simple">
+<li><p>Chiu, C. H. and A. Chao (2014). PLoS One 9(7): e100014.</p></li>
+</ul>
+<p>Evenness (diversity.evenness, diversity.dissimilarity_contributions, plot.dissimilarity_contributions):</p>
+<ul class="simple">
+<li><p>Chao, A. and C. Ricotta (2019). Ecology 100(12): e02852.</p></li>
+</ul>
+<p>Raup-Crick null model (null.rcq):</p>
+<ul class="simple">
+<li><p>Modin, O., R. Liébana, S. Saheb-Alam, B.-M. Wilén, C. Suarez, M. Hermansson and F. Persson (2020). Microbiome 8, 132, DOI: 10.1186/s40168-020-00909-7</p></li>
+<li><p>Raup, D. M. and R. E. Crick (1979). Journal of Paleontology 53(5): 1213-1227.</p></li>
+<li><p>Chase, J. M., N. J. B. Kraft, K. G. Smith, M. Vellend and B. D. Inouye (2011). Ecosphere 2(2): 24.</p></li>
+<li><p>Stegen, J. C., X. Lin, J. K. Fredrickson, X. Chen, D. W. Kennedy, C. J. Murray, M. L. Rockhold and A. Konopka (2013). ISME Journal 7(11): 2069-2079.</p></li>
+</ul>
+<p>Phylogenetic null models (null.nriq, null.ntiq, null.beta_nriq, null.beta_ntiq):</p>
+<ul class="simple">
+<li><p>Webb, C. O., D. D. Ackerly, M. A. McPeek and M. J. Donoghue (2002). Annual Review of Ecology and Systematics 33(1): 475-505.</p></li>
+<li><p>Fine, P. V. A. and S. W. Kembel (2011). Ecography 34: 552-565.</p></li>
+</ul>
+<p>Mantel test (stats.mantel):</p>
+<ul class="simple">
+<li><p>Mantel, N. (1967). Cancer Research 27(2): 209-220.</p></li>
+</ul>
+<p>Permanova test (stats.permanova):</p>
+<ul class="simple">
+<li><p>Anderson, M. (2001). Austral Ecology 26(1): 32-46.</p></li>
+</ul>
+</section>
+
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="Main">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="index.html">qdiv</a></h1>
+
+
+
+
+
+
+
+
+
+<search id="searchbox" style="display: none" role="search">
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Search"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script><h3>Navigation</h3>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="Installation.html">Installation instructions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="Input%20files.html">Input files</a></li>
+<li class="toctree-l1"><a class="reference internal" href="Load%20and%20print%20files.html">Load and print files</a></li>
+<li class="toctree-l1"><a class="reference internal" href="Information%20and%20statistics.html">Information and statistics</a></li>
+<li class="toctree-l1"><a class="reference internal" href="Subset%20and%20manipulate%20data.html">Subset and manipulate data</a></li>
+<li class="toctree-l1"><a class="reference internal" href="Diversity%20calculations.html">Diversity calculations</a></li>
+<li class="toctree-l1"><a class="reference internal" href="Null%20models.html">Null models</a></li>
+<li class="toctree-l1"><a class="reference internal" href="Plotting.html">Plotting</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Citations</a></li>
+<li class="toctree-l1"><a class="reference internal" href="Tutorial_1.html">Tutorial 1</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="index.html">Documentation overview</a><ul>
+      <li>Previous: <a href="Plotting.html" title="previous chapter">Plotting</a></li>
+      <li>Next: <a href="Tutorial_1.html" title="next chapter">Tutorial 1</a></li>
+  </ul></li>
+</ul>
+</div>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &#169;2019, Oskar Modin.
+      
+      |
+      Powered by <a href="https://www.sphinx-doc.org/">Sphinx 8.2.3</a>
+      &amp; <a href="https://alabaster.readthedocs.io">Alabaster 1.0.0</a>
+      
+      |
+      <a href="_sources/Citations.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>
