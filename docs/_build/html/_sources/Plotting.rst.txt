@@ -6,7 +6,8 @@ Heatmap
 
 .. code-block:: python
 
-   plot.heatmap(obj, xAxis='None', levels=['Phylum', 'Genus'], levelsShown='None', subsetLevels='None', subsetPatterns='None', order='None', numberToPlot=20, method='max_sample', merge=False, figsize=(14, 10), fontsize=15, sepCol = [], labels=True, labelsize=10, cThreshold=8, cMap='Reds', cLinear=0.5, cBar=[], savename='None')
+   plot.heatmap(obj, xAxis='None', levels=['Phylum', 'Genus'], levelsShown='None', subsetLevels='None', subsetPatterns='None', order='None', numberToPlot=20, asvlist='None', figsize=(14, 10), fontsize=15, sepCol=[], sepLine='None', labels=True, labelsize=10, cThreshold=8, cMap='Reds', cLinear=0.5, cBar=[], savename='None', **kwargs)
+
 
 Plots a heatmap showing the relative abundance of different taxa in different samples.
 
@@ -26,18 +27,15 @@ The sample with the smallest number will be placed to the left in the heatmap.
 
 *numberToPlot* refers to the number of taxa with highest abundance to include in the heatmap. 
 
-*method* refers to the method used to define the taxa with highest abundance: 
-
-- 'max_sample' uses the maximum relative abundance in a sample
-- 'mean_all' uses the mean relative abundance across all samples to rank the taxa
-
-if *merge* =True, unclassified sequences will be merged. If False (default), they will be kept separate and identified with sequence id found in the count table.
+*asvlist* is a list of ASVs that should be included in the plot (this means numberToPlot is disregarded).
 
 *figsize* is the width and height of the figure in inches
 
 *fontsize* refers to the axis text font size
 
 *sepCol* is a list of column numbers between which to include a separator, i.e. to clarify grouping of samples 
+
+*sepLine* is a list of column numbers after which a line separator is drawn
 
 *labels* =True means that relative abundance values are shown in the plot. 
 
@@ -51,22 +49,33 @@ if *merge* =True, unclassified sequences will be merged. If False (default), the
 
 *cBar* is a list of tick marks to use if a color bar is included as legend. The tick marks indicate relative abundance percentage levels to include in the legend. 
 
-*savename* is the name (also include path) of the saved png file. If 'None', no figure is saved.
+*savename* is the name (also include path) of the saved png and pdf files. If 'None', no figure is saved.
+
+\**kwargs:
+
+- *use_values_in_tab*. Default is *False*. If *True*, it will take values in tab without normalizing them to relative abundances. 
+- *value_aggregation*. can be 'sum' or 'mean'. It is the method used to calculate values for each group of samples merged by the xAxis parameter.
+- *method* can be 'max' (default) or 'mean'. It is used to rank taxa based on their abundance, either max in a sample or mean across all samples.
+- *sorting* can be 'abundance' (default) or 'tax'. If it is abundance, the taxa are ordered based on abundance. If tax, they are ordered alphabetically.
 
 Alpha diversity
 ###############
 
 .. code-block:: python
 
-   plot.alpha_diversity(obj, distmat='None', var='None', slist='None', order='None', ylog=False, figsize=(10, 6), fontsize=18, colorlist='None', savename='None')
+   plot.alpha_diversity(obj, distmat='None', divType='naive', var='None', slist='None', order='None', ylog=False, figsize=(10, 6), fontsize=18, colorlist='None', savename='None', **kwargs)
 
 Visualizes how alpha diversity depends on diversity order.
 
 *obj* is the object. 
 
-If *distmat* is specified, the diversity.phyl_alpha function is used, otherwise diversity.naive_alpha is used. A *distmat* dataframe can be generated with the diversity.sequence_comparison() function.
+*distmat* is the pandas dataframe with pairwise distances between ASVs. Can be calculated from tree or sequences with the diversity.sequence_comparison() function.
 
-*var* refers to column heading in meta data used to color code samples; *slist* is a list of samples from the var column to include (default is to include all).
+*divtype* is either 'naive' (default), 'phyl', or 'func'.
+
+*var* refers to column heading in meta data used to color code samples
+
+*slist* is a list of samples from the var column to include (default is to include all).
 
 *order* refers to column heading in meta data used to order the samples. 
 
@@ -80,18 +89,22 @@ If *ylog* =True, the y-axis of the plot will be logarithmic.
 
 *savename* is the name (also include path) of the saved png file, if 'None' no figure is saved.
 
+\**kwargs:
+
+- *use_values_in_tab*. Default is *False*. If *True*, it will take values in tab without normalizing them to relative abundances. 
+
 PCoA
 ####
 
 .. code-block:: python
 
-   plot.pcoa(dist, meta='None', var1='None', var2='None', var1_title='', var2_title='', biplot=[], arrow_width=0.001, whitePad=1.1, var2pos=0.4, tag='None', order='None', title='', connectPoints='None', figsize=(9, 6), fontsize=12, markersize=50, markerscale=1.1, lw=1, hideAxisValues=False, showLegend=True, ellipse='None', n_std=2, ellipse_tag='None', ellipse_connect='None', flipx=False, flipy=False, returnData=False, colorlist='None', markerlist='None', savename='None')
+   plot.pcoa(dist, meta, var1='None', var2='None', var1_title='', var2_title='', biplot=[], arrow_width=0.001, whitePad=1.1, var2pos=0.4, tag='None', order='None', title='', connectPoints='None', figsize=(9, 6), fontsize=12, markersize=50, markerscale=1.1, lw=1, hideAxisValues=False, showLegend=True, ellipse='None', n_std=2, ellipse_tag='None', ellipse_connect='None', flipx=False, flipy=False, returnData=False, colorlist='None', markerlist='None', savename='None')
 
 Visualizes dissimilarities between samples in principal coordinate analysis plot.
 
 *dist* is a distance matrix with pairwise dissimilarities. This can be generated using the beta diversity functions, i.e. naive_beta, phyl_beta, jaccard, bray.
 
-*meta* is the meta data, typically object['meta'].
+*meta* is the meta data, typically obj['meta'].
 
 *var1* is a column heading in the meta used to color code.
 
@@ -146,40 +159,6 @@ if *returnData* =True, the coordinate of the points will be returned as a pandas
 *markerlist* specifies markers to use for var2. If 'None', qdiv will decide the markers. 
 
 *savename* is path and name to save png and pdf figures.
-
-Pairwise dissimilarity
-######################
-
-.. code-block:: python
-
-   plot.pairwise_beta(obj, divType='naive', distmat='None', compareVar='None', spairs=[], nullModel=True, randomization='abundance', weight=0, iterations=10, qrange=[0, 2, 0.5], colorlist='None', onlyPlotData='None', skipJB=False, onlyReturnData=False, savename='None')
-
-Calculate and/or plots dissimilarity between pairs of samples or sample types.
-
-*obj* is the object. 
-
-*divType* is the type of beta diversity to calculate: 'naive', 'phyl', or 'func'.
-
-*distmat* is distance matrix file that must be provided if divType='func'. A *distmat* dataframe can be generated with the stats.sequence_comparison() function.
-
-*compareVar* is a column heading in the meta data. If compareVar is not None, the dissimilarity values represent all pairwise comparisons 
-between the meta data categories specified present under compareVar. 
-
-*spairs* is a list of pairs to compare, each item in the list is another list of two samples names or categories to compare, e.g. [[sample_group_1, sample_group_2],[sample_group_X, sample_group_Y],[sample_group_3, sample_group_4]]. 
-
-if *nullModel* =True, the null.rcq function will be run. *randomization,* *weight,* and *iterations* are all input to the null.rcq function (see documentation there).
-
-*qrange* is a list containing the min, max, tick mark space on the diversity order x-axis of the figure.
-
-*colorlist* is a list of colors used for the lines, if *colorlist* =’None’, qdiv will decide the colors.
-
-If *onlyPlotData* is a dictionary containing data, the function will only plot the data in that dictionary and no further calculations with be carried out.
-
-If *skipJB* =True, Jaccard and Bray-Curtis dissimilarities will not be calculated. 
-
-If *onlyReturnData* =True, no plots will be done and only a python dictionary containing the output data will be generated. This dictionary can later be used as input to the onlyPlotData argument. 
-
-*savename* is path and name to the generated output. The data in the python dictionary is saved as a pickle file.
 
 Rarefaction curve
 #################
@@ -261,5 +240,26 @@ Plot showing contribution of each taxon to observed dissimilarity between multip
 *levels* are taxonomic levels to include on y-axis.
 
 *fromFile* could be that path to a csv file generated with the output from diversity.naive_dissimilarity_contributions.
+
+*savename* is path and name of files to be saved.
+
+Phylogenetic tree
+###################################
+
+.. code-block:: python
+
+   plot.phyl_tree(obj, width=12, nameInternalNodes=False, abundanceInfo='None', xlog=False, savename='None')
+
+Plot of the phylogenetic tree. 
+
+*obj* is the qdiv object which must contain a 'tree' dataframe.
+
+*width* is the width of the plot (height is set automatically).
+
+if *nameInternalNodes* =True, labels are put on the internal nodes.
+
+if *abundanceInfo* ='index' or a column heading the meta data, a bar chart with relative abundance info for each ASV is plotted to the right of the tree.
+
+if *xlog* =True, the relative abundance bar chart has a log axis.
 
 *savename* is path and name of files to be saved.

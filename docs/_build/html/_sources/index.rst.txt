@@ -1,7 +1,7 @@
 
 Welcome to qdiv's documentation!
 ================================
-qdiv is a python package for analyzing results from rRNA gene amplicon sequencing or similar data.
+qdiv is a Python package for analyzing results from rRNA gene amplicon sequencing or similar data.
 
 With qdiv you can subset and rarefy the data, generate a consensus table based on several count tables, 
 calculate alpha- and beta diversity indices (focusing on Hill-based indices), 

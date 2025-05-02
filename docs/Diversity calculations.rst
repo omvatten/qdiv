@@ -19,7 +19,7 @@ Alpha diversity
 
 .. code-block:: python
 
-   diversity.naive_alpha(tab, q=1)
+   diversity.naive_alpha(tab, q=1, **kwargs)
 
 Returns taxonomic (or naive) alpha diversity values (i.e. Hill numbers) for all samples.
 
@@ -27,9 +27,13 @@ Returns taxonomic (or naive) alpha diversity values (i.e. Hill numbers) for all 
 
 *q* is the diversity order.
 
+\**kwargs:
+
+- *use_values_in_tab*. Default is *False*. If *True*, it will take values in tab without normalizing them to relative abundances. 
+
 .. code-block:: python
    
-   diversity.phyl_alpha(tab, tree, q=1, index='PD'):
+   diversity.phyl_alpha(tab, tree, q=1, index='PD', **kwargs):
 
 Returns alpha diversity values that takes phylogenetic tree distances between sequences into account. 
 
@@ -42,9 +46,13 @@ Returns alpha diversity values that takes phylogenetic tree distances between se
 *index* can be: 'PD', 'D', or 'H'. 'PD' is the phylogenetic diversity, 'D' is the Hill diversity number corrected for phylogenetic relationships, and 'H' is the phylogenetic entropy.
 See Chao et al. (2010). *Phil. Trans. R. Soc. B,* 365, 3599-3609 (DOI: 10.1098/rstb.2010.0272).
 
+\**kwargs:
+
+- *use_values_in_tab*. Default is *False*. If *True*, it will take values in tab without normalizing them to relative abundances. 
+
 .. code-block:: python
    
-   diversity.func_alpha(tab, distmat, q=0, index='FD'):
+   diversity.func_alpha(tab, distmat, q=0, index='FD', **kwargs):
 
 Returns alpha diversity values that takes the pairwise distances from between sequences into account. 
 The values are the same as the functional diversity measures described by Chiu et al. (2014), *PLOS ONE,* 9(7), e100014 (DOI: 10.1371/journal.pone.0100014).
@@ -58,6 +66,10 @@ The values are the same as the functional diversity measures described by Chiu e
 *index* can be: 'FD', 'MD', or 'D'. 'FD' is the functional diversity ("the effective total distance between species"), 'MD' is the mean functional diversity ("the effective sum of pairwise distances between a species and all other species"),
 and 'D' is the functional Hill number ("the effective number of equally abundant and equally distinct species"). See Chiu et al. (2014), *PLOS ONE,* 9(7), e100014 (DOI: 10.1371/journal.pone.0100014), the descriptions in quotations marks are from that paper.
 
+\**kwargs:
+
+- *use_values_in_tab*. Default is *False*. If *True*, it will take values in tab without normalizing them to relative abundances. 
+
 Beta diversity (dissimilarity)
 ##############################
 
@@ -70,7 +82,7 @@ See Chao and Chiu (2016), *Methods in Ecology and Evolution,* 7, 919-928.
 
 .. code-block:: python
 
-   diversity.naive_beta(tab, q=1, dis=True, viewpoint='local'):
+   diversity.naive_beta(tab, q=1, dis=True, viewpoint='local', **kwargs):
 
 Returns a dataframe of pairwise dissimilarities between samples. Taxonomic (or naive) Hill-based dissimilarities of order q are calculated. 
 
@@ -83,9 +95,13 @@ if *dis* =False, beta diversity constrained between 1 and 2 are calculated.
 
 *viewpoint* can ‘local’ or ‘regional’, the difference is described in Chao et al. (2014), *Annual Review of Ecology, Evolution, and Systematics,* 45, 297-324.
 
+\**kwargs:
+
+- *use_values_in_tab*. Default is *False*. If *True*, it will take values in tab without normalizing them to relative abundances. 
+
 .. code-block:: python
 
-   diversity.phyl_beta(tab, tree, q=1, dis=True, viewpoint='local'):
+   diversity.phyl_beta(tab, tree, q=1, dis=True, viewpoint='local', **kwargs):
 
 Returns a dataframe of pairwise dissimilarities, which take a phylogenetic tree into account. 
 The values are the phylogenetic beta diversity measures described by Chiu et al. (2014), *Ecological Monographs,* 84(1), 21-44.
@@ -101,9 +117,13 @@ if *dis* =False, beta diversity constrained between 1 and 2 are calculated.
 
 *viewpoint* can ‘local’ or ‘regional’.
 
+\**kwargs:
+
+- *use_values_in_tab*. Default is *False*. If *True*, it will take values in tab without normalizing them to relative abundances. 
+
 .. code-block:: python
 
-   diversity.func_beta(tab, distmat, q=1, dis=True, viewpoint='local'):
+   diversity.func_beta(tab, distmat, q=1, dis=True, viewpoint='local', **kwargs):
 
 Returns a dataframe of pairwise dissimilarities, which take pairwise sequence distances into account. The values are the functional beta diversity measures described by Chiu et al. (2014), *PLOS ONE,* 9(7), e100014.
 
@@ -118,27 +138,39 @@ if *dis* =False, beta diversity constrained between 1 and 4 are calculated.
 
 *viewpoint* can ‘local’ or ‘regional’.
 
+\**kwargs:
+
+- *use_values_in_tab*. Default is *False*. If *True*, it will take values in tab without normalizing them to relative abundances. 
+
 .. code-block:: python
 
-   diversity.jaccard(tab)
+   diversity.jaccard(tab, **kwargs)
 
 Returns a dataframe of pairwise Jaccard dissimilarities between samples.
 
 *tab* is a count table holding the read counts, typically object['tab']
 
+\**kwargs:
+
+- *use_values_in_tab*. Default is *False*. If *True*, it will take values in tab without normalizing them to relative abundances. 
+
 Note that Jaccard dissimilarity is the same as naive_beta(tab, q=0, dis=True, viewpoint='regional')
 
 .. code-block:: python
 
-   diversity.bray(tab)
+   diversity.bray(tab, **kwargs)
    
 Returns a dataframe of pairwise Bray-Curtis dissimilarities between samples.
 
 *tab* is a count table holding the read counts, typically obj['tab']
 
+\**kwargs:
+
+- *use_values_in_tab*. Default is *False*. If *True*, it will take values in tab without normalizing them to relative abundances. 
+
 .. code-block:: python
 
-   diversity.naive_multi_beta(obj, var='None', q=1)
+   diversity.naive_multi_beta(obj, var='None', q=1, **kwargs)
 
 Returns a pandas dataframe containing taxonomic (naive) beta diversity, and local- and regional dissimilarity values for categories of samples.
 
@@ -148,9 +180,13 @@ Returns a pandas dataframe containing taxonomic (naive) beta diversity, and loca
 
 *q* is the diversity order. 
 
+\**kwargs:
+
+- *use_values_in_tab*. Default is *False*. If *True*, it will take values in tab without normalizing them to relative abundances. 
+
 .. code-block:: python
 
-   diversity.phyl_multi_beta(obj, var='None', q=1)
+   diversity.phyl_multi_beta(obj, var='None', q=1, **kwargs)
 
 Returns a pandas dataframe containing phylogenetic beta diversity, and local- and regional dissimilarity values for categories of samples.
 
@@ -160,9 +196,13 @@ Returns a pandas dataframe containing phylogenetic beta diversity, and local- an
 
 *q* is the diversity order. 
 
+\**kwargs:
+
+- *use_values_in_tab*. Default is *False*. If *True*, it will take values in tab without normalizing them to relative abundances. 
+
 .. code-block:: python
 
-   diversity.func_multi_beta(obj, distmat, var='None', q=1)
+   diversity.func_multi_beta(obj, distmat, var='None', q=1, **kwargs)
 
 Returns a pandas dataframe containing phylogenetic beta diversity, and local- and regional dissimilarity values for categories of samples.
 
@@ -174,9 +214,13 @@ Returns a pandas dataframe containing phylogenetic beta diversity, and local- an
 
 *q* is the diversity order. 
 
+\**kwargs:
+
+- *use_values_in_tab*. Default is *False*. If *True*, it will take values in tab without normalizing them to relative abundances. 
+
 .. code-block:: python
 
-   diversity.dissimilarity_contributions(obj, var='None', q=1, divType='naive', index='local')
+   diversity.dissimilarity_contributions(obj, var='None', q=1, divType='naive', index='local', **kwargs)
 
 Returns a pandas dataframe with information about dissimilarity, number of samples, and the percentage contribution of each OTU/ASV to the observed dissimilarity.
 
@@ -190,12 +234,16 @@ Returns a pandas dataframe with information about dissimilarity, number of sampl
 
 *index* is the type of dissimilarity index (either local or regional)
 
+\**kwargs:
+
+- *use_values_in_tab*. Default is *False*. If *True*, it will take values in tab without normalizing them to relative abundances. 
+
 Evenness
 ########
 
 .. code-block:: python
 
-   diversity.evenness(tab, tree='None', distmat='None', q=1, divType='naive', index='local', perspective='samples')
+   diversity.evenness(tab, tree='None', distmat='None', q=1, divType='naive', index='local', perspective='samples', **kwargs)
 
 Returns evenness calculated according to Chao and Ricotta (2019) *Ecology,* 100(12), e02852. If q is 1, divType is 'naive', and index is either 'CR1', 'CR2', 'local' or 'regional', the evenness is identical to Pielou's evenness. 
 
@@ -213,3 +261,7 @@ Returns evenness calculated according to Chao and Ricotta (2019) *Ecology,* 100(
 
 *perspective* can be 'samples', which means an evenness value is calculated for each sample (column) in the count table.
 *perspective* can also be 'taxa', which means an evenness value is calculated for each OTU/ASV (row) in the count table.
+
+\**kwargs:
+
+- *use_values_in_tab*. Default is *False*. If *True*, it will take values in tab without normalizing them to relative abundances. 

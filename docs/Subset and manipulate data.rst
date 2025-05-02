@@ -23,13 +23,13 @@ Subset to specific OTUs/ASVs
 
 .. code-block:: python
 
-   subset.sequences(obj, svlist)
+   subset.sequences(obj, asvlist)
 
 Returns an object subsetted to the selected OTUs/ASVs.
 
 *obj* is the object generated with files.load
 
-*svlist* is a list of OTU or ASV names that should be kept in the data set.
+*asvlist* is a list of OTU or ASV names that should be kept in the data set.
 
 Subset to the most abundant OTUs/ASVs
 #####################################
@@ -57,7 +57,7 @@ Subset based on taxonomic classification
 
 Searches for specific text patterns among the taxonomic classifications. Returns an object subsetted to OTUs/ASVs matching those text patterns.
 
-*subsetLevels* is a list taxonomic levels in which text patterns are searched for, e.g. ['Family', 'Genus']
+*subsetLevels* is a list taxonomic levels in which text patterns are searched for, e.g. ['Family', 'Genus']. If no levels are provided, all levels will be searched.
 
 *subsetPatterns* is a list of text patterns to search for, e.g. ['Nitrosom', 'Brochadia']
 
@@ -66,7 +66,7 @@ Merge samples
 
 .. code-block:: python
 
-   subset.merge_samples(obj, var='None', slist='None', keep0=False)
+   subset.merge_samples(obj, var='None', slist='None', method='sum', keep0=False)
 
 Returns an object where samples belonging the same category (as defined in the meta data) have been merged.
 
@@ -74,8 +74,11 @@ Returns an object where samples belonging the same category (as defined in the m
 
 *slist* is a list of names in meta data column which specify samples to keep, if slist='None' (default), all samples are kept
 
-if *keep0* =False, all OTUs/ASVs with 0 counts after merging will be discarded from the data.
+*method* is the method used to rank OTUs/ASVs. 
+If *method* ='sum', the counts or relative abundances of the OTUs/ASVs in a catogory are summed. 
+If *method* ='mean', the means of the counts or relative abundances of the OTUs/ASVs in a catogory are used. 
 
+if *keep0* =False, all OTUs/ASVs with 0 counts after merging will be discarded from the data.
 
 Rarefy
 ######
@@ -89,7 +92,7 @@ Rarefy
 Rarefies a count table to a specific number of reads per sample. The function subset.rarefy_table() operates only on the count table and returns only a rarefied table. 
 The function subset.rarefy_object() operates on the whole object and returns a whole object. 
 This means that samples and OTUs/ASVs which might have been dropped from the count table during rarefaction
-are also dropped from the 'ra', 'tax', 'seq', and 'meta' dataframes of the object.
+are also dropped from the 'tax', 'seq', and 'meta' dataframes of the object.
 
 *tab* is the count table to be rarefied
 
@@ -106,7 +109,7 @@ Consensus table
 
 .. code-block:: python
 
-   subset.consensus(objlist, keepObj='best', taxa='None', alreadyAligned=False, differentLengths=False, nameType='ASV', onlyReturnSeqs=False)
+   subset.consensus(objlist, keepObj='best', alreadyAligned=False, differentLengths=False, nameType='ASV', keep_cutoff=0.2, onlyReturnSeqs=False)
 
 Takes a list of objects and returns a consensus object based on ASVs found in all. Information about the fraction of reads retained from the original objects is also provided.
 
@@ -115,14 +118,13 @@ Takes a list of objects and returns a consensus object based on ASVs found in al
 *keepObj* makes it possible to specify which object in objlist that should be kept after filtering based on common ASVs, specify with integer 
 (0 is the first object, 1 is the second, etc), ‘best’ means that the object which has the highest fraction of its reads mapped to the common ASVs is kept
 
-*taxa* makes it possible to specify with an integer the object having taxa information that should be kept 
-(0 is the first object, 1 is the second, etc), if 'None', the taxa information in the kept object is used 
-
 if *alreadyAligned* =True, the subset.align_sequences function has already been run on the objects to make sure the same sequences in different objects have the same names 
 
 if *differentLengths* =True, it assumes that the same ASV inferred with different bioinformatics pipelines could have different sequence lengths. 
 
-*nameType* is the label used for sequences (e.g. ASV or OTU)
+*nameType* is the label used for sequences (e.g. ASV or OTU).
+
+*keep_cutoff* species percentage cutoff to keep ASVs irrespective of them being found in multiple objects. Default is 0.2%.
 
 if *onlyReturnSeqs* =True, only a dataframe with the shared ASVs is returned. 
 
@@ -140,7 +142,8 @@ Example
 
 In the example above, *cons_obj* is the new consensus object constructed based on obj1 and obj2. 
 
-*info* contains information about the fraction of reads retained from obj1 and obj2, as well as the maximum relative abundance of reads lost in a sample in each of the original objects.
+*info* contains information about the fraction of reads associated with consensus ASVs in obj1 and obj2, as well as the maximum relative abundance of reads associated with non-consensus ASVs.
+It also states the fraction of reads kept and lost in the consensus object that is returned (which includes non-consensus ASVs with a relative abundance above the keep_cutoff).
 
 .. code-block:: python
 
@@ -163,7 +166,7 @@ Takes a list of objects and a merged objects including all OTUs/ASVs and samples
 
 *objlist* is a list of objects 
 
-if *alreadyAligned* =True, the subset.align_sequences function has already been run on the objects to make sure the same sequences in different objects have the same names 
+if *alreadyAligned* =True, the subset.align_sequences function has already been run on the objects to make sure the same sequences in different objects have the same names.
 
 if *differentLengths* =True, it assumes that the same ASV inferred with different bioinformatics pipelines could have different sequence lengths. 
 
@@ -179,4 +182,4 @@ Example
    
    qdiv.stats.print_info(merged_obj)
 
-In the example above, *merged_obj* is the new object constructed by combining obj1 and obj2. 
+In the example above, *merged_obj* is the new object constructed by combining obj1 and obj2.

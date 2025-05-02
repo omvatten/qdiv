@@ -1,17 +1,11 @@
 Installation instructions
 ***************************
 
-qdiv can be installed with pip or conda.
+qdiv can be installed with pip.
 
 .. code-block:: console
 
    pip install qdiv
-
-or
-
-.. code-block:: console
-
-   conda install -c omvatten qdiv
 
 The recommended method is to download `Anaconda <https://www.anaconda.com/products/individual>`_ or `Miniconda <https://docs.conda.io/en/latest/miniconda.html>`_
 
@@ -21,26 +15,16 @@ Create a new environment. You can, for example, call it qdiv_env. Then, activate
 
 .. code-block:: console
 
-   conda create -n qdiv_env python=3.9
+   conda create -n qdiv_env python=3.12
    conda activate qdiv_env
 
 Install qdiv using:
 
 .. code-block:: console
 
-   conda install -c omvatten qdiv
+   pip install qdiv
 
-To start using qdiv, you need some way of writing and executing Python code. I use `Spyder <https://www.spyder-ide.org/>`_ or Jupyter notebooks. You can install Spyder like this:
-
-.. code-block:: console
-
-   conda install spyder
-
-To run Spyder, simply type:
-
-.. code-block:: console
-
-   spyder
+To start using qdiv, you need some way of writing and executing Python code. One way is to use a Jupyter noteboook.
 
 You can install Jupyter like this:
 

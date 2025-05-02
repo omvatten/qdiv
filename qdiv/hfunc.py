@@ -3,6 +3,8 @@ import matplotlib.pyplot as plt
 from matplotlib import colors as mcolors
 import numpy as np
 import math
+import warnings
+warnings.filterwarnings("ignore", category=SyntaxWarning)
 
 # Reads a newick tree file and returns a pandas dataframe
 # Each column in the df represents a node in the tree: 

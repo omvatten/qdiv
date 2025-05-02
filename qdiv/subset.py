@@ -463,7 +463,7 @@ def align_sequences(objectlist, differentLengths=False, nameType='ASV'):
 # taxa makes it possible to specify with an integer the object having taxa information that should be kept (0 is the first object, 1 is the second, etc). If 'None', the taxa information in the kept Obj is used
 # keep_cutoff species percentage cutoff to keep ASVs irrespective of them being found in multiple objects
 # if onlyReturnSeqs=True, only a dataframe with the shared ASVs is returned
-def consensus(objlist, keepObj='best', taxa='None', alreadyAligned=False, differentLengths=False, nameType='ASV', keep_cutoff=0.2, onlyReturnSeqs=False):
+def consensus(objlist, keepObj='best', alreadyAligned=False, differentLengths=False, nameType='ASV', keep_cutoff=0.2, onlyReturnSeqs=False):
     print('Running subset.consensus..')
     if alreadyAligned:
         aligned_objects = objlist.copy()
@@ -501,8 +501,11 @@ def consensus(objlist, keepObj='best', taxa='None', alreadyAligned=False, differ
     maxvalue = max(ra_in_tab)
     if keepObj == 'best':
         ra_max_pos = ra_in_tab.index(maxvalue)
-    else:
+    elif isinstance(keepObj, int):
         ra_max_pos = keepObj
+    else:
+        print('Error: keepObj must be "best" or an integer.')
+        return None
 
     # Make sure abundant ASVs are kept even if they are not in common
     ra = 100*aligned_objects[ra_max_pos]['tab']/aligned_objects[ra_max_pos]['tab'].sum()
@@ -528,14 +531,8 @@ def consensus(objlist, keepObj='best', taxa='None', alreadyAligned=False, differ
         cons_obj['meta'] = aligned_objects[ra_max_pos]['meta']
 
     #Check if tax is in that object, if not get taxa info from on the other
-    if 'tax' in aligned_objects[ra_max_pos].keys() and taxa == 'None':
+    if 'tax' in aligned_objects[ra_max_pos].keys():
         cons_obj['tax'] = aligned_objects[ra_max_pos]['tax'].loc[incommonSVs, :]
-    elif 'tax' not in aligned_objects[ra_max_pos].keys() and taxa == 'None':
-        for a_obj in aligned_objects:
-            if 'tax' in a_obj.keys():
-                cons_obj['tax'] = a_obj['tax'].loc[incommonSVs, :]
-    elif taxa != 'None':
-        cons_obj['tax'] = aligned_objects[taxa]['tax'].loc[incommonSVs, :]
     
     #Change ASV names in consensus object
     sort_df = cons_obj['tab'].copy()

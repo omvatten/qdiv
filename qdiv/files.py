@@ -9,13 +9,13 @@ from . import hfunc
 # fasta is fasta file with sequences. OTU/ASV names should correspond to those in tab
 # tax is table with taxonomic information. OTU/ASV names should correspond to those in tab
 # meta is meta data
-# sep specifies separator used in input files e.g. ',' or '\t'
 # if addTaxonPrefix is True (default), g__ is added before genera, f__ before families, etc.
 # if orderSeqs is True (default), sequences names are sorted numerically (if they contain numbers in the end of the names)
 
-def load(tab=None, tax=None, fasta=None, meta=None, tree=None, addTaxonPrefix=True, orderSeqs=True, **kwargs):  # Import file and convert them to suitable format
+def load(tab=None, tax=None, meta=None, fasta=None, tree=None, **kwargs):  # Import file and convert them to suitable format
     print('Running files.load .. ', end='')
-    defaultKwargs = {'tab_sep':',', 'meta_sep':',', 'tax_sep':',', 'fasta_seq_name_splitter':None, 'path':''}
+    defaultKwargs = {'tab_sep':',', 'meta_sep':',', 'tax_sep':',', 'fasta_seq_name_splitter':None, 'path':'',
+                     'addTaxonPrefix':True, 'orderSeqs':True}
     kwargs = {**defaultKwargs, **kwargs}
 
     readtab = None
@@ -31,7 +31,7 @@ def load(tab=None, tax=None, fasta=None, meta=None, tree=None, addTaxonPrefix=Tr
             print('ERROR: Cannot read tab file. Is the separator incorrectly specified? (e.g. tab_sep="," or tab_sep="\t"). Or is the path to the file incorrectly specified?')
             return None
 
-        if orderSeqs:
+        if kwargs['orderSeqs']:
             readtab = hfunc.orderSeqs(readtab)
 
         if tax == None: #Check if tax in tab
@@ -82,7 +82,7 @@ def load(tab=None, tax=None, fasta=None, meta=None, tree=None, addTaxonPrefix=Tr
                 readtax[name][readtax[name] == 'nan'] = pd.NA
     
             #Check if __ is in taxa names
-            if addTaxonPrefix:
+            if kwargs['addTaxonPrefix']:
                 prefixdict = {'domain':'d__', 'kingdom':'k__', 'phylum':'p__','class':'c__', 'order':'o__',
                               'family':'f__', 'genus':'g__', 'species':'s__', 'realm':'r__', 'superkingdom':'z__', 'strain':'x__'}
                 for c in readtax.columns.tolist():
@@ -104,7 +104,7 @@ def load(tab=None, tax=None, fasta=None, meta=None, tree=None, addTaxonPrefix=Tr
                         print('Warning, different index names in tab and tax')
                     else:
                         readtax = readtax.loc[readtab.index]
-                elif orderSeqs:
+                elif kwargs['orderSeqs']:
                     readtax = hfunc.orderSeqs(readtax)
 
     # Read fasta file with ASV sequences
@@ -128,7 +128,7 @@ def load(tab=None, tax=None, fasta=None, meta=None, tree=None, addTaxonPrefix=Tr
                 print('Warning, different index names in tab and seq')
             else:
                 seqtab = seqtab.loc[readtab.index]
-        elif orderSeqs:
+        elif kwargs['orderSeqs']:
             seqtab = hfunc.orderSeqs(seqtab)
         if tax != None:
             if sorted(readtax.index.tolist()) != sorted(seqtab.index.tolist()):
