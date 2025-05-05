@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+import copy
 from . import hfunc
 
 # FUNCTIONS FOR LOADING AND SAVING DATA FILES
@@ -193,11 +194,11 @@ def printout(obj, path='', savename='output', sep=','):  # Saves files in the sa
 # obj is the qdiv object,
 # filename is a text file containing the sintax output file
 def read_sintax(obj, filename):
-
     headings = ['Kingdom', 'Domain', 'Phylum', 'Class', 'Order', 'Family', 'Genus', 'Species']
     heading_dict = {'k':'Kingdom', 'd':'Domain', 'p':'Phylum', 'c':'Class', 'o':'Order',
                     'f':'Family', 'g':'Genus', 's':'Species'}
 
+    out = copy.deepcopy(obj)
     read_in_lines = {}
     try:
         with open(filename, 'r') as f:
@@ -224,14 +225,18 @@ def read_sintax(obj, filename):
             if len(common) != len(seq_svlist):
                 print('Warning: the sequences in tax and seq are different')
                 print('tax:', len(tax_svlist), 'seq:', len(seq_svlist), 'in common:', len(common))
+
         if 'tab' in obj:
             tab_svlist = obj['tab'].index.tolist()
             common = list(set(tax_svlist).intersection(set(tab_svlist)))
             if len(common) != len(tab_svlist):
                 print('Warning: the sequences in tax and tab are different')
                 print('tax:', len(tax_svlist), 'tab:', len(seq_svlist), 'in common:', len(common))
-            
-        obj['tax'] = df
-        return obj
+            else:
+                df = df.loc[obj['tab'].index]
+
+        out['tax'] = df
+        return out
+
     except:
         print('Error in read_sintax. Cannot read input file.')

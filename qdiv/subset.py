@@ -8,7 +8,7 @@ import copy
 # var is the column heading in metadata used to subset samples, if var=='index' slist are the index names of meta data
 # slist is a list of names in meta data column (or index) which specify samples to keep
 # if keep0 is false, all SVs with 0 counts after the subsetting will be discarded from the data
-def samples(obj, var='index', slist='None', keep0=False):
+def samples(obj, var='index', slist='None', exclude=False, keep0=False):
     if not isinstance(slist, list):
         print('slist must be specified as a [list]')
         return None
@@ -16,14 +16,20 @@ def samples(obj, var='index', slist='None', keep0=False):
     #Correct meta
     if 'meta' in obj and var != 'index':
         meta = obj['meta']
-        if var in meta.columns.tolist():
+        if var in meta.columns.tolist() and not exclude:
             meta = meta[meta[var].isin(slist)]
+        elif var in meta.columns.tolist() and exclude:
+            meta = meta[~meta[var].isin(slist)]
         else:
             print('var not found')
             return None
     elif 'meta' in obj and var == 'index':
         meta = obj['meta']
-        meta = meta.loc[slist, :]
+        if not exclude:
+            meta = meta.loc[slist, :]
+        else:
+            keepix = list(set(meta.index.tolist())-set(slist))
+            meta = meta.loc[keepix, :]
 
     if 'tab' in obj:
         tab = obj['tab']
@@ -31,12 +37,6 @@ def samples(obj, var='index', slist='None', keep0=False):
             tab = tab[meta.index]
         else:
             tab = tab[slist]
-    if 'ra' in obj:
-        ra = obj['ra']
-        if 'meta' in obj:
-            ra = ra[meta.index]
-        else:
-            ra = ra[slist]
     if 'seq' in obj:
         seq = obj['seq']
     if 'tax' in obj:
@@ -49,9 +49,6 @@ def samples(obj, var='index', slist='None', keep0=False):
         tab_sum = tab.sum(axis=1)
         keepSVs = tab_sum[tab_sum > 0].index
         out['tab'] = tab.loc[keepSVs]
-        if 'ra' in obj:
-            ra2 = ra.loc[keepSVs, :]
-            out['ra'] = ra2
         if 'seq' in obj:
             seq2 = seq.loc[keepSVs, :]
             out['seq'] = seq2
@@ -65,8 +62,6 @@ def samples(obj, var='index', slist='None', keep0=False):
     else:
         if 'tab' in obj:
             out['tab'] = tab
-        if 'ra' in obj:
-            out['ra'] = ra
         if 'seq' in obj:
             out['seq'] = seq
         if 'tax' in obj:
@@ -83,10 +78,6 @@ def sequences(obj, asvlist):
     tab = obj['tab']
     tab = tab.loc[asvlist, :]
     out['tab'] = tab
-    if 'ra' in obj:
-        ra = obj['ra']
-        ra = ra.loc[asvlist, :]
-        out['ra'] = ra
     if 'tax' in obj:
         tax = obj['tax']
         tax = tax.loc[asvlist, :]
@@ -120,10 +111,6 @@ def abundant_sequences(obj, number=25, method='sum'):
     svlist = ra.index[:number]
     tab2 = tab.loc[svlist, :]
     out['tab'] = tab2
-    if 'ra' in obj:
-        ra2 = obj['ra']
-        ra2 = ra2.loc[svlist, :]
-        out['ra'] = ra2
     if 'tax' in obj:
         tax = obj['tax']
         tax = tax.loc[svlist, :]
@@ -164,8 +151,6 @@ def text_patterns(obj, subsetLevels=[], subsetPatterns=[], case=False):
     out = {}
     if 'tab' in obj:
         out['tab'] = obj['tab'].loc[keepIX]
-    if 'ra' in obj:
-        out['ra'] = obj['ra'].loc[keepIX]
     if 'tax' in obj:
         out['tax'] = obj['tax'].loc[keepIX]
     if 'seq' in obj:
@@ -192,7 +177,6 @@ def merge_samples(obj, var='None', slist='None', method='sum', keep0=False):
         slist = obj['meta'][var]
 
     tabdi = {}
-    radi = {}  # Temp dict that holds sum for each type in slist
     for smp in slist:
         tempobj = samples(obj, var, [smp], keep0=True)
         tab = tempobj['tab']
@@ -200,18 +184,14 @@ def merge_samples(obj, var='None', slist='None', method='sum', keep0=False):
             tab_sum = tab.sum(axis=1)
         elif method == 'mean':
             tab_sum = tab.mean(axis=1)
-        tab_ra = 100 * tab_sum / tab_sum.sum()
         tabdi[smp] = tab_sum
-        radi[smp] = tab_ra
     temptab = pd.DataFrame(tabdi, index=obj['tab'].index)
-    tempra = pd.DataFrame(radi, index=obj['tab'].index)
 
     out = {}
     if keep0 == False:  ## Remove SV with zero count
         temptab_sum = temptab.sum(axis=1)
         keepSVs = temptab_sum[temptab_sum > 0].index
         tab2 = temptab.loc[keepSVs]
-        ra2 = tempra.loc[keepSVs]
         if 'seq' in obj.keys():
             seq = obj['seq']
             seq2 = seq.loc[keepSVs]
@@ -222,15 +202,12 @@ def merge_samples(obj, var='None', slist='None', method='sum', keep0=False):
             out['tax'] = tax2
     else:
         tab2 = temptab
-        ra2 = tempra
         if 'seq' in obj.keys():
             out['seq'] = obj['seq']
         if 'tax' in obj.keys():
             out['tax'] = obj['tax']
 
     out['tab'] = tab2
-    if 'ra' in obj:
-        out['ra'] = ra2
     if 'tree' in obj:
         out['tree'] = obj['tree']
 
@@ -333,9 +310,6 @@ def align_sequences(objectlist, differentLengths=False, nameType='ASV'):
         if 'tab' in objlist[i].keys():
             tab = obj['tab']
             tab['sequence'] = seq['sequence']
-        if 'ra' in objlist[i].keys():
-            ra = obj['ra']
-            ra['sequence'] = seq['sequence']
         if 'tax' in objlist[i].keys():
             tax = obj['tax']
             tax['sequence'] = seq['sequence']
@@ -347,12 +321,6 @@ def align_sequences(objectlist, differentLengths=False, nameType='ASV'):
             tab = tab.set_index('Newname')
             tab = tab.sort_index()
             objlist[i]['tab'] = tab
-        if 'ra' in objlist[i].keys():
-            ra = ra.groupby(by='sequence').sum()
-            ra['Newname'] = seq['Newname']
-            ra = ra.set_index('Newname')
-            ra = ra.sort_index()
-            objlist[i]['ra'] = ra
         if 'tax' in objlist[i].keys():
             tax = tax.groupby(by='sequence').first()
             tax['Newname'] = seq['Newname']
@@ -415,9 +383,6 @@ def align_sequences(objectlist, differentLengths=False, nameType='ASV'):
         if 'tab' in objlist[i].keys():
             tab = objlist[i]['tab']
             tab['newSV'] = pd.NA
-        if 'ra' in objlist[i].keys():
-            ra = objlist[i]['ra']
-            ra['newSV'] = pd.NA
         if 'tax' in objlist[i].keys():
             tax = objlist[i]['tax']
             tax['newSV'] = pd.NA
@@ -430,16 +395,12 @@ def align_sequences(objectlist, differentLengths=False, nameType='ASV'):
 
             if 'tab' in objlist[i].keys():
                 tab.loc[n, 'newSV'] = newSVname
-            if 'ra' in objlist[i].keys():
-                ra.loc[n, 'newSV'] = newSVname
             if 'tax' in objlist[i].keys():
                 tax.loc[n, 'newSV'] = newSVname
 
         seq = seq.groupby('newSV').first()
         if 'tab' in objlist[i].keys():
             tab = tab.groupby('newSV').sum()
-        if 'ra' in objlist[i].keys():
-            ra = ra.groupby('newSV').sum()
         if 'tax' in objlist[i].keys():
             tax = tax.groupby('newSV').first()
 
@@ -447,8 +408,6 @@ def align_sequences(objectlist, differentLengths=False, nameType='ASV'):
         objlist[i]['seq'] = seq
         if 'tab' in objlist[i].keys():
             objlist[i]['tab'] = tab
-        if 'ra' in objlist[i].keys():
-            objlist[i]['ra'] = ra
         if 'tax' in objlist[i].keys():
             objlist[i]['tax'] = tax
     print('\nDone with subset.align_sequences')

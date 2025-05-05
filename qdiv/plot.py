@@ -17,7 +17,7 @@ from . import hfunc
 # PLOT FUNCTIONS
 
 ## Plots heatmap
-def heatmap(obj, xAxis='None', levels=['Phylum', 'Genus'], includeIndex=False, levelsShown='None', subsetLevels='None', subsetPatterns='None',
+def heatmap(obj, xAxis='None', levels=['Phylum', 'Genus'], includeIndex=False, levelsShown='None', subsetLevels=[], subsetPatterns=[],
                 order='None', numberToPlot=20, asvlist='None',
                  figsize=(14, 10), fontsize=15, sepCol='None', sepLine='None',
                 labels=True, labelsize=10, cThreshold=8,
@@ -84,8 +84,8 @@ def heatmap(obj, xAxis='None', levels=['Phylum', 'Genus'], includeIndex=False, l
     ## Subset based on pattern or asvlist
     if isinstance(asvlist, list):
         merged_obj = subset.sequences(merged_obj, asvlist)
-    elif subsetLevels != 'None' and isinstance(subsetLevels, list) and isinstance(subsetPatterns, list):
-        merged_obj = subset.text_patterns(merged_obj, subsetLevels, subsetPatterns)
+    elif isinstance(subsetPatterns, list) and len(subsetPatterns) > 0:
+        merged_obj = subset.text_patterns(merged_obj, subsetLevels=subsetLevels, subsetPatterns=subsetPatterns)
 
     ## Groupby taxa
     taxa_obj = hfunc.groupbytaxa(merged_obj, levels=levels, includeIndex=includeIndex)

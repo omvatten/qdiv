@@ -204,7 +204,7 @@ def permanova(dis, meta, var, permutations=99):
 # Results are saved as csv file at location specified in savename.
 # The output distance matrix can be used as input for functional diversity index calculations (func_alpha, func_beta)
 # or for phylogenetic-based null models (nriq, ntiq, beta_nriq, beta_ntiq)
-def sequence_comparison(obj, inputType='seq', savename='DistMat'):
+def sequence_comparison(obj, inputType='seq', savename='DistMat', returnEdits=False):
 
     if inputType == 'seq': #Sequences as input
         seq = obj['seq']
@@ -216,7 +216,7 @@ def sequence_comparison(obj, inputType='seq', savename='DistMat'):
         counter = 0
         print('Progress in sequence_comparison.. 0%.. ')
     
-        df = pd.DataFrame(0, index=svnames, columns=svnames)
+        df = pd.DataFrame(0.0, index=svnames, columns=svnames)
         for i in range(len(svnames) - 1):
             n1 = svnames[i]
             s1 = seq.loc[n1, 'seq']
@@ -242,8 +242,13 @@ def sequence_comparison(obj, inputType='seq', savename='DistMat'):
                             matrix[pos1, pos2] = matrix[pos1-1, pos2-1]
                         else:
                             matrix[pos1, pos2] = min(matrix[pos1-1, pos2]+1, matrix[pos1, pos2-1]+1, matrix[pos1-1, pos2-1]+1)
-                df.loc[n1, n2] = matrix[-1, -1] / max(len(s1), len(s2))
+                if not returnEdits:
+                    df.loc[n1, n2] = matrix[-1, -1] / max(len(s1), len(s2))
+                else:
+                    df.loc[n1, n2] = matrix[-1, -1]
+
                 df.loc[n2, n1] = df.loc[n1, n2]
+                    
         print('100%')
         df.to_csv(savename+'.csv')
         return df
