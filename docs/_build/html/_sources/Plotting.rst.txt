@@ -6,7 +6,7 @@ Heatmap
 
 .. code-block:: python
 
-   plot.heatmap(obj, xAxis='None', levels=['Phylum', 'Genus'], levelsShown='None', subsetLevels='None', subsetPatterns='None', order='None', numberToPlot=20, asvlist='None', figsize=(14, 10), fontsize=15, sepCol=[], sepLine='None', labels=True, labelsize=10, cThreshold=8, cMap='Reds', cLinear=0.5, cBar=[], savename='None', **kwargs)
+   plot.heatmap(obj, xAxis='None', levels=['Phylum', 'Genus'], includeIndex=False, levelsShown='None', subsetLevels='None', subsetPatterns='None', order='None', numberToPlot=20, asvlist='None', figsize=(14, 10), fontsize=15, sepCol=[], sepLine='None', labels=True, labelsize=10, cThreshold=8, cMap='Reds', cLinear=0.5, cBar=[], savename='None', **kwargs)
 
 
 Plots a heatmap showing the relative abundance of different taxa in different samples.
@@ -16,6 +16,8 @@ Plots a heatmap showing the relative abundance of different taxa in different sa
 *xAxis* specifies heading in meta data used to merge samples and use a labels on x-axis; levels specifies the taxonomic levels to be displayed on the y-axis.
 
 *levels* specifies the taxonomic levels shown on the y-axis. It should be list with one or two taxonomic levels.
+
+if *includeIndex* =True, the index, e.g. ASV name is included in the lowest tax level name.
 
 if *levelsShown* ='Number', there will be a list of numbers on the y-axis instead of taxonomic names.
 
