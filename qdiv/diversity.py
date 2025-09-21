@@ -53,7 +53,10 @@ def phyl_alpha(tab, tree, q=1, index='PD', **kwargs):
     tree2 = pd.DataFrame(0.0, index=tree.index, columns=ra.columns)
     for ix in tree2.index:
         asvlist = tree.loc[ix, 'ASVs']
-        ra_branch = ra.reindex(asvlist).sum()
+        if isinstance(asvlist, str) and ']' in asvlist:
+            asvlist = asvlist.replace('[','').replace(']','').replace('"','').replace("'","").replace(' ','')
+            asvlist = asvlist.split(',')
+        ra_branch = ra.loc[asvlist].sum()
         tree2.loc[ix] = ra_branch
 
     #Make Tavg series
@@ -224,7 +227,10 @@ def phyl_beta(tab, tree, q=1, dis=True, viewpoint='local', **kwargs):
     tree2 = pd.DataFrame(0.0, index=tree.index, columns=ra.columns)
     for ix in tree2.index:
         asvlist = tree.loc[ix, 'ASVs']
-        ra_branch = ra.reindex(asvlist).sum()
+        if isinstance(asvlist, str) and ']' in asvlist:
+            asvlist = asvlist.replace('[','').replace(']','').replace('"','').replace("'","").replace(' ','')
+            asvlist = asvlist.split(',')
+        ra_branch = ra.loc[asvlist].sum()
         tree2.loc[ix] = ra_branch
 
     #Go through each pair of samples

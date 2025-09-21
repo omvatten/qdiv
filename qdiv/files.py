@@ -36,7 +36,7 @@ def load(tab=None, tax=None, meta=None, fasta=None, tree=None, **kwargs):  # Imp
             readtab = hfunc.orderSeqs(readtab)
 
         if tax == None: #Check if tax in tab
-            taxlevels = ['domain', 'kingdom', 'phylum', 'class', 'order', 'family', 'genus', 'species', 'strain', 'realm', 'superkingdom']
+            taxlevels = ['domain', 'kingdom', 'phylum', 'class', 'order', 'family', 'genus', 'species', 'strain', 'realm', 'superkingdom', 'clade', 'subfamily']
             taxdict = {}
             for c in readtab.columns:
                 if str(c).lower() in taxlevels:
@@ -48,7 +48,7 @@ def load(tab=None, tax=None, meta=None, fasta=None, tree=None, **kwargs):  # Imp
         try:
             readtab = readtab.map(float)
         except:
-            print('ERROR: All values in the tab file must be numeric. Taxonomic information should be placed in a separate file.')
+            print('ERROR: All values in the tab file must be numeric.')
             return None
 
     # Read meta data
@@ -56,7 +56,7 @@ def load(tab=None, tax=None, meta=None, fasta=None, tree=None, **kwargs):  # Imp
         try:
             readmeta = pd.read_csv(kwargs['path']+meta, sep=kwargs['meta_sep'], header=0, index_col=0)
         except:
-            print('ERROR: Cannot read meta file. Is the separator correctly specified? (e.g. meta_sep="," or meta_sep="\t").')
+            print('ERROR: Cannot read meta file. Is the separator correctly specified? (e.g. meta_sep="," or meta_sep="\t"). Or is the path to the file incorrectly specified?')
             return None
 
         # Go through metadata and remove lines not in tab
@@ -72,41 +72,34 @@ def load(tab=None, tax=None, meta=None, fasta=None, tree=None, **kwargs):  # Imp
         try:
             readtax = pd.read_csv(kwargs['path']+tax, sep=kwargs['tax_sep'], header=0, index_col=0)
         except:
-            print('Cannot read tax file. Is the separator correctly specified? (e.g. tax_sep="," or tax_sep="\t").')
+            print('Cannot read tax file. Is the separator correctly specified? (e.g. tax_sep="," or tax_sep="\t"). Or is the path to the file incorrectly specified?')
 
-        # Prepare taxa dataframe if it exists
-        if isinstance(readtax, pd.DataFrame):
-            readtax.dropna(axis=1, how='all', inplace=True)
-            readtax = readtax.map(str)
-            for name in readtax.columns: #Remove items containing only one letter
-                readtax[name][readtax[name].str.len() == 1] = pd.NA
-                readtax[name][readtax[name] == 'nan'] = pd.NA
-    
-            #Check if __ is in taxa names
-            if kwargs['addTaxonPrefix']:
-                prefixdict = {'domain':'d__', 'kingdom':'k__', 'phylum':'p__','class':'c__', 'order':'o__',
-                              'family':'f__', 'genus':'g__', 'species':'s__', 'realm':'r__', 'superkingdom':'z__', 'strain':'x__'}
-                for c in readtax.columns.tolist():
-                    if c.lower() in prefixdict.keys():
-                        prefix = prefixdict[c.lower()]
-                    elif 'sub' in c.lower() and len(c) > 4:
-                        prefix = c[:4]+'__'
-                    else:
-                        prefix = ''
-                    mask = readtax[c][readtax[c].notna()]
-                    if len(mask) > 0:
-                        mask2 = mask[~mask.str.contains('__', na=False)]
-                        if len(mask2) > 0:
-                            readtax.loc[mask2.index, c] = prefix + readtax.loc[mask2.index, c]
-    
-                #Sanity check by comparing to tab
-                if tab != None:
-                    if sorted(readtab.index.tolist()) != sorted(readtax.index.tolist()):
-                        print('Warning, different index names in tab and tax')
-                    else:
-                        readtax = readtax.loc[readtab.index]
-                elif kwargs['orderSeqs']:
-                    readtax = hfunc.orderSeqs(readtax)
+    # Prepare taxa dataframe if it exists
+    if isinstance(readtax, pd.DataFrame):
+        readtax.dropna(axis=1, how='all', inplace=True)
+        readtax = readtax.map(str)
+        for name in readtax.columns: #Remove items containing only one letter
+            readtax[name][readtax[name].str.len() == 1] = pd.NA
+            readtax[name][readtax[name] == 'nan'] = pd.NA
+
+        #Check if __ is in taxa names
+        if kwargs['addTaxonPrefix']:
+            levdict = {'superkingdom':'sk__','clade':'cl__', 'kingdom':'k__','domain':'d__','realm':'r__','phylum':'p__','class':'c__','order':'o__','family':'f__','subfamily':'sf__', 'genus':'g__','species':'s__'}
+            for c in readtax.columns:
+                if c.lower() in levdict.keys():
+                    prefix = levdict[c.lower()]
+                else:
+                    prefix = c[0] + '__'
+                readtax.loc[(readtax[c].notna())&(~readtax[c].str.contains('__', na=False)), c] = prefix + readtax.loc[(readtax[c].notna())&(~readtax[c].str.contains('__', na=False)), c]
+
+            #Sanity check by comparing to tab
+            if tab != None:
+                if sorted(readtab.index.tolist()) != sorted(readtax.index.tolist()):
+                    print('Warning, different index names in tab and tax')
+                else:
+                    readtax = readtax.loc[readtab.index]
+            elif kwargs['orderSeqs']:
+                readtax = hfunc.orderSeqs(readtax)
 
     # Read fasta file with ASV sequences
     if fasta != None:

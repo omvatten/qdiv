@@ -320,6 +320,12 @@ def pcoa(dist, meta, var1='None', var2='None', var1_title='', var2_title='', bip
     savename is path and name to save png and pdf output
     """
     
+    metadistcommon = list(set(dist.index.tolist()).intersection(meta.index.tolist()))
+    if len(dist.index) != len(metadistcommon):
+        print("Error, samples in metadata don't match samples in dissimilarity matrix")
+        return None
+    meta = meta.loc[dist.index]
+    
     coords, ev = hfunc.pcoa_calculation(dist)
     coords = coords.iloc[:, :2]
     ev = ev.iloc[:2]

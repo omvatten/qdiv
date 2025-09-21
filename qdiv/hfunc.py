@@ -139,21 +139,28 @@ def groupbytaxa(obj, levels=['Phylum', 'Genus'], includeIndex=False):
         print('Error: tab not in obj.')
         return None
 
-    levdict = {'Kingdom':'k__','Domain':'d__','Realm':'r__','Phylum':'p__','Class':'c__','Order':'o__','Family':'f__','Genus':'g__','Species':'s__'}
+    levdict = {'superkingdom':'sk__','clade':'cl__', 'kingdom':'k__','domain':'d__','realm':'r__','phylum':'p__','class':'c__','order':'o__','family':'f__','subfamily':'sf__', 'genus':'g__','species':'s__'}
 
     # Simplify tax data frame and fill with names in all empty fields
     taxM = obj['tax'].copy()
-
     taxlevels = taxM.columns.tolist()
-    group_level = levels[-1]
+    taxlevels = [x.lower() for x in taxlevels]
+    taxM.columns = taxlevels
+
+    group_level = levels[-1].lower()
     if group_level not in taxlevels:
-        print('Error in groupbytaxa, level not found')
+        print('Error in hfunc.groupbytaxa, level not found')
         return None
     pos = taxlevels.index(group_level)
     taxlevels = taxlevels[:pos+1]
     taxM = taxM[taxlevels]
 
     highest = taxlevels[0]
+    if highest not in levdict.keys():
+        print('Error in hfunc.groupbytaxa, highest level not recognized')
+        print(highest)
+        return None
+
     taxM.loc[taxM[highest].isna(), highest] = levdict[highest]+'Unclassified'
     if len(taxlevels) > 1:
         for i in range(1, len(taxlevels)):
@@ -199,14 +206,13 @@ def groupbytaxa(obj, levels=['Phylum', 'Genus'], includeIndex=False):
         rest = list(set(rest)-set(candidatus)-set(underscores)-set(unclassified))
         taxM.loc[rest, c] = '$\it{'+taxM.loc[rest, c].str.replace(' ','\ ').str.replace('_','\ ')+'}$'
 
-
     #Make new index name based on levels
     if len(levels) == 1:
         taxM['Name'] = taxM[group_level]
     elif len(levels) > 1:
         taxM['Name'] = taxM[levels[0]]
         for i in range(1, len(levels)):
-            t0 = levels[i-1]; t1 = levels[i]
+            t0 = levels[i-1].lower(); t1 = levels[i].lower()
             taxM.loc[taxM[t0] != taxM[t1], 'Name'] = taxM.loc[taxM[t0] != taxM[t1], 'Name'] + '; ' + taxM.loc[taxM[t0] != taxM[t1], t1]
 
     if includeIndex: #Include index name at lowest level

@@ -34,7 +34,9 @@ def samples(obj, var='index', slist='None', exclude=False, keep0=False):
     if 'tab' in obj:
         tab = obj['tab']
         if 'meta' in obj:
-            tab = tab[meta.index]
+            smplist = list(set(tab.columns.tolist()).intersection(meta.index.tolist()))
+            tab = tab[smplist]
+            meta = meta.loc[smplist]
         else:
             tab = tab[slist]
     if 'seq' in obj:
