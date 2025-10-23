@@ -210,7 +210,7 @@ def groupbytaxa(obj, levels=['Phylum', 'Genus'], includeIndex=False):
     if len(levels) == 1:
         taxM['Name'] = taxM[group_level]
     elif len(levels) > 1:
-        taxM['Name'] = taxM[levels[0]]
+        taxM['Name'] = taxM[levels[0].lower()]
         for i in range(1, len(levels)):
             t0 = levels[i-1].lower(); t1 = levels[i].lower()
             taxM.loc[taxM[t0] != taxM[t1], 'Name'] = taxM.loc[taxM[t0] != taxM[t1], 'Name'] + '; ' + taxM.loc[taxM[t0] != taxM[t1], t1]

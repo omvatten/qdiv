@@ -134,8 +134,11 @@ def text_patterns(obj, subsetLevels=[], subsetPatterns=[], case=False):
     if 'tax' not in obj:
         print('Error: No tax in obj.')
         return None
-    if len(subsetPatterns) == 0:
-        print('Error: No text pattern specified.')
+    if len(subsetPatterns) == 0 or not isinstance(subsetPatterns, list):
+        print('Error: No text pattern specified as a list.')
+        return None
+    if not isinstance(subsetLevels, list):
+        print('Error: subsetLevels not specified as a list.')
         return None
     
     tax = obj['tax'].copy()

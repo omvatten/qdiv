@@ -86,6 +86,8 @@ def heatmap(obj, xAxis='None', levels=['Phylum', 'Genus'], includeIndex=False, l
         merged_obj = subset.sequences(merged_obj, asvlist)
     elif isinstance(subsetPatterns, list) and len(subsetPatterns) > 0:
         merged_obj = subset.text_patterns(merged_obj, subsetLevels=subsetLevels, subsetPatterns=subsetPatterns)
+    elif isinstance(subsetPatterns, str) and len(subsetPatterns) > 0:
+        merged_obj = subset.text_patterns(merged_obj, subsetLevels=subsetLevels, subsetPatterns=[subsetPatterns])
 
     ## Groupby taxa
     taxa_obj = hfunc.groupbytaxa(merged_obj, levels=levels, includeIndex=includeIndex)
