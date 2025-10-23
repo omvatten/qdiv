@@ -11,17 +11,12 @@ The recommended method is to download `Anaconda <https://www.anaconda.com/produc
 
 Open the Anaconda or Miniconda prompt (a terminal window).
 
-Create a new environment. You can, for example, call it qdiv_env. Then, activate the environment.
+Create a new environment. You can, for example, call it qdiv_env. Then, activate the environment and install qdiv.
 
 .. code-block:: console
 
-   conda create -n qdiv_env python=3.12
+   conda create -n qdiv_env
    conda activate qdiv_env
-
-Install qdiv using:
-
-.. code-block:: console
-
    pip install qdiv
 
 To start using qdiv, you need some way of writing and executing Python code. One way is to use a Jupyter noteboook.
