@@ -32,8 +32,9 @@ docs = [
   "nbsphinx>=0.9.5"
 ]
 
-
-
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["qdiv*"]
+
+[tool.setuptools]
+include-package-data = true

@@ -1,0 +1,11 @@
+# Include all files in the example_data folder (any extension)
+recursive-include qdiv/example_data *
+
+# Include top-level documentation and license files
+include README.md LICENSE
+
+# Optionally, include your docs/source files
+# recursive-include docs/source *
+
+# Other non-code assets (e.g., .yml, .rst, .ipynb):
+# recursive-include qdiv *.yml *.rst *.ipynb
