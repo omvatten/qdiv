@@ -42,7 +42,7 @@ Traditionally, Hill numbers are applied to quantify alpha diversity, which is th
 However, the framework can also be applied to beta diversity, which measures differences in composition between communities, 
 and extended to metrics that incorporate phylogenetic and functional relationships among taxa.
 
-Many ecological statistical tests and null models, such as Raup-Crick [@Raup:1979], the Net Relatedness Index, and the Nearest-Taxon Index [@Webb2002], 
+Many ecological statistical tests and null models, such as Raup-Crick [@Raup:1979], the Net Relatedness Index, and the Nearest-Taxon Index [@Webb:2002], 
 have used presence-absence data or relied on a single relative abundance-based index (typically Bray-Curtis). 
 `qdiv` fills a critical gap by enabling the implementation of the Hill number framework for analysing diversity and microbial community assembly with a range of statistical methods.
 It provides a streamlined workflow for data management, diversity analysis, and visualization -- all within a Python ecosystem.
@@ -63,8 +63,8 @@ The package leverages the widely used Python libraries pandas, numpy, and matplo
 
 # Research impact statement
 
-qdiv was first introduced by [@Modin2020] to enable Hill-based beta diversity calculations and extend the Raup-Crick null model to such metrics. 
-Since then, it has been adopted by other researchers, e.g., [@Alberdi2021; @Nikolova2021], and used by our own research group, e.g., [@Abadikhah2024]. 
+qdiv was first introduced by [@Modin:2020] to enable Hill-based beta diversity calculations and extend the Raup-Crick null model to such metrics. 
+Since then, it has been adopted by other researchers, e.g., [@Alberdi:2021; @Nikolova:2021], and used by our own research group, e.g., [@Abadikhah:2024]. 
 It has been downloaded over 1800 times from PyPI in the past six months. 
 Version 4 introduces the MicrobiomeData class for streamlined data management, along with new statistical and visualization capabilities.
 
