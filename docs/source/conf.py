@@ -23,6 +23,15 @@ extensions = [
     'sphinx.ext.mathjax',   # <-- REQUIRED for rendering math in HTML
 ]
 
+
+# Execute notebooks automatically when safe; disable on RTD if needed
+nbsphinx_execute = 'auto'   # options: 'always', 'auto', 'never'
+# If you expect occasional execution errors but want HTML built anyway:
+# nbsphinx_allow_errors = True
+
+
+
+
 myst_enable_extensions = [
     "dollarmath",  # enables $...$ and $$...$$ in Markdown
     "amsmath",     # optional, equation environments
@@ -57,7 +66,8 @@ napoleon_use_rtype = True
 templates_path = ['_templates']
 
 # Patterns to ignore
-exclude_patterns = []
+#Keep build and checkpoints out of the source tree
+exclude_patterns = ["_build", "**/.ipynb_checkpoints/**"]
 
 # -- Options for HTML output --------------------------------------------------
 html_theme = 'sphinx_rtd_theme'
