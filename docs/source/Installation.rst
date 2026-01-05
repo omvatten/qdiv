@@ -1,0 +1,44 @@
+Installation instructions
+***************************
+
+qdiv can be installed with pip.
+
+.. code-block:: console
+
+   pip install qdiv
+
+The recommended method is to download `Anaconda <https://www.anaconda.com/products/individual>`_ or `Miniconda <https://docs.conda.io/en/latest/miniconda.html>`_
+
+Open the Anaconda or Miniconda prompt (a terminal window).
+
+Create a new environment. You can, for example, call it qdiv_env. Then, activate the environment and install qdiv.
+
+.. code-block:: console
+
+   conda create -n qdiv_env python=3.11
+   conda activate qdiv_env
+   pip install qdiv
+
+To start using qdiv, you need some way of writing and executing Python code. One way is to use a Jupyter noteboook.
+
+You can install Jupyter like this:
+
+.. code-block:: console
+
+   conda install jupyter
+
+To start a Jupyter notebook, simply type:
+
+.. code-block:: console
+
+   jupyter notebook
+
+To check if qdiv works, you can run the following code:
+
+.. code-block:: python
+
+   import qdiv
+   obj = qdiv.MicrobiomeData.load_example("Saheb-Alam2019_DADA2")
+   obj.info()
+
+Hopefully, this will run without errors and print some information about the loaded example data.

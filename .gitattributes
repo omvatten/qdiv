@@ -1,0 +1,31 @@
+
+# Python source code
+*.py text eol=lf
+
+# Jupyter notebooks
+*.ipynb text eol=lf
+
+# Markdown and reStructuredText docs
+*.md text eol=lf
+*.rst text eol=lf
+
+# YAML config files
+*.yml text eol=lf
+
+# Data files
+*.csv text eol=lf
+*.tsv text eol=lf
+*.fasta text eol=lf
+*.nwk text eol=lf
+*.ebd text eol=lf
+
+# Sphinx documentation sources
+docs/source/** text eol=lf
+
+# Makefiles and batch scripts
+Makefile text eol=lf
+*.bat text eol=lf
+
+# License and config
+LICENSE text eol=lf
+.gitignore text eol=lf
