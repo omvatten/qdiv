@@ -18,7 +18,7 @@
 ## Installation
 ```bash
 pip install qdiv
-```bash
+```
 
 ---
 
