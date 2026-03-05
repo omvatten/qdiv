@@ -1,6 +1,6 @@
 import pandas as pd
 import numpy as np
-from typing import Optional, Union, Tuple
+from typing import Optional, Union, Tuple, Callable, Sequence, List, Dict
 
 # -----------------------------------------------------------------------------
 # Simulate community structure
@@ -271,3 +271,359 @@ def generate_interdependence_matrix(
         matrix = (matrix + matrix.T) / 2
     species_names = [f"{species_prefix}{i+1}" for i in range(n_species)]
     return pd.DataFrame(matrix, index=species_names, columns=species_names)
+
+
+# -----------------------------------------------------------------------------
+# Generate tree dataframe
+# -----------------------------------------------------------------------------
+def make_block_tree_df(
+    k_per_level: Sequence[int],
+    *,
+    branch_length: float | Sequence[float] | Callable[[int, str, int], float] = 1.0,
+    root_name: str = "Root",
+    leaf_prefix: str = "OTU",
+    internal_prefix: str = "in",
+) -> pd.DataFrame:
+    """
+    Generate a block tree where branching factor varies with depth.
+    Compatible with phylo_utils (nodes, parent, branchL, leaves, dist_to_root).
+
+    Parameters
+    ----------
+    k_per_level : sequence of int
+        k_per_level[level] = number of children created at this depth.
+        Length of k_per_level = total depth.
+    branch_length :
+        float                → same length everywhere
+        sequence[len=depth]  → branch_length[level]
+        callable(level, parent_name, child_index) → full control
+    """
+    depth = len(k_per_level)
+
+    # ---- Normalize BL rule --------------------------------------------------
+    if isinstance(branch_length, (int, float)):
+        def resolve_bl(level, parent, j):
+            return float(branch_length)
+
+    elif isinstance(branch_length, (list, tuple, np.ndarray)):
+        if len(branch_length) != depth:
+            raise ValueError("branch_length must have length equal to depth")
+        def resolve_bl(level, parent, j):
+            return float(branch_length[level])
+
+    elif callable(branch_length):
+        def resolve_bl(level, parent, j):
+            return float(branch_length(level, parent, j))
+
+    else:
+        raise TypeError("branch_length must be float, sequence, or callable")
+
+    # ---- Storage ------------------------------------------------------------
+    nodes = []
+    parents = []
+    branchL = []
+    dist = []
+    children_map = {}
+    dist_map = {root_name: 0.0}
+
+    internal_counter = 0
+    leaf_counter = 0
+
+    # queue entries: (node_name, level)
+    queue = [(root_name, 0)]
+    parents_map = {root_name: None}
+
+    # Track order to preserve reproducible child ordering
+    while queue:
+        name, level = queue.pop(0)
+
+        # Record this row
+        p = parents_map[name]
+        if p is None:
+            nodes.append(name)
+            parents.append(None)
+            branchL.append(0.0)
+            dist.append(0.0)
+        else:
+            # find j: index of this node among parent's children
+            j = children_map[p].index(name)
+            L = resolve_bl(level-1, p, j)
+            branchL.append(float(L))
+            d = dist_map[p] + float(L)
+            dist_map[name] = d
+            nodes.append(name)
+            parents.append(p)
+            dist.append(d)
+
+        # Expand children only if below final level
+        if level < depth:
+            k = k_per_level[level]
+            kids = []
+            for j in range(k):
+                if level == depth - 1:
+                    # next level would be leaves
+                    leaf_counter += 1
+                    child = f"{leaf_prefix}{leaf_counter}"
+                else:
+                    internal_counter += 1
+                    child = f"{internal_prefix}{internal_counter}"
+
+                parents_map[child] = name
+                kids.append(child)
+                queue.append((child, level + 1))
+
+            children_map[name] = kids
+        else:
+            children_map[name] = []
+
+    # ---- Compute leaves sets bottom-up -------------------------------------
+    all_nodes = nodes.copy()
+    leaves_col = [set() for _ in all_nodes]
+    idx_of = {n: i for i, n in enumerate(all_nodes)}
+
+    # initialize tips
+    for n in all_nodes:
+        if len(children_map[n]) == 0:
+            leaves_col[idx_of[n]] = {n}
+
+    changed = True
+    while changed:
+        changed = False
+        for n, kids in children_map.items():
+            if not kids:
+                continue
+            if all(leaves_col[idx_of[c]] for c in kids):
+                merged = set()
+                for c in kids:
+                    merged |= leaves_col[idx_of[c]]
+                if merged != leaves_col[idx_of[n]]:
+                    leaves_col[idx_of[n]] = merged
+                    changed = True
+
+    # ---- DataFrame ----------------------------------------------------------
+    return pd.DataFrame(
+        {
+            "nodes": nodes,
+            "leaves": leaves_col,
+            "branchL": branchL,
+            "parent": parents,
+            "dist_to_root": dist,
+        }
+    ).reset_index(drop=True)
+
+
+def make_beta_splitting_tree_df(
+    n_leaves: int,
+    beta: float,
+    *,
+    branch_length: float | Sequence[float] | Callable[[int, str, int], float] | str = "ultrametric",
+    root_name: str = "Root",
+    leaf_prefix: str = "OTU",
+    internal_prefix: str = "in",
+    random_state: Optional[int] = None,
+) -> pd.DataFrame:
+    """
+    Aldous β-splitting binary tree, returned as a DataFrame compatible with your phylo utils.
+
+    Columns:
+        nodes (str), leaves (set[str]), branchL (float), parent (str|None), dist_to_root (float)
+
+    Parameters
+    ----------
+    n_leaves : int
+        Number of tips (>= 1).
+    beta : float
+        β parameter; requires beta > -1 so Beta(β+1, β+1) is defined.
+        Larger β → more balanced; β -> -1+ → more comb-like.
+    branch_length :
+        "ultrametric" (default) or:
+        - float: fixed length for all edges.
+        - sequence[len = max_level+1] indexed by *parent level* (0=root).
+        - callable(level, parent_name, child_index)->float for full control.
+    """
+
+    if n_leaves < 1:
+        raise ValueError("n_leaves must be >= 1")
+    if beta <= -1:
+        raise ValueError("beta must be > -1 (so Beta(β+1, β+1) is valid).")
+
+    rng = np.random.default_rng(random_state)
+
+    # ----- Build topology ----------------------------------------------------
+    tips = [f"{leaf_prefix}{i+1}" for i in range(n_leaves)]
+    rng.shuffle(tips)
+
+    children: Dict[str, List[str]] = {}
+    parent: Dict[str, Optional[str]] = {}
+    internal_counter = 0
+
+    def new_internal() -> str:
+        nonlocal internal_counter
+        internal_counter += 1
+        return f"{internal_prefix}{internal_counter}"
+
+    def build(subtips: List[str]) -> str:
+        """Return node name for clade defined by 'subtips'."""
+        m = len(subtips)
+        if m == 1:
+            name = subtips[0]
+            children[name] = []
+            parent.setdefault(name, None)
+            return name
+
+        # Sample split proportion and an integer split with no empty side
+        p = rng.beta(beta + 1.0, beta + 1.0)
+
+        if m == 2:
+            L = 1  # only valid non-empty split
+        else:
+            # Ensure L in [1, m-1]
+            L = int(rng.binomial(m - 2, p)) + 1
+
+        left, right = subtips[:L], subtips[L:]
+        assert 1 <= len(left) <= m - 1
+        assert 1 <= len(right) <= m - 1
+
+        node = new_internal()
+        a = build(left)
+        b = build(right)
+        children[node] = [a, b]
+        parent[a] = node
+        parent[b] = node
+        parent.setdefault(node, None)
+        return node
+
+    # Assemble a single root (named as requested)
+    if n_leaves == 1:
+        root = tips[0]
+        children[root] = []
+        parent[root] = None
+    else:
+        first = build(tips)
+        # Rename the first internal to 'Root' to avoid a single-child super-root
+        # (so the tree stays strictly binary from the top)
+        if first.startswith(internal_prefix):
+            root = root_name
+            # rebind: move first's children under root
+            kids = children[first]
+            children[root] = kids
+            parent[root] = None
+            for k in kids:
+                parent[k] = root
+            # remove the old internal name from maps
+            del children[first]
+            parent.pop(first, None)
+        else:
+            # (Shouldn't happen; 'first' will be internal when n_leaves>1)
+            root = root_name
+            children[root] = [first]
+            parent[first] = root
+            parent[root] = None
+
+    # ----- Compute leaves sets (post-order unions) ---------------------------
+    all_nodes = set(parent.keys()) | set(children.keys())
+    leaves_map: Dict[str, set] = {n: set() for n in all_nodes}
+    for n in list(all_nodes):
+        if len(children.get(n, [])) == 0:
+            leaves_map[n] = {n}
+
+    changed = True
+    while changed:
+        changed = False
+        for n, kids in list(children.items()):
+            if not kids:
+                continue
+            if all(leaves_map[k] for k in kids):
+                newset = set()
+                for k in kids:
+                    newset |= leaves_map[k]
+                if newset != leaves_map[n]:
+                    leaves_map[n] = newset
+                    changed = True
+
+    # ----- Assign branch lengths & distances ---------------------------------
+    nodes_df: List[str] = []
+    parents_df: List[Optional[str]] = []
+    branchL_df: List[float] = []
+    dist_df: List[float] = []
+
+    if isinstance(branch_length, str) and branch_length.lower() == "ultrametric":
+        # Compute raw heights: leaf=0; internal=max(child heights)+1
+        height_raw: Dict[str, float] = {}
+
+        def post_height(n: str) -> float:
+            kids = children.get(n, [])
+            if not kids:
+                h = 0.0
+            else:
+                h = max(post_height(k) for k in kids) + 1.0
+            height_raw[n] = h
+            return h
+
+        H_root = post_height(root)
+        height = {n: (h / H_root if H_root > 0 else 0.0) for n, h in height_raw.items()}
+
+        # BFS traversal to fill arrays
+        queue: List[Tuple[str, Optional[str], int]] = [(root, None, 0)]
+        while queue:
+            n, p, lvl = queue.pop(0)
+            if p is None:
+                bl = 0.0
+                dist = 1.0 - height[n]
+            else:
+                bl = max(0.0, height[p] - height[n])
+                dist = 1.0 - height[n]
+
+            nodes_df.append(n)
+            parents_df.append(p)
+            branchL_df.append(float(bl))
+            dist_df.append(float(dist))
+
+            for j, c in enumerate(children.get(n, [])):
+                queue.append((c, n, lvl + 1))
+
+    else:
+        # Non-ultrametric: resolve length by fixed/per-level/callable, accumulate distance.
+        def resolve_bl(level: int, parent_name: str, child_index: int) -> float:
+            if isinstance(branch_length, (int, float)):
+                return float(branch_length)
+            elif callable(branch_length):
+                return float(branch_length(level, parent_name, child_index))
+            elif isinstance(branch_length, (list, tuple, np.ndarray)):
+                if level >= len(branch_length):
+                    raise ValueError(f"branch_length sequence too short for level {level}")
+                return float(branch_length[level])
+            else:
+                raise TypeError("branch_length must be 'ultrametric', float, sequence, or callable")
+
+        queue: List[Tuple[str, Optional[str], int, float]] = [(root, None, 0, 0.0)]
+        while queue:
+            n, p, lvl, dist_here = queue.pop(0)
+            if p is None:
+                bl = 0.0
+                dist_now = 0.0
+            else:
+                j = children[p].index(n)
+                L = resolve_bl(lvl - 1, p, j)
+                bl = max(0.0, float(L))
+                dist_now = dist_here + bl
+
+            nodes_df.append(n)
+            parents_df.append(p)
+            branchL_df.append(float(bl))
+            dist_df.append(float(dist_now))
+
+            for c in children.get(n, []):
+                queue.append((c, n, lvl + 1, dist_now))
+
+    # ----- Assemble DataFrame -------------------------------------------------
+    df = pd.DataFrame({
+        "nodes": nodes_df,
+        "leaves": [leaves_map[n] for n in nodes_df],
+        "branchL": branchL_df,
+        "parent": parents_df,             # None for root
+        "dist_to_root": dist_df,
+    }).reset_index(drop=True)
+
+    return df
+

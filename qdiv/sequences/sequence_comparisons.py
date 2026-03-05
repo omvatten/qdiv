@@ -1,20 +1,47 @@
 from __future__ import annotations
 import pandas as pd
 import numpy as np
-from tqdm import tqdm
 import copy
 from pathlib import Path
 from typing import Dict, List, Union, Tuple, Any, Literal
-from ..utils import sort_index_by_number, rename_leaves, get_df, subset_tree
+from ..utils import sort_index_by_number, rename_leaves, get_df, subset_tree, dataframe_to_tree, tree_to_dataframe
 from ..data_object import MicrobiomeData
 
 __all__ = [
     "sequence_distance_matrix",
     "tree_distance_matrix",
+    "load_compressed_matrix",
     "align",
     "consensus",
-    "merge_objects"
+    "merge_objects"   
 ]
+
+def _get_tqdm(use_tqdm: bool):
+    """
+    Internal helper that returns tqdm if available and requested; otherwise provides
+    a minimal stub compatible with tqdm's API.
+    """
+    if use_tqdm:
+        try:
+            from tqdm import tqdm
+            return tqdm
+        except Exception:
+            pass
+
+    class _DummyTqdm:  # fallback with same constructor signature
+        def __init__(self, iterable=None, total=None, desc=None, unit=None, leave=False):
+            self._iterable = iterable if iterable is not None else range(total or 0)
+
+        def __iter__(self):
+            return iter(self._iterable)
+
+        def update(self, *_args, **_kwargs):
+            return None
+
+        def close(self):
+            return None
+
+    return _DummyTqdm
 
 # -----------------------------------------------------------------------------
 #  Distance matrix based on sequences 
@@ -166,6 +193,8 @@ def tree_distance_matrix(
         savename: str = "TreeDistMat",
         path: str = "",
         save: bool = True,
+        file_format: str = "csv",
+        use_tqdm: bool = True,
 ) -> pd.DataFrame:
     """
     Compute pairwise phylogenetic distances between leaf nodes in a tree.
@@ -173,102 +202,224 @@ def tree_distance_matrix(
     Parameters
     ----------
     obj : MicrobiomeData or dict
-        Must provide a DataFrame in `obj.tree` or `obj['tree']`
+        Must provide a DataFrame in `obj.tree` or `obj['tree']`. The DataFrame
+        must contain at least: ['nodes', 'parent', 'dist_to_root'].
+        Optionally it can have 'branchL'; 'dist_to_root' is assumed correct.
     savename : str, optional
-        Base filename for CSV outputs. Default 'TreeDistMat'.
+        Base filename for outputs. Default 'TreeDistMat'.
     path : str, default ""
         Directory path (absolute or relative) where output is saved. Can be "" for CWD.
     save : bool, optional
-        If True, writes a CSV file.
+        If True, writes a CSV or compressed npz file.
+    file_format : str {'csv'|'compressed'|'npz'}
+        If 'csv', saves a full distance matrix CSV.
+        If 'compressed' or 'npz', saves a triangular matrix in a compressed npz.
+    use_tqdm : bool, default=True
+        Use `tqdm` for progress bars.
 
     Returns
     -------
     pandas.DataFrame
         Symmetric distance matrix with leaf node names as both rows and columns.
     """
-    # Detect sequences DataFrame
+    # Get the tree DataFrame
     is_object = hasattr(obj, "tree")
     tree_df = obj.tree if is_object else obj.get("tree")
 
-    # Validation
+    # Basic validation
     if tree_df is None or not isinstance(tree_df, pd.DataFrame):
         raise ValueError("Input must contain a 'tree' DataFrame (obj.tree or obj['tree']).")
+
+    required_cols = {"nodes", "parent", "dist_to_root"}
+    missing = required_cols - set(tree_df.columns)
+    if missing:
+        raise ValueError(f"Tree DataFrame is missing required columns: {sorted(missing)}")
+
     if tree_df.index is None or len(tree_df.index) == 0:
-        raise ValueError("Tree dataFrame has empty or missing index.")
+        raise ValueError("Tree DataFrame has empty or missing index.")
 
-    nodes = tree_df['nodes'].tolist()
-    node_to_idx = {n: i for i, n in enumerate(nodes)}
+    # Work with positional indices
+    df = tree_df.reset_index(drop=True).copy()
+
+    # Ensure nodes are strings; parents may be NaN
+    df["nodes"] = df["nodes"].astype(str)
+    # Keep parent as string where not NaN
+    if df["parent"].notna().any():
+        df.loc[df["parent"].notna(), "parent"] = df.loc[df["parent"].notna(), "parent"].astype(str)
+
+    # Validate uniqueness of node names
+    if not df["nodes"].is_unique:
+        dupes = df["nodes"][df["nodes"].duplicated()].unique().tolist()
+        raise ValueError(f"'nodes' must be unique. Duplicates found: {dupes}")
+
+    nodes = df["nodes"].tolist()
+    node_to_pos = {n: i for i, n in enumerate(nodes)}
+
+    # Build parent index array using **positional row index**
     parent_idx = np.full(len(nodes), -1, dtype=int)
+    for i, row in df.iterrows():
+        p = row["parent"]
+        if pd.isna(p):
+            continue
+        if p not in node_to_pos:
+            raise ValueError(f"Parent '{p}' of node '{row['nodes']}' is not present in 'nodes'.")
+        parent_idx[i] = node_to_pos[p]
 
-    for idx, row in tree_df.iterrows():
-        if row['parent'] in node_to_idx:
-            parent_idx[idx] = node_to_idx[row['parent']]
+    # Identify roots (nodes without parent)
+    roots = np.where(parent_idx == -1)[0]
+    if len(roots) == 0:
+        raise ValueError("No root found (every node has a parent).")
+    if len(roots) > 1:
+        # You may relax this to support forests; for now enforce a single rooted tree
+        raise ValueError(f"Multiple roots found at positions {roots.tolist()}. "
+                         f"Ensure the tree is a single rooted tree.")
+    root = roots[0]
 
+    # Children adjacency
     children = [[] for _ in range(len(nodes))]
     for i, p in enumerate(parent_idx):
         if p != -1:
             children[p].append(i)
 
-    # Euler tour for LCA
+    # Euler tour with depths for LCA (with a visited guard)
     euler, depth, first_occ = [], [], {}
-    def dfs(u, d):
+    visited = np.zeros(len(nodes), dtype=bool)
+
+    def dfs(u: int, d: int):
+        visited[u] = True
         first_occ[u] = len(euler)
         euler.append(u)
         depth.append(d)
         for v in children[u]:
-            dfs(v, d + 1)
-            euler.append(u)
-            depth.append(d)
+            if not visited[v]:
+                dfs(v, d + 1)
+                euler.append(u)
+                depth.append(d)
 
-    root = np.where(parent_idx == -1)[0][0]
     dfs(root, 0)
 
-    # Sparse table for RMQ
+    # Ensure all leaves we will use have been visited (no disconnected parts)
+    not_visited = np.where(~visited)[0]
+    if len(not_visited) > 0:
+        un = [nodes[i] for i in not_visited]
+        raise ValueError(f"The DFS did not reach these nodes (disconnected or cyclic?): {un}")
+
+    # Sparse table for RMQ over 'depth' to support O(1) LCA queries
     n = len(depth)
     log = np.zeros(n + 1, dtype=int)
     for i in range(2, n + 1):
         log[i] = log[i // 2] + 1
+
     k = log[n]
     st = np.zeros((k + 1, n), dtype=int)
     st[0] = np.arange(n)
     for j in range(1, k + 1):
-        for i in range(n - (1 << j) + 1):
-            left, right = st[j - 1, i], st[j - 1, i + (1 << (j - 1))]
+        span = 1 << j
+        half = 1 << (j - 1)
+        max_i = n - span + 1
+        for i in range(max_i):
+            left, right = st[j - 1, i], st[j - 1, i + half]
             st[j, i] = left if depth[left] < depth[right] else right
 
-    def rmq(l, r):
+    def rmq(l: int, r: int) -> int:
+        if l > r:
+            l, r = r, l
         j = log[r - l + 1]
         left, right = st[j, l], st[j, r - (1 << j) + 1]
         return left if depth[left] < depth[right] else right
 
-    def lca(u, v):
-        i, j = first_occ[u], first_occ[v]
-        if i > j: i, j = j, i
-        return euler[rmq(i, j)]
+    def lca(u: int, v: int) -> int:
+        iu, iv = first_occ[u], first_occ[v]
+        return euler[rmq(iu, iv)]
 
-    dist_to_root = tree_df['dist_to_root'].to_numpy()
-    non_leaves = set(tree_df['parent'])
-    leaves = [name for name in tree_df['nodes'] if name not in non_leaves]
-    leaf_indices = [node_to_idx[name] for name in leaves]
+    # Distances to root must align with positional indices
+    dist_to_root = df["dist_to_root"].to_numpy(dtype=float)
 
+    # Identify leaves: nodes that never appear as a parent (ignore NaN)
+    parents = set(df["parent"].dropna().tolist())
+    leaves = [name for name in nodes if name not in parents]
+    leaf_pos = [node_to_pos[name] for name in leaves]
+
+    # Compute pairwise distances
     m = len(leaves)
-    mat = np.zeros((m, m))
+    mat = np.zeros((m, m), dtype=float)
 
-    print("Computing pairwise tree distances...")
-    for a in tqdm(range(m), desc="Leaves"):
-        for b in range(a + 1, m):
-            u_idx, v_idx = leaf_indices[a], leaf_indices[b]
-            ancestor = lca(u_idx, v_idx)
-            d = dist_to_root[u_idx] + dist_to_root[v_idx] - 2 * dist_to_root[ancestor]
-            mat[a, b] = mat[b, a] = d
+    tqdm = _get_tqdm(use_tqdm)
+    if m > 1:
+        for a in tqdm(range(m - 1), desc="Leaves"):
+            ua = leaf_pos[a]
+            for b in range(a + 1, m):
+                vb = leaf_pos[b]
+                ancestor = lca(ua, vb)
+                d = dist_to_root[ua] + dist_to_root[vb] - 2.0 * dist_to_root[ancestor]
+                mat[a, b] = mat[b, a] = float(d)
 
     M = pd.DataFrame(mat, index=leaves, columns=leaves)
-    if save:
-        file_path = Path(path) / f"{savename}.csv"
-        M.to_csv(file_path)
-        print("Tree distance matrix saved.")
-    print('Done!')
+
+    # Save
+    if save and isinstance(file_format, str):
+        fmt = file_format.lower()
+        if fmt == "csv":
+            file_path = Path(path) / f"{savename}.csv"
+            M.to_csv(file_path)
+            print(f"Tree distance matrix saved to {file_path}")
+        elif fmt in ("compressed", "npz"):
+            file_path = Path(path) / f"{savename}.npz"
+            n = M.shape[0]
+            tri = M.to_numpy()[np.triu_indices(n, k=1)]
+            np.savez_compressed(
+                file_path,
+                tri=tri,
+                index=M.index.astype(str).to_numpy(dtype="U"),
+                columns=M.columns.astype(str).to_numpy(dtype="U"),
+                n=n
+            )
+            print(f"Tree distance matrix (compressed) saved to {file_path}")
+
     return M
+
+# -----------------------------------------------------------------------------
+#  Load big tree-based distance matrix 
+# -----------------------------------------------------------------------------
+def load_compressed_matrix(
+        filename: str,
+        path: str = "",
+) -> pd.DataFrame:
+    """
+    Loads a distance matrix dataframe saved in numpy compressed format (npz).
+    Assumes the filename ends with npz.
+
+    Parameters
+    ----------
+    filename : str
+        Filename of distance matrix
+    path : str, default ""
+        Directory path (absolute or relative) where output is saved. Can be "" for CWD.
+    """
+    if not filename.endswith('npz'):
+        filename = filename + '.npz'
+    file_path = Path(path) / filename
+
+    data = np.load(file_path)
+    
+    tri = data["tri"]
+    index = data["index"]
+    columns = data["columns"]
+    n = int(data["n"])
+    
+    # Create empty matrix
+    full = np.zeros((n, n), dtype=tri.dtype)
+    
+    # Fill upper triangle
+    idx = np.triu_indices(n, k=1)
+    full[idx] = tri
+    
+    # Mirror to lower triangle
+    full = full + full.T
+    
+    # Rebuild DataFrame
+    df_reconstructed = pd.DataFrame(full, index=index, columns=columns)
+    return df_reconstructed
 
 # -----------------------------------------------------------------------------
 # Harmonize feature names in two or more objects
@@ -702,7 +853,9 @@ def consensus(
         cons_obj["tax"] = tax.loc[incommonSVs]
     tree = get_df(aligned_objects[ra_max_pos], "tree")
     if tree is not None:
-        cons_tree = subset_tree(tree, incommonSVs)
+        recursive_tree = dataframe_to_tree(tree)
+        sub_tree = subset_tree(recursive_tree, incommonSVs)
+        cons_tree = tree_to_dataframe(sub_tree)
         cons_obj["tree"] = cons_tree
 
     # Reorder by average abundance and rename to name_type + rank

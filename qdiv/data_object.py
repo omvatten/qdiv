@@ -509,6 +509,22 @@ class MicrobiomeData:
         """
         return data_files.save(self.to_dict(), path=path, savename=savename, sep=sep)
 
+    def copy(self):
+        """
+        Copy MicrobiomeData object.
+
+        Returns
+        -------
+        MicrobiomeData
+            A copy of the object.
+
+        Examples
+        --------
+        >>> obj_copy = obj.copy()
+        """
+        out = copy.deepcopy(self)
+        return out
+
     def info(self, preview_rows: int = 1)  -> None:
         """
         Print summary information about the MicrobiomeData object.
@@ -701,6 +717,7 @@ class MicrobiomeData:
         *,
         n: int = 25,
         method: Literal["sum", "mean"] = "mean",
+        cutoff: float | None = None,
         exclude: bool = False,
         inplace: bool = False,
     ) -> MicrobiomeData:
@@ -713,13 +730,19 @@ class MicrobiomeData:
         n : int, default 25
             Number of top features to keep (or exclude if `exclude=True`).
             Values outside [0, n_features] are clamped to the valid range.
-        method : {'sum','mean'}, default 'mean'
+        method : {'sum','mean','frequency'}, default 'mean'
             Reduction across samples of **relative abundance** per feature.
             - 'sum'  : total relative abundance across samples
             - 'mean' : mean relative abundance across samples
+            - 'max' : max relative abundance in a sample
+            - 'frequency' : proportion of samples in which the feature is detected
+        cutoff : float, default None
+            If cutoff is specific as a percentage (from 0 to 100%), all features 
+            with a 'sum' or 'mean' relative abundance or 'frequency' of detection
+            above this value will be kept, and the parameter n will be ignored.
         exclude : bool, default False
-            If False (default), keep the top-n features.
-            If True, exclude the top-n features (keep the rest).
+            If False (default), keep the top features.
+            If True, exclude the top features (keep the rest).
         inplace : bool, default False
             Only relevant for MicrobiomeData input.
             If True, mutate the object and return it; otherwise, return a new object.
@@ -733,6 +756,7 @@ class MicrobiomeData:
             self,
             n=n,
             method=method,
+            cutoff=cutoff,
             exclude=exclude,
             inplace=inplace
         )
@@ -848,7 +872,7 @@ class MicrobiomeData:
         self,
         *,
         depth: Union[int, str] = "min",
-        seed: Optional[int] = None,
+        random_state: Optional[int] = None,
         replacement: bool = False,
         inplace: bool = False
     ) -> MicrobiomeData:
@@ -864,7 +888,7 @@ class MicrobiomeData:
         depth : int or 'min', default 'min'
             Target sequencing depth per sample. If 'min', the minimum depth across
             samples is used.
-        seed : int, optional
+        random_state : int, optional
             Random seed for reproducibility.
         replacement : bool, default False
             If True, sample with replacement (multinomial); otherwise sample
@@ -895,7 +919,7 @@ class MicrobiomeData:
         return data_subset.rarefy(
             self,
             depth=depth,
-            seed=seed,
+            random_state=random_state,
             replacement=replacement,
             inplace=inplace
         )
@@ -903,6 +927,7 @@ class MicrobiomeData:
     def prune_tree(
         self,
         featurelist: Union[List[str], Set[str], Iterable[str], None] = None,
+        reroot: bool = False,
         inplace: bool = False,
     ) -> MicrobiomeData:
         """
@@ -914,6 +939,8 @@ class MicrobiomeData:
         featurelist : list of str or set of str or iterable of str, optional
             A collection of feature names to match against the leaves of each branch.
             If None, the method will attempt to use `self.tab.index.tolist()`.
+        reroot : bool, default False
+            If True, reroot the pruned tree at midpoint.
         inplace : bool, default False
             If True, modify this object in place; if False, return a new object.
 
@@ -932,31 +959,43 @@ class MicrobiomeData:
         if featurelist is None or len(featurelist) == 0:
             raise ValueError("Either 'featurelist' must be provided or 'self.tab' must have a valid index.")
 
+        tree = phylo_func.dataframe_to_tree(self.tree)
+        tree = phylo_func.subset_tree(tree, featurelist)
+        tree = phylo_func.collapse_single_child_nodes(tree)
+        if reroot:
+            tree = phylo_func.reroot_midpoint(tree)
+        tree = phylo_func.tree_to_dataframe(tree)
+
         if inplace:
-            self.tree = phylo_func.subset_tree(self.tree, featurelist)
+            self.tree = tree
             return self
         else:
             new_obj = copy.deepcopy(self)
-            new_obj.tree = phylo_func.subset_tree(new_obj.tree, featurelist)
+            new_obj.tree = tree
             return new_obj
 
     def rename_features(
         self,
         name_type: str = 'OTU',
+        name_dict: dict = None,
         inplace: bool = False,
     ) -> MicrobiomeData:
         """
         Rename feature identifiers (row indices) based on their relative abundance or taxonomic order.
     
-        The renaming assigns new feature names in the format `{name_type}{i}`, where `i`
-        is the rank of the feature after sorting:
+        The renaming is done either based on the rank of the feature after sorting 
+        based on relative abundance or based on a dictionary containing existing names
+        as keys and new names as values. If 'name_dict' is None, the features are renamed
+        according in the format `{name_type}{i}`, and sorted:
         - By mean relative abundance if `tab` (abundance table) is present.
         - By taxonomic order if `tax` is present and `tab` is absent.
     
         Parameters
         ----------
         name_type : str, default='OTU'
-            Prefix for new feature names (e.g., 'OTU', 'ASV').
+            Prefix for new feature names, e.g., 'OTU', 'ASV' (used is name_dict is None).
+        name_dict : dict, default=None
+            Dictionary with feature name {'Old_name': 'New:name', ...}.
         inplace : bool, default=False
             If True, modify object in place.
 
@@ -969,6 +1008,7 @@ class MicrobiomeData:
         return help_func.rename_features(
             self,
             name_type=name_type,
+            name_dict=name_dict,
             inplace=inplace,
         )
 
@@ -1001,6 +1041,38 @@ class MicrobiomeData:
             inplace=inplace,
             custom_prefix=custom_prefix
         )
+
+    def clean_tax(
+        self,
+        inplace: bool = False,
+    ) -> MicrobiomeData:
+        """
+        Clean and standardize Greengenes2/GTDB taxonomy within a MicrobiomeData object.
+        
+        This function processes taxonomy derived from Greengenes2 or GTDB.
+        It normalizes missing or ambiguous labels, preserves GTDB letter suffixes
+        (e.g., ``_A``, ``_B``), and removes GTDB numeric node identifiers
+        (e.g., ``_368345``) at all taxonomic ranks. 
+    
+        Parameters
+        ----------
+        inplace : bool, default=False
+            If True, modify object in place.
+
+        Returns
+        -------
+        MicrobiomeData
+            The updated object. If `inplace=True`, returns self; otherwise, a new instance.
+
+        Notes
+        -----
+        - Unknown or unassigned labels (e.g., "Unknown", "None", "unclassified")
+          are normalized to ``NA``.
+        - The function add prefixes such as d__, p__ by default.
+          These can later be removed by the tax_prefix function if needed.
+        """
+
+        return help_func.clean_taxonomy_table(self, inplace=inplace)
 
     
     #  ------------------------------------------------------------------------
@@ -1280,6 +1352,22 @@ class MicrobiomeData:
                 tree_nodes = set(self.tree['nodes'])
                 if not tab_features.issubset(tree_nodes):
                     raise ValueError("Not all tab features are found among tree nodes.")
+
+                # Every non-null parent must exist among nodes
+                t = self.tree
+                parent_vals = t["parent"].dropna().astype(str)
+                node_vals = t["nodes"].astype(str)
+                missing_parents = parent_vals[~parent_vals.isin(node_vals)]
+
+                if not missing_parents.empty:
+                    # Build an aligned boolean mask on the FULL parent column
+                    mask_bad = t["parent"].astype(str).isin(set(missing_parents))
+                    bad_rows = t.loc[mask_bad].head(5)  # <-- aligned to t.index
+                    raise ValueError(
+                        "Tree is inconsistent: some rows reference parents not present as nodes. "
+                        f"Examples: {bad_rows[['nodes','parent']].to_dict('records')}. "
+                        "Reload the tree or run prune_tree() to rebuild a valid induced subtree."
+                    )
 
         if self.tax is not None:
             if len(self.tax) == 0:

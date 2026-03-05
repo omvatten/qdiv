@@ -1,6 +1,6 @@
 import numpy as np
 import pandas as pd
-from typing import Dict, List, Optional, Union, Any, Literal
+from typing import Dict, Optional, Union, Any, Literal, Tuple
 from ..diversity import bray, jaccard, naive_beta, phyl_beta, func_beta
 from ..utils import get_df
 
@@ -11,13 +11,14 @@ def _get_tqdm(use_tqdm: bool):
     """
     if use_tqdm:
         try:
-            from tqdm.auto import tqdm  # type: ignore
+            from tqdm import tqdm
             return tqdm
         except Exception:
             pass
 
     class _DummyTqdm:  # fallback with same constructor signature
-        def __init__(self, iterable=None, total=None, desc=None, unit=None, leave=False):
+        def __init__(self, iterable=None, total=None, desc=None, unit=None, leave=False, 
+                     ncols=None, ascii=True, mininterval=None, position=None, miniters=None):
             self._iterable = iterable if iterable is not None else range(total or 0)
 
         def __iter__(self):
@@ -38,88 +39,84 @@ def rcq(
     obj: Union[Dict[str, Any], Any],
     *,
     constrain_by: Optional[str] = None,
-    randomization: Literal["frequency", "abundance", "weighting"] = "frequency",
-    weigh_by: Optional[str] = None,
-    weight: float = 1.0,
+    randomization: Literal["frequency", "abundance"] = "frequency",
     iterations: int = 999,
-    div_type: Literal["naive", "phyl", "func"] = "naive",
-    distmat: Union[pd.DataFrame, None] = None,
+    div_type: Literal["Jaccard", "Bray", "naive", "phyl", "func"] = "naive",
+    distmat: Optional[pd.DataFrame] = None,
     q: float = 1.0,
-    compare_by: Optional[str] = None,
-    show_progress: bool = True,
     use_tqdm: bool = True,
     random_state: Optional[Union[int, np.random.Generator]] = None,
-) -> Optional[Dict[str, pd.DataFrame]]:
+) -> Dict[str, pd.DataFrame]:
     """
-    Compute Raup–Crick style null comparisons for beta-diversity.
+    Raup–Crick-style null comparisons for beta-diversity.
 
-    This function randomizes the abundance table while preserving sample richness and read counts,
-    then compares observed dissimilarities against a null expectation. It accepts either a
-    MicrobiomeData object or a dict with at least a 'tab' DataFrame.
+    Randomizes the abundance table while preserving each sample's richness and
+    total reads, then contrasts the observed beta-diversity matrix against a
+    null distribution built via randomization.
 
     Parameters
     ----------
-    obj : MicrobiomeData, dict, or compatible object
-        Input data. Must provide at least an abundance table ('tab').
-        Optionally, may include 'meta' (sample metadata), 'tree' (for phylogenetic measures), etc.
-    constrain_by : str, default=None
-        Column in metadata to constrain randomization within categories. 'None' randomizes across all samples.
-    randomization : {'abundance', 'frequency', 'weighting'}, default="frequency"
-        Randomization strategy.
-    weigh_by : str, default=None
-        Metadata column for weighting (only if randomization="weighting").
-    weight : float, default=1.0
-        Weight for the lowest-richness category (only if randomization="weighting").
+    obj : MicrobiomeData | dict | Any
+        Input with at least an abundance table under key 'tab'. Optionally may include
+        'meta' (sample metadata) and 'tree' (for phylogenetic measures).
+    constrain_by : str, optional
+        Column in metadata to constrain randomization within categories; if None, randomize across all samples.
+    randomization : {"frequency", "abundance"}, default="frequency"
+        Randomization strategy for selecting the set of taxa per randomized sample:
+          - "abundance": probabilities proportional to group-level summed abundances
+          - "frequency": probabilities proportional to group-level presence frequency
+        Within the selected set, additional reads are allocated proportional to
+        the selected taxa's group-level abundances to match each sample's total reads.
     iterations : int, default=999
-        Number of randomizations (increase for more stable null distributions).
-    div_type : {'Jaccard', 'Bray', 'naive', 'phyl', 'func'}, default="naive"
-        Dissimilarity index to use.
-    distmat : pd.DataFrame, default=None
-        Functional/trait distance matrix (required for div_type="func").
+        Number of randomization iterations used to build the null distribution.
+    div_type : {"Jaccard", "Bray", "naive", "phyl", "func"}, default="naive"
+        Dissimilarity index to compute for observed and null tables.
+        - "Jaccard", "Bray": classic indices on the (randomized) count table
+        - "naive": Hill-number-based (requires q)
+        - "phyl": phylogenetic beta diversity (requires 'tree' in obj)
+        - "func": functional beta diversity (requires distmat)
+    distmat : pandas.DataFrame, optional
+        Square functional distance matrix (features × features); required if div_type="func".
     q : float, default=1.0
-        Diversity order for Hill-number-based indices.
-    compare_by : str, default=None
-        If not None, averages pairwise comparisons between metadata categories.
-    show_progress : bool, default=True
-        Whether to show progress bars/messages.
+        Diversity order for Hill-number-based indices (used by "naive", "phyl", "func").
     use_tqdm : bool, default=True
-        Whether to use tqdm for progress bars.
-    random_state : int or np.random.Generator, optional
-        Random seed or generator for reproducibility.
+        Use `tqdm` for progress bars.
+    random_state : int | numpy.random.Generator, optional
+        Random seed or Generator for reproducibility.
 
     Returns
     -------
-    dict or None
-        If compare_by == None, returns:
-            - "div_type": str
-            - "obs_d": observed dissimilarities (DataFrame)
-            - "p": Raup–Crick probability (DataFrame)
-            - "null_mean": mean null dissimilarity (DataFrame)
-            - "null_std": std null dissimilarity (DataFrame)
-            - "ses": standardized effect size (DataFrame)
-        If compare_by != None, returns the same statistics averaged per category pairs.
-        Returns None if div_type and inputs are inconsistent.
+    dict
+        {
+          "div_type": str,
+          "obs_d":    DataFrame (S × S), observed beta-diversity,
+          "p":        DataFrame (S × S), Raup–Crick probability  P(null < obs) + 0.5·P(null == obs),
+          "null_mean":DataFrame (S × S), mean of null,
+          "null_std": DataFrame (S × S), std of null,
+          "ses":      DataFrame (S × S), (null_mean - obs) / null_std
+        }
 
     Notes
     -----
-    - Accepts both dict and MicrobiomeData input, using get_df for robust extraction.
-    - For functional or phylogenetic indices, requires 'distmat' or 'tree' as appropriate.
-    - For speed and reproducibility, uses numpy.random.Generator internally.
-    - Probability index counts cases where observed dissimilarity exceeds the null;
-      ties contribute 0.5; then normalized by ``iterations``.
-
-    References
-    ----------
-    - Chase, J.M. (2011) *Ecology Letters*.
-    - Stegen, J.C. et al. (2013) *ISME Journal*.
-    - Modin, O. et al. (2020) *Microbiome*.
+    - Per-sample constraints: if `constrain_by` is given, randomization is performed within each
+      metadata category independently to preserve structure. Otherwise, all samples are randomized together.
+    - Richness & read preservation: for each sample, we draw a set of taxa matching the original
+      richness, then allocate extra reads to match the original total reads.
+    - Raup–Crick p-index: counts how often the null dissimilarity is strictly lower than observed,
+      ties contribute 0.5, normalized by `iterations`.
+    - A p value close to zero means observed dissimilarity is lower than the null expectation.
+    - A p value close to one means observed dissimilarity is higher than the null expectation.
+    - A positive ses means observed dissimilarity is lower than the null expectation.
+    - A negative ses means observed dissimilarity is higher than the null expectation.
     """
-    # Extract tables
+    # --- Extract tables & context
     tab = get_df(obj, "tab")
     if tab is None:
         raise ValueError("'tab' is needed in input.")
-    tab = tab.copy()        
-    
+    tab = tab.copy()
+    if tab.empty:
+        raise ValueError("'tab' must be a non-empty DataFrame.")
+
     meta = None
     tree = None
     if hasattr(obj, "meta") or (isinstance(obj, dict) and "meta" in obj):
@@ -129,322 +126,174 @@ def rcq(
             meta = None
     if div_type == "phyl":
         tree = get_df(obj, "tree")
-    if div_type == "func" and not isinstance(distmat, pd.DataFrame):
-        raise ValueError("div_type='func' requires a pandas DataFrame 'distmat'.")
+
     if div_type == "func":
+        if not isinstance(distmat, pd.DataFrame):
+            raise ValueError("div_type='func' requires a pandas DataFrame 'distmat'.")
+        # Align to feature order
         distmat = distmat.loc[tab.index, tab.index].copy()
 
-    # Prepare the input dict for downstream code
-    input_dict = {"tab": tab}
-    if meta is not None:
-        input_dict["meta"] = meta
-    if tree is not None:
-        input_dict["tree"] = tree
-
-    # --- RNG and tqdm -------------------------------------------------------
-    rng = random_state if isinstance(random_state, np.random.Generator) else np.random.default_rng(random_state)
-    tqdm = _get_tqdm(use_tqdm)
-
-    def _print(msg: str, end: str = "") -> None:
-        if show_progress and not use_tqdm:
-            print(msg, end=end)
+    if constrain_by is not None:
+        if meta is None or constrain_by not in meta.columns:
+            raise ValueError("constrain_by requires a metadata DataFrame containing the specified column.")
 
     if iterations < 1:
         raise ValueError("iterations must be >= 1.")
+    if randomization not in {"abundance", "frequency"}:
+        raise ValueError("randomization must be 'abundance' or 'frequency'.")
 
-    if randomization not in {"abundance", "frequency", "weighting"}:
-        raise ValueError("randomization must be one of {'abundance','frequency','weighting'}.")
+    # --- RNG + tqdm
+    rng = random_state if isinstance(random_state, np.random.Generator) else np.random.default_rng(random_state)
+    tqdm = _get_tqdm(use_tqdm)
 
-    if randomization == "weighting" and (weigh_by is None or meta is None or weigh_by not in meta.columns):
-        raise ValueError("randomization='weighting' requires a metadata DataFrame and a valid 'weigh_by' column.")
+    # --- Partition samples into constraint groups
+    if constrain_by is None:
+        groups = [tab.columns.tolist()]
+    else:
+        cats = pd.unique(meta[constrain_by])
+        groups = [meta.index[meta[constrain_by] == cat].tolist() for cat in cats]
 
-    if constrain_by is not None and (meta is None or constrain_by not in meta.columns):
-        raise ValueError("constrain_by requires a metadata DataFrame containing the specified column.")
+    # --- Precompute per-group selection probabilities and sample stats
+    features = tab.index.tolist()
 
-    if compare_by is not None and (meta is None or compare_by not in meta.columns):
-        raise ValueError("compare_by requires a metadata DataFrame containing the specified column.")
-
-    # --- helper: weighting --------------------------------------------------
-    def _weighting_series(wtab: pd.DataFrame, wmeta: pd.DataFrame) -> pd.Series:
-        """
-        Down-weight the category with lowest richness and return summed abundances.
-        """
-        cats = pd.unique(wmeta[weigh_by])
-        # richness per category = number of SVs present at least once across samples in that category
-        richness_by_cat = {}
-        for cat in cats:
-            samples_group = wmeta.index[wmeta[weigh_by] == cat].tolist()
-            sub = wtab[samples_group]
-            present = (sub > 0).any(axis=1)  # boolean per SV
-            richness_by_cat[cat] = int(present.sum())
-
-        # apply weight to min-richness category (only if there is a difference)
-        if len(richness_by_cat) > 1:
-            min_cat = min(richness_by_cat, key=richness_by_cat.get)
-            # if all equal, no weighting effect
-            if richness_by_cat[min_cat] < max(richness_by_cat.values):
-                min_samples = wmeta.index[wmeta[weigh_by] == min_cat].tolist()
-                wtab[min_samples] = wtab[min_samples] * float(weight)
-
-        return wtab.sum(axis=1)
-
-    # --- randomization core -------------------------------------------------
-    def _randomize_tabs() -> List[pd.DataFrame]:
-        """Return a list of randomized tables with preserved richness and reads."""
-        # Subtab list based on constraint
-        if constrain_by is None:
-            subtablist: List[pd.DataFrame] = [tab.copy()]
-            submeta: List[Optional[pd.DataFrame]] = [meta.copy() if meta is not None else None]
-        else:
-            subtablist, submeta = [], []
-            for cat in pd.unique(meta[constrain_by]):
-                subsamples = meta.index[meta[constrain_by] == cat]
-                subtablist.append(tab[subsamples])
-                submeta.append(meta.loc[subsamples] if meta is not None else None)
-
-        # pre-allocate output tabs
-        randomized: List[pd.DataFrame] = [
-            pd.DataFrame(0, index=tab.index, columns=tab.columns, dtype=np.int64)
-            for _ in range(iterations)
-        ]
-
-        # progress
-        iter_bar = None
-        if show_progress:
-            iter_bar = tqdm(
-                total=len(subtablist) * iterations,
-                desc="Randomizing tables",
-                unit="it",
-                leave=False,
-            )
-
-        SV_index = tab.index
-        SV_index_list = SV_index.tolist()
-
-        for sub_i, subtab in enumerate(subtablist):
-            wmeta = submeta[sub_i] if submeta[sub_i] is not None else pd.DataFrame(index=subtab.columns)
-
-            # abundances as probabilities
-            if randomization == "weighting":
-                abund_series = _weighting_series(subtab.copy(), wmeta)
-            else:
-                abund_series = subtab.sum(axis=1)
+    group_specs = []
+    for smp_list in groups:
+        subtab = tab[smp_list]
+        # selection probs
+        if randomization == "abundance":
+            abund_series = subtab.sum(axis=1).astype(float)            # (N,)
             abund_total = float(abund_series.sum())
             if abund_total <= 0:
-                raise ValueError("Abundance series is empty; cannot randomize.")
-
-            abund_p = (abund_series / abund_total).to_numpy()
-
-            # frequencies as probabilities
-            subtab_bin = (subtab > 0).astype(np.int8)
-            freq_counts = subtab_bin.sum(axis=1).to_numpy(dtype=np.int64)
-            freq_total = int(freq_counts.sum())
-            if freq_total == 0:
-                # fall back to uniform to avoid division by zero
-                freq_p = np.ones_like(freq_counts, dtype=float) / len(freq_counts)
+                sel_p = np.full(len(features), 1.0 / len(features), dtype=float)
             else:
-                freq_p = freq_counts / freq_total
+                sel_p = (abund_series / abund_total).to_numpy()
+            # store for within-selected allocation too
+            group_specs.append(("abundance", smp_list, sel_p, abund_series))
+        else:  # "frequency"
+            sub_bin = (subtab > 0).astype(np.int8)
+            freq_counts = sub_bin.sum(axis=1).to_numpy(dtype=np.int64)  # (N,)
+            if int(freq_counts.sum()) == 0:
+                sel_p = np.full(len(features), 1.0 / len(features), dtype=float)
+            else:
+                sel_p = freq_counts / int(freq_counts.sum())
+            # for allocation we still use abundances (fallback uniform if zero)
+            abund_series = subtab.sum(axis=1).astype(float)
+            group_specs.append(("frequency", smp_list, sel_p, abund_series))
 
-            smplist = subtab.columns.tolist()
-            richnesslist = subtab_bin.sum(axis=0).to_numpy(dtype=np.int64)
-            readslist = subtab.sum(axis=0).to_numpy(dtype=np.int64)
+    # per-sample richness and read totals (preserved)
+    richness_vec = (tab > 0).sum(axis=0).to_numpy(dtype=np.int64)   # (S,)
+    reads_vec = tab.sum(axis=0).to_numpy(dtype=np.int64)            # (S,)
+    smp_index = {smp: i for i, smp in enumerate(tab.columns)}
 
-            for i in range(iterations):
-                # tqdm update
-                if iter_bar is not None:
-                    iter_bar.update(1)
-
-                # draw for each sample
-                for cnr, smp in enumerate(smplist):
-                    richness = int(richnesslist[cnr])
-                    reads = int(readslist[cnr])
-
-                    if richness == 0:
-                        continue
-
-                    #Randomly select features matching richness based on randomization scheme
-                    if randomization in {"abundance", "weighting"}:
-                        rows = rng.choice(SV_index_list, size=richness, replace=False, p=abund_p)
-                    else:  # frequency
-                        rows = rng.choice(SV_index_list, size=richness, replace=False, p=freq_p)
-
-                    randomized[i].loc[rows, smp] = 1 #Set count to 1 for selected features (rows)
-
-                    # additional draws to match read counts
-                    extra_draws = reads - richness
-                    if extra_draws > 0:
-                        # probabilities proportional to abundance within selected rows
-                        sub_abund = abund_series.loc[rows].to_numpy()
-                        sub_total = float(sub_abund.sum())
-                        if sub_total > 0:
-                            sub_p = sub_abund / sub_total
-                        else:
-                            sub_p = np.full_like(sub_abund, 1.0 / len(sub_abund), dtype=float)
-
-                        randomchoice = rng.choice(rows, size=extra_draws, replace=True, p=sub_p)
-                        # count unique occurrences
-                        unique_rows, counts = np.unique(randomchoice, return_counts=True)
-                        randomized[i].loc[unique_rows, smp] += counts
-
-        if iter_bar is not None:
-            iter_bar.close()
-        return randomized
-
-    # --- compute observed beta diversity -----------------------------------
-    if div_type == "Bray":
-        betadiv = bray(tab)
-    elif div_type == "Jaccard":
-        betadiv = jaccard(tab)
-    elif div_type == "naive":
-        betadiv = naive_beta(tab, q=q)
-    elif div_type == "phyl":
-        betadiv = phyl_beta(input_dict, q=q)
-    elif div_type == "func":
-        betadiv = func_beta(tab, distmat, q=q)  # type: ignore
-    else:
+    # --- Helper: compute beta-diversity for a table (dispatch)
+    def _beta_for_table(t: pd.DataFrame) -> pd.DataFrame:
+        if div_type.lower() == "bray":
+            return bray(t)
+        if div_type.lower() == "jaccard":
+            return jaccard(t)
+        if div_type == "naive":
+            return naive_beta(t, q=q)
+        if div_type == "phyl":
+            return phyl_beta({"tab": t, "tree": tree}, q=q)
+        if div_type == "func":
+            return func_beta(t, distmat, q=q)
         raise ValueError("Unsupported div_type. Choose among {'Jaccard','Bray','naive','phyl','func'}.")
 
-    # --- randomize and compare ---------------------------------------------
-    randomtabs = _randomize_tabs()
+    # --- Observed beta-diversity
+    obs_beta = _beta_for_table(tab)
+    obs_arr = obs_beta.to_numpy()
 
-    n_samples = len(tab.columns)
-    random_beta_all = np.zeros((n_samples, n_samples, iterations), dtype=np.float64)
-    RC_tab = pd.DataFrame(0.0, index=tab.columns, columns=tab.columns)
+    # --- Streaming accumulators (S × S)
+    mu = np.zeros_like(obs_arr, dtype=np.float64)   # null mean
+    M2 = np.zeros_like(obs_arr, dtype=np.float64)   # for variance
+    count_lt = np.zeros_like(obs_arr, dtype=np.int64)  # p-index counts (null < obs)
+    count_eq = np.zeros_like(obs_arr, dtype=np.int64)  # p-index ties
 
-    comp_bar = None
-    if show_progress:
-        comp_bar = _get_tqdm(use_tqdm)(
-            total=iterations,
-            desc="Comparing beta diversity",
+    # --- Iteration loop
+    for t in tqdm(
+            range(1, iterations + 1),
+            desc="iterations",
             unit="iter",
             leave=False,
-        )
+            ncols=80,
+            ascii=True,
+            mininterval=0.5,
+            position=0,
+            miniters=1,
+    ):
+        # fresh randomized table (zeros)
+        rtab = pd.DataFrame(0, index=tab.index, columns=tab.columns, dtype=np.int64)
 
-    for i in range(iterations):
-        rtab = randomtabs[i]
-        if div_type == "Bray":
-            randombeta = bray(rtab)
-        elif div_type == "Jaccard":
-            randombeta = jaccard(rtab)
-        elif div_type == "naive":
-            randombeta = naive_beta(rtab, q=q)
-        elif div_type == "phyl":
-            randombeta = phyl_beta({'tab':rtab, 'tree': input_dict["tree"]}, q=q)
-        elif div_type == "func":
-            randombeta = func_beta(rtab, distmat, q=q)
-        else:
-            raise RuntimeError("Inconsistent div_type during randomization comparison.")
+        # randomize within each group
+        for mode, smp_list, sel_p, abund_series in group_specs:
+            # shared pre-objects
+            features_arr = np.array(features, dtype=object)
+            smp_cols = smp_list
 
-        random_beta_all[:, :, i] = randombeta.to_numpy()
+            for smp in smp_cols:
+                sidx = smp_index[smp]
+                richness = int(richness_vec[sidx])
+                reads = int(reads_vec[sidx])
+                if richness <= 0 or reads <= 0:
+                    continue
 
-        # Raup–Crick counting
-        mask_gt = betadiv > randombeta
-        RC_tab[mask_gt] = RC_tab[mask_gt] + 1
-        mask_eq = betadiv == randombeta
-        RC_tab[mask_eq] = RC_tab[mask_eq] + 0.5
+                # 1) draw a set of taxa of size 'richness' without replacement
+                rows = rng.choice(features_arr, size=richness, replace=False, p=sel_p)
 
-        if comp_bar is not None:
-            comp_bar.update(1)
+                # mark presence (1) for selected taxa
+                rtab.loc[rows, smp] = 1
 
-    if comp_bar is not None:
-        comp_bar.close()
+                # 2) allocate extra reads to match total counts
+                extra = reads - richness
+                if extra > 0:
+                    # probabilities within the selected set proportional to group abundance
+                    sub_abund = abund_series.loc[rows].to_numpy(dtype=float)
+                    sub_total = float(sub_abund.sum())
+                    if sub_total > 0:
+                        sub_p = sub_abund / sub_total
+                    else:
+                        sub_p = np.full(len(rows), 1.0 / len(rows), dtype=float)
+                    # sample with replacement and accumulate counts
+                    draws = rng.choice(rows, size=extra, replace=True, p=sub_p)
+                    uniq, cnts = np.unique(draws, return_counts=True)
+                    rtab.loc[uniq, smp] += cnts
 
-    # finalize matrices
-    RC_tab = RC_tab.div(iterations)
-    obs_beta = betadiv.to_numpy()
-    null_mean_arr = random_beta_all.mean(axis=2)
-    null_std_arr = random_beta_all.std(axis=2)
+        # compute null beta for this iteration
+        null_beta = _beta_for_table(rtab)
+        x = null_beta.to_numpy()
 
-    # safe SES computation
-    ses_df_arr = np.full_like(null_mean_arr, np.nan, dtype=np.float64)
-    valid = null_std_arr > 0
-    ses_df_arr[valid] = (null_mean_arr[valid] - obs_beta[valid]) / null_std_arr[valid]
+        # --- Welford updates
+        delta = x - mu
+        mu += delta / t
+        M2 += delta * (x - mu)
 
-    null_mean = pd.DataFrame(null_mean_arr, index=RC_tab.index, columns=RC_tab.columns)
-    null_std = pd.DataFrame(null_std_arr, index=RC_tab.index, columns=RC_tab.columns)
-    ses_df = pd.DataFrame(ses_df_arr, index=RC_tab.index, columns=RC_tab.columns)
+        # --- p-index bookkeeping (Raup–Crick)
+        count_lt += (x < obs_arr)
+        count_eq += (x == obs_arr)
 
-    out: Dict[str, pd.DataFrame] = {}
+    # --- Finalize statistics
+    denom_var = max(1, iterations - 1)
+    null_mean = mu
+    null_std = np.sqrt(np.maximum(M2 / denom_var, 0.0))
+    p = (count_lt + 0.5 * count_eq) / iterations
 
-    if compare_by is None:
-        out["div_type"] = div_type + "_q=" + str(q)
-        out["obs_d"] = betadiv
-        out["p"] = RC_tab
-        out["null_mean"] = null_mean
-        out["null_std"] = null_std
-        out["ses"] = ses_df
-    else:
-        # category-level averaging
-        indexlist = RC_tab.index.tolist()
-        cats = pd.unique(meta[compare_by])  # type: ignore
-        out_RCavg = pd.DataFrame(0.0, index=cats, columns=cats)
-        out_RCstd = pd.DataFrame(0.0, index=cats, columns=cats)
-        out_nullavg = pd.DataFrame(0.0, index=cats, columns=cats)
-        out_nullstd = pd.DataFrame(0.0, index=cats, columns=cats)
-        out_sesavg = pd.DataFrame(0.0, index=cats, columns=cats)
-        out_sesstd = pd.DataFrame(0.0, index=cats, columns=cats)
-        out_obsavg = pd.DataFrame(0.0, index=cats, columns=cats)
-        out_obsstd = pd.DataFrame(0.0, index=cats, columns=cats)
+    with np.errstate(invalid="ignore", divide="ignore"):
+        ses_arr = np.where(null_std > 0, (null_mean - obs_arr) / null_std, np.nan)
 
-        # only evaluate upper triangle and mirror
-        for c1_idx in range(len(cats) - 1):
-            c1 = cats[c1_idx]
-            s1list = meta.index[meta[compare_by] == c1]  # type: ignore
-            for c2_idx in range(c1_idx + 1, len(cats)):
-                c2 = cats[c2_idx]
-                s2list = meta.index[meta[compare_by] == c2]  # type: ignore
-
-                RC_list: List[float] = []
-                null_list: List[np.ndarray] = []
-                ses_list: List[float] = []
-                obs_list: List[float] = []
-
-                for s1 in s1list:
-                    s1pos = indexlist.index(s1)
-                    for s2 in s2list:
-                        s2pos = indexlist.index(s2)
-                        RC_list.append(float(RC_tab.loc[s1, s2]))
-                        null_list.append(random_beta_all[s1pos, s2pos, :])
-                        ses_list.append(float(ses_df.loc[s1, s2]))
-                        obs_list.append(float(betadiv.loc[s1, s2]))
-
-                # mean/std
-                out_RCavg.loc[c1, c2] = np.mean(RC_list) if len(RC_list) else np.nan
-                out_nullavg.loc[c1, c2] = np.mean(null_list) if len(null_list) else np.nan
-                out_sesavg.loc[c1, c2] = np.mean(ses_list) if len(ses_list) else np.nan
-                out_obsavg.loc[c1, c2] = np.mean(obs_list) if len(obs_list) else np.nan
-
-                out_RCstd.loc[c1, c2] = np.std(RC_list) if len(RC_list) else np.nan
-                out_nullstd.loc[c1, c2] = np.std(null_list) if len(null_list) else np.nan
-                out_sesstd.loc[c1, c2] = np.std(ses_list) if len(ses_list) else np.nan
-                out_obsstd.loc[c1, c2] = np.std(obs_list) if len(obs_list) else np.nan
-
-                # symmetry fill
-                out_RCavg.loc[c2, c1] = out_RCavg.loc[c1, c2]
-                out_nullavg.loc[c2, c1] = out_nullavg.loc[c1, c2]
-                out_sesavg.loc[c2, c1] = out_sesavg.loc[c1, c2]
-                out_obsavg.loc[c2, c1] = out_obsavg.loc[c1, c2]
-
-                out_RCstd.loc[c2, c1] = out_RCstd.loc[c1, c2]
-                out_nullstd.loc[c2, c1] = out_nullstd.loc[c1, c2]
-                out_sesstd.loc[c2, c1] = out_sesstd.loc[c1, c2]
-                out_obsstd.loc[c2, c1] = out_obsstd.loc[c1, c2]
-
-        out["div_type"] = div_type
-        out["obs_d_mean"] = out_obsavg
-        out["obs_d_std"] = out_obsstd
-        out["p_mean"] = out_RCavg
-        out["p_std"] = out_RCstd
-        out["null_mean"] = out_nullavg
-        out["null_std"] = out_nullstd
-        out["ses_mean"] = out_sesavg
-        out["ses_std"] = out_sesstd
-
+    # --- Pack DataFrames
+    index_cols = tab.columns.tolist()
+    out = {
+        "div_type": f"{div_type}_q={q}" if div_type in {"naive", "phyl", "func"} else div_type,
+        "obs_d":    pd.DataFrame(obs_arr, index=index_cols, columns=index_cols),
+        "p":        pd.DataFrame(p,       index=index_cols, columns=index_cols),
+        "null_mean":pd.DataFrame(null_mean, index=index_cols, columns=index_cols),
+        "null_std": pd.DataFrame(null_std,  index=index_cols, columns=index_cols),
+        "ses":      pd.DataFrame(ses_arr,   index=index_cols, columns=index_cols),
+    }
     return out
 
-
 # ---------------------------------------------------------------------------
-# NRIq
+# MPDq and NRIq
 # ---------------------------------------------------------------------------
 def nriq(
     obj: Union[Dict[str, Any], Any],
@@ -453,7 +302,6 @@ def nriq(
     q: float = 1.0,
     iterations: int = 999,
     randomization: Literal["features", "abundances"] = "features",
-    show_progress: bool = True,
     use_tqdm: bool = True,
     random_state: Optional[Union[int, np.random.Generator]] = None,
 ) -> pd.DataFrame:
@@ -474,8 +322,6 @@ def nriq(
     randomization : {'features', 'abundances'}, default='features'
         Randomization strategy. Shuffle features in the phylogenetic tree
         or relative abundance values in each sample.
-    show_progress : bool, default=True
-        Show progress bar/messages.
     use_tqdm : bool, default=True
         Use tqdm for progress bars.
     random_state : int or np.random.Generator, optional
@@ -488,8 +334,15 @@ def nriq(
         - 'MPDq'
         - 'null_mean'
         - 'null_std'
-        - 'p'
-        - 'ses'
+        - 'p'        (Pr[ null < observed ] + 0.5*ties) / iterations
+        - 'ses'      (null_mean - observed) / null_std
+
+    Notes
+    -----
+    - A p value close to zero means that the observed MPD is lower than the null expectation
+    - A p value close to one means that the observed MPD is higher than the null expectation
+    - A positive ses means that the observed MPD is lower than the null expectation
+    - A negative ses means that the observed MPD is higher than the null expectation
 
     References
     ----------
@@ -506,68 +359,105 @@ def nriq(
         raise ValueError(
             f"distmat must include all feature ids from tab.index. Missing count: {len(missing)} (e.g., {missing[:5]})"
         )
-    distmat = distmat.loc[tab.index, tab.index]
+
+    smplist = tab.columns
+    D = distmat.loc[tab.index, tab.index].to_numpy()
+    R = (tab / tab.sum(axis=0)).to_numpy()          
+    if q == 1.0:
+        Rq = R
+    else:
+        mask = R > 0
+        Rq = R.copy()
+        Rq[mask] = np.power(Rq[mask], q)
+
+    def _alpha_mpdq(_D, _Rq):
+        # sum_i w_i
+        z = _Rq.sum(axis=0)
+    
+        # full numerator w^T D w  (includes diagonal)
+        num_full = (_Rq * (_D @ _Rq)).sum(axis=0)
+    
+        w2 = (_Rq * _Rq).sum(axis=0)
+        den = z*z - w2      # denominator excluding diagonal
+    
+        present_counts = (_Rq > 0).sum(axis=0)  # (S,)
+        too_small = present_counts < 2          # boolean mask
+
+        out = np.full_like(den, np.nan, dtype=float)
+        valid = (~too_small) & (den > 0)
+    
+        out[valid] = num_full[valid] / den[valid]
+        return out
+    
+
+    present_counts = (R > 0).sum(axis=0)  # shape (S,)
+    obs = _alpha_mpdq(D, Rq)
+    obs[present_counts < 2] = np.nan
+
+    # streaming stats init
+    n = Rq.shape[1]
+    mu = np.zeros(n, dtype=np.float64)
+    M2 = np.zeros(n, dtype=np.float64)
+    count_lt = np.zeros(n, dtype=np.int64)
+    count_eq = np.zeros(n, dtype=np.int64)
 
     rng = random_state if isinstance(random_state, np.random.Generator) else np.random.default_rng(random_state)
     tqdm = _get_tqdm(use_tqdm)
 
-    def get_dmean(ra_series: pd.Series, dm: pd.DataFrame) -> float:
-        ras = ra_series[ra_series > 0]
-        if ras.empty:
-            return np.nan
-        pp = np.outer(ras.to_numpy(), ras.to_numpy())
-        pp[pp > 0] = pp[pp > 0] ** q
-        sum_denom = float(pp.sum())
-        dm_sub = dm.loc[ras.index, ras.index].to_numpy()
-        mean_d = float((pp * dm_sub).sum()) / sum_denom if sum_denom > 0 else np.nan
-        return mean_d
+    if iterations < 1:
+        return(pd.DataFrame({"MPDq": obs}, index=smplist))
+    if randomization not in {"features", "abundances"}:
+        raise ValueError("randomization must be 'features' or 'abundances'.")
 
-    ra = tab / tab.sum()
-    smplist = ra.columns
-    output = pd.DataFrame(np.nan, index=smplist, columns=["MPDq", "null_mean", "null_std", "p", "ses"])
-
-    # observed
-    for smp in smplist:
-        output.loc[smp, "MPDq"] = get_dmean(ra[smp], distmat)
-
-    # null permutations
-    darr = np.empty((len(smplist), iterations), dtype=np.float64)
-    bar = tqdm(total=iterations, desc="NRIq null permutations", unit="iter", leave=False) if show_progress else None
-
-    for i in range(iterations):
+    # null loop
+    for t in tqdm(
+            range(1, iterations + 1),
+            desc="iterations",
+            unit="iter",
+            leave=False,
+            ncols=80,
+            ascii=True,
+            mininterval=0.5,
+            position=0,
+            miniters=1,
+    ):
         if randomization == "features":
-            # Shuffle the labels of the distance matrix (tip label permutation)
-            svlist = distmat.index.tolist()
-            rng.shuffle(svlist)
-            dm_random = pd.DataFrame(distmat.to_numpy(), index=svlist, columns=svlist)
-            for j, smp in enumerate(smplist):
-                darr[j, i] = get_dmean(ra[smp], dm_random)
+            # permute features once and apply to all samples (permute rows of Rq)
+            perm = rng.permutation(Rq.shape[0])
+            Rq_perm = Rq[perm, :]
+            x = _alpha_mpdq(D, Rq_perm)
         elif randomization == "abundances":
-            # Shuffle abundances within each sample (column)
-            ra_shuffled = ra.copy()
-            for col in ra_shuffled.columns:
-                ra_shuffled[col] = rng.permutation(ra_shuffled[col].values)
-            for j, smp in enumerate(smplist):
-                darr[j, i] = get_dmean(ra_shuffled[smp], distmat)
-        else:
-            raise ValueError("randomization must be 'features' or 'abundances'")
-        if bar is not None:
-            bar.update(1)
-    if bar is not None:
-        bar.close()
+            # shuffle abundances within each sample (permute rows per column)
+            # permute a view of Rq columnwise
+            Rq_perm = np.empty_like(Rq)
+            for j in range(n):
+                Rq_perm[:, j] = Rq[rng.permutation(Rq.shape[0]), j]
+            x = _alpha_mpdq(D, Rq_perm)
+    
+        # Welford updates
+        delta = x - mu
+        mu += delta / t
+        M2 += delta * (x - mu)
+    
+        # p-index counts vs observed
+        count_lt += (x < obs)
+        count_eq += (x == obs)
+    
+    null_mean = mu
+    null_std = np.sqrt(np.maximum(M2 / max(1, (iterations - 1)), 0.0))
+    p = (count_lt + 0.5 * count_eq) / iterations
+    ses = np.where(null_std > 0, (null_mean - obs) / null_std, np.nan)
 
-    # stats
-    for j, smp in enumerate(smplist):
-        null_mean = float(darr[j, :].mean())
-        null_std = float(darr[j, :].std())
-        output.loc[smp, "null_mean"] = null_mean
-        output.loc[smp, "null_std"] = null_std
-        obs = float(output.loc[smp, "MPDq"])
-        p_index = (len(darr[j, :][darr[j, :] < obs]) + 0.5 * len(darr[j, :][darr[j, :] == obs])) / len(darr[j, :])
-        output.loc[smp, "p"] = p_index
-        if null_std > 0:
-            output.loc[smp, "ses"] = (null_mean - obs) / null_std
-
+    output = pd.DataFrame(
+        {
+            "MPDq":      obs,
+            "null_mean": null_mean,
+            "null_std":  null_std,
+            "p":         p,
+            "ses":       ses,
+        },
+        index=smplist
+    )
     return output
 
 # ---------------------------------------------------------------------------
@@ -580,16 +470,14 @@ def ntiq(
     q: float = 1.0,
     iterations: int = 999,
     randomization: Literal["features", "abundances"] = "features",
-    show_progress: bool = True,
     use_tqdm: bool = True,
     random_state: Optional[Union[int, np.random.Generator]] = None,
 ) -> pd.DataFrame:
     """
     Nearest Taxon Index (NTI) with q-weighting of relative abundances.
-
-    Computes MNTD_q (mean nearest taxon distance with q-weighted abundances),
-    contrasts against a null distribution obtained by label permutations of
-    the distance matrix or by shuffling abundances within each sample.
+    Computes MNTD_q (mean nearest-taxon distance with q-weighted abundances),
+    then compares to a null obtained by either permuting feature labels
+    ("features") or shuffling abundances within each sample ("abundances").
 
     Parameters
     ----------
@@ -600,12 +488,10 @@ def ntiq(
     q : float, default=1.0
         Order of diversity weighting applied to relative abundances.
     iterations : int, default=999
-        Number of random permutations.
+        Number of random permutations of distmat.
     randomization : {'features', 'abundances'}, default='features'
         Randomization strategy. Shuffle features in the phylogenetic tree
         or relative abundance values in each sample.
-    show_progress : bool, default=True
-        Show progress bar/messages.
     use_tqdm : bool, default=True
         Use tqdm for progress bars.
     random_state : int or np.random.Generator, optional
@@ -614,83 +500,154 @@ def ntiq(
     Returns
     -------
     pandas.DataFrame
-        Columns: 'MNTDq', 'null_mean', 'null_std', 'p', 'ses'.
+        Indexed by sample names with columns:
+        - 'MNTDq'
+        - 'null_mean'
+        - 'null_std'
+        - 'p'        (Pr[ null < observed ] + 0.5*ties) / iterations
+        - 'ses'      (null_mean - observed) / null_std
 
-    References
-    ----------
-    Webb et al. (2002) *American Naturalist*.
+    Notes
+    -----
+    - A p value close to zero means that the observed MPNTD is lower than the null expectation
+    - A p value close to one means that the observed MNTD is higher than the null expectation
+    - A positive ses means that the observed MNTD is lower than the null expectation
+    - A negative ses means that the observed MNTD is higher than the null expectation
     """
+    # --- Input & alignment ---
     tab = get_df(obj, "tab")
     if tab is None or tab.empty:
-        raise ValueError("obj must contain a non-empty pandas DataFrame under key 'tab'.")
-
+        raise ValueError("obj must contain a pandas DataFrame under key 'tab'.")
     if not set(tab.index).issubset(set(distmat.index)) or not set(tab.index).issubset(set(distmat.columns)):
         missing = sorted(list(set(tab.index) - set(distmat.index)))
         raise ValueError(
             f"distmat must include all feature ids from tab.index. Missing count: {len(missing)} (e.g., {missing[:5]})"
         )
-    distmat = distmat.loc[tab.index, tab.index]
+
+    smplist = tab.columns
+    D = distmat.loc[tab.index, tab.index].to_numpy()  # (N x N)
+    # Relative abundances
+    R = (tab / tab.sum(axis=0)).to_numpy(dtype=float)  # (N x S)
+
+    # q-weighting (only for positive entries)
+    if q == 1.0:
+        Rq = R
+    else:
+        Rq = R.copy()
+        mask_pos = Rq > 0
+        Rq[mask_pos] = np.power(Rq[mask_pos], q)
+
+    N, S = Rq.shape
+
+    # --- Helper: compute vector of MNTD_q for all samples in one go ---
+    # For each sample s:
+    #  1) take presence mask m = (R[:, s] > 0)
+    #  2) within D[m, m], set diagonal to +inf and take rowwise min -> dmin (per-present feature)
+    #  3) aggregate: sum( w_i^q * dmin_i ) / sum( w_i^q ) where w_i = R[:, s]
+    def _mntdq_all(D: np.ndarray, R_used: np.ndarray, Rq_used: np.ndarray) -> np.ndarray:
+        S = R_used.shape[1]
+        out = np.full(S, np.nan, dtype=float)
+        for s in range(S):
+            m = R_used[:, s] > 0.0
+            k = int(m.sum())
+            if k < 2:
+                out[s] = np.nan
+                continue
+            # then:
+            D_sub = D[np.ix_(m, m)].copy()
+            np.fill_diagonal(D_sub, np.inf)
+            dmin = D_sub.min(axis=1)
+
+            # q-weighted aggregation
+            wq = Rq_used[m, s]
+            denom = float(wq.sum())
+            if denom > 0.0:
+                out[s] = float((wq * dmin).sum() / denom)
+            else:
+                out[s] = np.nan
+        return out
+
+    # --- Observed MNTD_q ---
+    obs = _mntdq_all(D, R, Rq)
+
+    # --- Streaming (Welford) statistics over null iterations ---
+    mu = np.zeros(S, dtype=np.float64)       # null_mean (per sample)
+    M2 = np.zeros(S, dtype=np.float64)       # for variance
+    count_lt = np.zeros(S, dtype=np.int64)   # for p-index
+    count_eq = np.zeros(S, dtype=np.int64)
 
     rng = random_state if isinstance(random_state, np.random.Generator) else np.random.default_rng(random_state)
     tqdm = _get_tqdm(use_tqdm)
 
-    def get_dmin(ra_series: pd.Series, dm: pd.DataFrame) -> float:
-        ras = ra_series[ra_series > 0]
-        if ras.empty:
-            return np.nan
-        dm_sub = dm.loc[ras.index, ras.index]
-        # nearest neighbor distance per SV (exclude 0 distances)
-        dmin = dm_sub.where(dm_sub > 0).min(axis=1)
-        ras_q = ras.pow(q)
-        denom = float(ras_q.sum())
-        if denom == 0:
-            return np.nan
-        return float((ras_q * dmin).sum() / denom)
+    if iterations < 1:
+        return(pd.DataFrame({"MNTDq": obs}, index=smplist))
+    if randomization not in {"features", "abundances"}:
+        raise ValueError("randomization must be 'features' or 'abundances'.")
 
-    ra = tab / tab.sum()
-    smplist = ra.columns
-    output = pd.DataFrame(np.nan, index=smplist, columns=["MNTDq", "null_mean", "null_std", "p", "ses"])
+    # Null loop
+    for t in tqdm(
+            range(1, iterations + 1),
+            desc="iterations",
+            unit="iter",
+            leave=False,
+            ncols=80,
+            ascii=True,
+            mininterval=0.5,
+            position=0,
+            miniters=1,
+    ):
 
-    # observed
-    for smp in smplist:
-        output.loc[smp, "MNTDq"] = get_dmin(ra[smp], distmat)
-
-    # null permutations
-    darr = np.empty((len(smplist), iterations), dtype=np.float64)
-    bar = tqdm(total=iterations, desc="NTIq null permutations", unit="iter", leave=False) if show_progress else None
-
-    for i in range(iterations):
         if randomization == "features":
-            svlist = distmat.index.tolist()
-            rng.shuffle(svlist)
-            dm_random = pd.DataFrame(distmat.to_numpy(), index=svlist, columns=svlist)
-            for j, smp in enumerate(smplist):
-                darr[j, i] = get_dmin(ra[smp], dm_random)
-        elif randomization == "abundances":
-            ra_shuffled = ra.copy()
-            for col in ra_shuffled.columns:
-                ra_shuffled[col] = rng.permutation(ra_shuffled[col].values)
-            for j, smp in enumerate(smplist):
-                darr[j, i] = get_dmin(ra_shuffled[smp], distmat)
-        else:
-            raise ValueError("randomization must be 'features' or 'abundances'")
-        if bar is not None:
-            bar.update(1)
-    if bar is not None:
-        bar.close()
+            # Permute feature identities once per iteration (relabels rows of Rq)
+            perm = rng.permutation(N)
+            R_perm = R[perm, :]
+            if q == 1.0:
+                Rq_perm = R_perm
+            else:
+                Rq_perm = R_perm.copy()
+                posp = Rq_perm > 0.0
+                Rq_perm[posp] = np.power(Rq_perm[posp], q)
+            x = _mntdq_all(D, R_perm, Rq_perm)
+        else:  # "abundances"
+            R_perm = np.empty_like(R)
+            for j in range(R.shape[1]):
+                R_perm[:, j] = R[rng.permutation(R.shape[0]), j]
+            if q == 1.0:
+                Rq_perm = R_perm
+            else:
+                Rq_perm = R_perm.copy()
+                posp = Rq_perm > 0.0
+                Rq_perm[posp] = np.power(Rq_perm[posp], q)
+            x = _mntdq_all(D, R_perm, Rq_perm)
 
-    # stats
-    for j, smp in enumerate(smplist):
-        null_mean = float(darr[j, :].mean())
-        null_std = float(darr[j, :].std())
-        output.loc[smp, "null_mean"] = null_mean
-        output.loc[smp, "null_std"] = null_std
-        obs = float(output.loc[smp, "MNTDq"])
-        p_index = (np.sum(darr[j, :] < obs) + 0.5 * np.sum(darr[j, :] == obs)) / len(darr[j, :])
-        output.loc[smp, "p"] = p_index
-        if null_std > 0:
-            output.loc[smp, "ses"] = (null_mean - obs) / null_std
+        # --- Welford updates (vectorized) ---
+        delta = x - mu
+        mu += delta / t
+        M2 += delta * (x - mu)
 
+        # --- p-index bookkeeping against observed ---
+        # count how often null < obs, with 0.5 for ties
+        count_lt += (x < obs)
+        count_eq += (x == obs)
+
+    # Finalize stats
+    null_mean = mu
+    # population std estimate across iterations: sqrt(M2 / max(1, iterations-1))
+    null_std = np.sqrt(np.maximum(M2 / max(1, (iterations - 1)), 0.0))
+    p = (count_lt + 0.5 * count_eq) / iterations
+    ses = np.where(null_std > 0, (null_mean - obs) / null_std, np.nan)
+
+    # Pack results
+    output = pd.DataFrame(
+        {
+            "MNTDq": obs,
+            "null_mean": null_mean,
+            "null_std": null_std,
+            "p": p,
+            "ses": ses,
+        },
+        index=smplist,
+    )
     return output
 
 # ---------------------------------------------------------------------------
@@ -703,16 +660,13 @@ def beta_nriq(
     q: float = 1.0,
     iterations: int = 999,
     randomization: Literal["features", "abundances"] = "features",
-    show_progress: bool = True,
     use_tqdm: bool = True,
     random_state: Optional[Union[int, np.random.Generator]] = None,
 ) -> Dict[str, pd.DataFrame]:
     """
-    Pairwise beta-NRI (q-weighted) between samples.
-
-    Computes beta-MPD_q between sample pairs and contrasts against a null
-    distribution obtained by label permutations of the distance matrix or by
-    shuffling abundances within each sample.
+    Computes beta-MPD_q for all sample pairs, then contrasts against a null
+    generated by (a) feature label permutations ("features") or
+    (b) within-sample abundance shuffles ("abundances").
 
     Parameters
     ----------
@@ -723,12 +677,10 @@ def beta_nriq(
     q : float, default=1.0
         Order of diversity weighting applied to relative abundances.
     iterations : int, default=999
-        Number of random permutations.
+        Number of random permutations of distmat.
     randomization : {'features', 'abundances'}, default='features'
         Randomization strategy. Shuffle features in the phylogenetic tree
         or relative abundance values in each sample.
-    show_progress : bool, default=True
-        Show progress bar/messages.
     use_tqdm : bool, default=True
         Use tqdm for progress bars.
     random_state : int or np.random.Generator, optional
@@ -736,14 +688,22 @@ def beta_nriq(
 
     Returns
     -------
-    dict
-        DataFrames (sample x sample): 'beta_MPDq', 'null_mean', 'null_std',
-        'p', and 'ses'.
+    dict of pandas.DataFrame (S x S):
+        'beta_MPDq' : observed beta-MPD_q
+        'null_mean' : mean of null beta-MPD_q
+        'null_std'  : std  of null beta-MPD_q
+        'p'         : (count(null < obs) + 0.5 * ties) / iterations
+        'ses'       : (null_mean - obs) / null_std
 
-    References
-    ----------
-    Webb et al. (2002); Stegen et al. (2013).
+    Notes
+    -----
+    - Returns a dataframe with observed beta_MPDq if iterations=0, otherwise a dictionary is returned
+    - A p value close to zero means that the observed MPD between samples is lower than the null expectation
+    - A p value close to one means that the observed MPD between samples is higher than the null expectation
+    - A positive ses means that the observed MPD between samples is lower than the null expectation
+    - A negative ses means that the observed MPD between samples is higher than the null expectation
     """
+    # --- Input & alignment ---
     tab = get_df(obj, "tab")
     if tab is None or tab.empty:
         raise ValueError("obj must contain a non-empty pandas DataFrame under key 'tab'.")
@@ -751,92 +711,114 @@ def beta_nriq(
     if not set(tab.index).issubset(set(distmat.index)) or not set(tab.index).issubset(set(distmat.columns)):
         missing = sorted(list(set(tab.index) - set(distmat.index)))
         raise ValueError(
-            f"distmat must include all feature ids from tab.index. Missing count: {len(missing)} (e.g., {missing[:5]})"
+            f"distmat must include all feature ids from tab.index. "
+            f"Missing count: {len(missing)} (e.g., {missing[:5]})"
         )
-    distmat = distmat.loc[tab.index, tab.index]
+
+    smplist = tab.columns
+    D = distmat.loc[tab.index, tab.index].to_numpy()  # (N x N), float
+    # Relative abundances (N x S)
+    R = (tab / tab.sum(axis=0)).to_numpy(dtype=float)
+
+    # q-weighting: only positives are powered (consistent with your nriq)
+    if q == 1.0:
+        Rq = R
+    else:
+        Rq = R.copy()
+        mask_pos = Rq > 0.0
+        Rq[mask_pos] = np.power(Rq[mask_pos], q)
+
+    N, S = Rq.shape
+
+    # --- Observed beta-MPD_q for all pairs (vectorized) ---
+    # obs[s,t] = sum_{i,j} Rq[i,s] * D[i,j] * Rq[j,t] / (sum_i Rq[i,s] * sum_j Rq[j,t])
+    M_obs = D @ Rq                 # (N x S)
+    num_obs = Rq.T @ M_obs         # (S x S)
+    z = Rq.sum(axis=0)             # (S,)
+    den_obs = z[:, None] * z[None, :]  # (S x S)
+    with np.errstate(invalid="ignore", divide="ignore"):
+        obs = num_obs / den_obs
+
+    # --- Streaming (Welford) over null iterations ---
+    mu = np.zeros((S, S), dtype=np.float64)
+    M2 = np.zeros((S, S), dtype=np.float64)
+    count_lt = np.zeros((S, S), dtype=np.int64)
+    count_eq = np.zeros((S, S), dtype=np.int64)
 
     rng = random_state if isinstance(random_state, np.random.Generator) else np.random.default_rng(random_state)
     tqdm = _get_tqdm(use_tqdm)
 
-    def get_bdmean(ra_pair: pd.DataFrame, dm: pd.DataFrame) -> float:
-        rap = ra_pair[ra_pair.sum(axis=1) > 0]
-        if rap.empty:
-            return np.nan
-        smp1, smp2 = rap.columns.tolist()
-        ra1 = rap[smp1].to_numpy()
-        ra2 = rap[smp2].to_numpy()
-        pp = np.outer(ra1, ra2)
-        pp[pp > 0] = pp[pp > 0] ** q
-        sum_denom = float(pp.sum())
-        dm_sub = dm.loc[rap.index, rap.index].to_numpy()
-        mean_d = float((pp * dm_sub).sum()) / sum_denom if sum_denom > 0 else np.nan
-        return mean_d
+    if iterations < 1:
+        df_obs = pd.DataFrame(obs, index=smplist, columns=smplist)
+        np.fill_diagonal(df_obs.to_numpy(), np.nan)
+        return df_obs
+    if randomization not in {"features", "abundances"}:
+        raise ValueError("randomization must be 'features' or 'abundances'.")
 
-    ra = tab / tab.sum()
-    smplist = ra.columns
+    for t in tqdm(
+            range(1, iterations + 1),
+            desc="iterations",
+            unit="iter",
+            leave=False,
+            ncols=80,
+            ascii=True,
+            mininterval=0.5,
+            position=0,
+            miniters=1,
+    ):
+        if randomization == "features":
+            # Permute feature identities once; apply to all samples
+            perm = rng.permutation(N)
+            Rq_perm = Rq[perm, :]
+        else:  # "abundances"
+            # Shuffle abundances independently within each sample (permute rows per column)
+            Rq_perm = np.empty_like(Rq)
+            for j in range(S):
+                Rq_perm[:, j] = Rq[rng.permutation(N), j]
 
-    outputMPD = pd.DataFrame(np.nan, index=smplist, columns=smplist)
-    outputNRI = pd.DataFrame(np.nan, index=smplist, columns=smplist)
-    outputAvg = pd.DataFrame(np.nan, index=smplist, columns=smplist)
-    outputStd = pd.DataFrame(np.nan, index=smplist, columns=smplist)
-    outputP = pd.DataFrame(np.nan, index=smplist, columns=smplist)
+        # Null beta-MPD_q (vectorized)
+        M_null = D @ Rq_perm
+        num_null = Rq_perm.T @ M_null
+        z_null = Rq_perm.sum(axis=0)
+        den_null = z_null[:, None] * z_null[None, :]
 
-    total_pairs = (len(smplist) * (len(smplist) - 1)) // 2
-    bar = tqdm(total=total_pairs, desc="beta-NRIq pairs", unit="pair", leave=False) if show_progress else None
+        with np.errstate(invalid="ignore", divide="ignore"):
+            x = num_null / den_null  # (S x S)
 
-    # upper triangle iteration
-    for i in range(len(smplist) - 1):
-        smp1 = smplist[i]
-        for j in range(i + 1, len(smplist)):
-            smp2 = smplist[j]
-            ra_sub = ra[[smp1, smp2]].copy()
-            obs_val = get_bdmean(ra_sub, distmat)
-            outputMPD.loc[smp1, smp2] = obs_val
-            outputMPD.loc[smp2, smp1] = obs_val
+        # Welford
+        delta = x - mu
+        mu += delta / t
+        M2 += delta * (x - mu)
 
-            darr = np.empty(iterations, dtype=np.float64)
-            for x in range(iterations):
-                if randomization == "features":
-                    svlist = distmat.index.tolist()
-                    rng.shuffle(svlist)
-                    dm_random = pd.DataFrame(distmat.to_numpy(), index=svlist, columns=svlist)
-                    darr[x] = get_bdmean(ra_sub, dm_random)
-                elif randomization == "abundances":
-                    ra_shuffled = ra_sub.copy()
-                    for col in ra_shuffled.columns:
-                        ra_shuffled[col] = rng.permutation(ra_shuffled[col].values)
-                    darr[x] = get_bdmean(ra_shuffled, distmat)
-                else:
-                    raise ValueError("randomization must be 'features' or 'abundances'")
+        # p-index vs observed
+        count_lt += (x < obs)
+        count_eq += (x == obs)
 
-            pval = (np.sum(darr < obs_val) + 0.5 * np.sum(darr == obs_val)) / len(darr)
-            outputP.loc[smp1, smp2] = pval
-            outputP.loc[smp2, smp1] = pval
+    # Finalize stats
+    denom_var = max(1, iterations - 1)
+    null_mean = mu
+    null_std = np.sqrt(np.maximum(M2 / denom_var, 0.0))
+    p = (count_lt + 0.5 * count_eq) / iterations
+    with np.errstate(invalid="ignore", divide="ignore"):
+        ses = np.where(null_std > 0, (null_mean - obs) / null_std, np.nan)
 
-            dstd = float(darr.std())
-            if dstd > 0:
-                bNTI_val = (float(darr.mean()) - obs_val) / dstd
-                outputNRI.loc[smp1, smp2] = bNTI_val
-                outputNRI.loc[smp2, smp1] = bNTI_val
+    # Build DataFrames
+    idxcols = list(smplist)
+    df_obs = pd.DataFrame(obs, index=idxcols, columns=idxcols)
+    df_mean = pd.DataFrame(null_mean, index=idxcols, columns=idxcols)
+    df_std = pd.DataFrame(null_std, index=idxcols, columns=idxcols)
+    df_p = pd.DataFrame(p, index=idxcols, columns=idxcols)
+    df_ses = pd.DataFrame(ses, index=idxcols, columns=idxcols)
 
-            mean_val = float(darr.mean())
-            outputAvg.loc[smp1, smp2] = mean_val
-            outputAvg.loc[smp2, smp1] = mean_val
-            outputStd.loc[smp1, smp2] = dstd
-            outputStd.loc[smp2, smp1] = dstd
-
-            if bar is not None:
-                bar.update(1)
-
-    if bar is not None:
-        bar.close()
+    for df in (df_obs, df_mean, df_std, df_p, df_ses):
+        np.fill_diagonal(df.values, np.nan)
 
     return {
-        "beta_MPDq": outputMPD,
-        "null_mean": outputAvg,
-        "null_std": outputStd,
-        "p": outputP,
-        "ses": outputNRI,
+        "beta_MPDq": df_obs,
+        "null_mean": df_mean,
+        "null_std": df_std,
+        "p": df_p,
+        "ses": df_ses,
     }
 
 # ---------------------------------------------------------------------------
@@ -848,147 +830,248 @@ def beta_ntiq(
     *,
     q: float = 1.0,
     iterations: int = 999,
+    include_conspecifics: bool = False,
     randomization: Literal["features", "abundances"] = "features",
-    show_progress: bool = True,
     use_tqdm: bool = True,
     random_state: Optional[Union[int, np.random.Generator]] = None,
 ) -> Dict[str, pd.DataFrame]:
     """
-    Pairwise beta-NTI (Stegen et al., 2013) with q-weighting of abundances.
+    Computes beta-MNTD_q (mean nearest-taxon distance with q-weighted abundances)
+    for all sample pairs, then contrasts the observed matrix against a null
+    distribution generated by randomization:
 
-    Computes beta-MNTD_q between sample pairs, contrasts against a null
-    distribution obtained by label permutations of the distance matrix or by
-    shuffling abundances within each sample, and returns per-pair statistics.
+        - randomization="features": permute feature identities (rows) identically across samples
+        - randomization="abundances": shuffle abundances within each sample (column-wise)
+
+    The null distribution is aggregated online using Welford updates, yielding
+    per-pair null mean, null std, tie-aware p-index, and standardized effect size.
 
     Parameters
     ----------
-    obj : MicrobiomeData, dict, or compatible object
-        Input data. Must provide at least an abundance table ('tab').
-    distmat : pd.DataFrame
-        Square distance matrix indexed/columned by feature ids.
+    obj : MicrobiomeData | dict | Any
+        Input with at least an abundance table under key 'tab'.
+    distmat : pandas.DataFrame
+        Square distance matrix (features × features) whose index/columns include `tab.index`.
     q : float, default=1.0
-        Order of diversity weighting applied to relative abundances.
+        Diversity order used to weight relative abundances (applied only to strictly positive entries).
     iterations : int, default=999
-        Number of random permutations.
-    randomization : {'features', 'abundances'}, default='features'
-        Randomization strategy. Shuffle features in the phylogenetic tree
-        or relative abundance values in each sample.
-    show_progress : bool, default=True
-        Show progress bar/messages.
+        Number of randomization iterations used to build the null distribution.
+    include_conspecifics : bool, default=False
+        Determines whether conspecifics (identical features shared between samples) are allowed 
+        to contribute zero-distance matches in the nearest-taxon calculation.
+    randomization : {"features", "abundances"}, default="features"
+        Randomization strategy for the null model:
+          - "features": permute feature identities identically for all samples (tip-label permutation).
+          - "abundances": shuffle abundances within each sample (column-wise permutation).
     use_tqdm : bool, default=True
-        Use tqdm for progress bars.
-    random_state : int or np.random.Generator, optional
-        Random seed or generator for reproducibility.
+        Use `tqdm` for progress bars (a lightweight stub is used if `tqdm` is unavailable).
+    random_state : int | numpy.random.Generator, optional
+        Random seed or Generator for reproducibility.
 
     Returns
     -------
-    dict
-        DataFrames (sample x sample): 'beta_MNTDq', 'null_mean', 'null_std',
-        'p', and 'ses'.
+    dict of pandas.DataFrame
+        Full (samples × samples) matrices:
+          - 'beta_MNTDq' : observed beta-MNTD_q
+          - 'null_mean'  : mean of null beta-MNTD_q
+          - 'null_std'   : std  of null beta-MNTD_q
+          - 'p'          : (count(null < observed) + 0.5 * ties) / iterations
+          - 'ses'        : (null_mean - observed) / null_std
+        Diagonal entries are set to NaN.
+
+    Notes
+    -----
+    - Returns a dataframe with observed beta_MNTDq if iterations=0, otherwise a dictionary is returned
+    - A p value close to zero means that the observed MNTD between samples is lower than the null expectation
+    - A p value close to one means that the observed MNTD between samples is higher than the null expectation
+    - A positive ses means that the observed MNTD between samples is lower than the null expectation
+    - A negative ses means that the observed MNTD between samples is higher than the null expectation
 
     References
     ----------
-    Stegen et al. (2013) *ISME Journal*.
+    Webb et al. (2002) American Naturalist.
+    Stegen et al. (2013) ISME Journal.
     """
+    # ---- Input & alignment ----
     tab = get_df(obj, "tab")
     if tab is None or tab.empty:
         raise ValueError("obj must contain a non-empty pandas DataFrame under key 'tab'.")
-
     if not set(tab.index).issubset(set(distmat.index)) or not set(tab.index).issubset(set(distmat.columns)):
         missing = sorted(list(set(tab.index) - set(distmat.index)))
         raise ValueError(
             f"distmat must include all feature ids from tab.index. Missing count: {len(missing)} (e.g., {missing[:5]})"
         )
-    distmat = distmat.loc[tab.index, tab.index]
+
+    smplist = tab.columns
+    D = distmat.loc[tab.index, tab.index].to_numpy(copy=True)  # (N x N), float
+    # Relative abundances (N x S), allowing potential NaNs if a column sums to zero
+    R = (tab / tab.sum(axis=0)).to_numpy(dtype=float)          # (N x S)
+    N, S = R.shape
+
+    # q-weighting on positives only (consistent with nriq)
+    if q == 1.0:
+        Rq = R.copy()
+    else:
+        Rq = R.copy()
+        pos = Rq > 0.0
+        Rq[pos] = np.power(Rq[pos], q)
+
+    # Column totals of q-weighted abundances per sample
+    z = Rq.sum(axis=0)  # (S,)
+    # Where z == 0, we will later produce NaN divisions
+
+    # ---- Helper: compute full directed MNTD_q matrices in a vectorized way ----
+    # Given presence mask B (N x S, boolean) and q-weights Rq (N x S),
+    # we need two N×S "nearest-to-set" mats:
+    #   Delta_col[:, t] = min over j in sample t (D[:, j])
+    #   Delta_row[:, s] = min over i in sample s (D[i, :])
+    # Then
+    #   A = (Rq.T @ Delta_col) / z[:, None]            # s → t
+    #   B = ((Rq.T @ Delta_row).T) / z[None, :]        # t → s
+    # beta_MNTD_q = 0.5 * (A + B)
+
+    def _delta_col_row(D: np.ndarray, B: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+        """Compute Delta_col (N × S) and Delta_row (N × S) with optional
+        exclusion of conspecifics (i == j)."""
+    
+        Delta_col = np.full((N, S), np.nan, dtype=float)
+        Delta_row = np.full((N, S), np.nan, dtype=float)
+    
+        for t in range(S):
+            mask_t = B[:, t]
+            if not np.any(mask_t):
+                continue
+    
+            sub = D[:, mask_t]         # (N × k)
+            if not include_conspecifics:
+                # If feature i is present in sample t, set its self-distance to +inf
+                diag_mask = np.zeros_like(sub, dtype=bool)
+                diag_indices = np.where(mask_t)[0]
+                diag_mask[diag_indices, np.arange(len(diag_indices))] = True
+                sub = sub.copy()
+                sub[diag_mask] = np.inf
+    
+            Delta_col[:, t] = sub.min(axis=1)
+    
+        for s in range(S):
+            mask_s = B[:, s]
+            if not np.any(mask_s):
+                continue
+    
+            sub = D[mask_s, :]         # (k × N)
+            if not include_conspecifics:
+                diag_indices = np.where(mask_s)[0]
+                sub = sub.copy()
+                sub[np.arange(len(diag_indices)), diag_indices] = np.inf
+    
+            Delta_row[:, s] = sub.min(axis=0)
+    
+        return Delta_col, Delta_row
+
+    def _beta_mntdq_full(D: np.ndarray, R: np.ndarray, Rq: np.ndarray) -> np.ndarray:
+        """Observed (or null) full-matrix beta-MNTD_q from D, R (presence), and Rq (q-weights)."""
+        B = R > 0.0  # presence/absence for each sample
+        Delta_col, Delta_row = _delta_col_row(D, B)
+
+        # Clean directed matrices
+        Delta_col = np.nan_to_num(Delta_col, nan=0.0, posinf=0.0, neginf=0.0)
+        Delta_row = np.nan_to_num(Delta_row, nan=0.0, posinf=0.0, neginf=0.0)
+
+        # Numerators for directed terms
+        A_num = Rq.T @ Delta_col                # (S x S)
+        B_num = (Rq.T @ Delta_row).T            # (S x S) via transpose for (t → s)
+
+        # Denominators (broadcast)
+        with np.errstate(invalid="ignore", divide="ignore"):
+            A = A_num / z[:, None]
+            Bdir = B_num / z[None, :]
+            beta = 0.5 * (A + Bdir)
+        return beta
+
+    # ---- Observed beta-MNTD_q ----
+    obs = _beta_mntdq_full(D, R, Rq)  # (S x S)
+
+    # ---- Streaming (Welford) over null iterations ----
+    mu = np.zeros((S, S), dtype=np.float64)
+    M2 = np.zeros((S, S), dtype=np.float64)
+    count_lt = np.zeros((S, S), dtype=np.int64)
+    count_eq = np.zeros((S, S), dtype=np.int64)
 
     rng = random_state if isinstance(random_state, np.random.Generator) else np.random.default_rng(random_state)
     tqdm = _get_tqdm(use_tqdm)
 
-    def bMNTDq(ra_pair: pd.DataFrame, dm: pd.DataFrame) -> float:
-        rap = ra_pair.copy()
-        rap = rap[rap.sum(axis=1) > 0]
-        if rap.empty:
-            return np.nan
+    if iterations < 1:
+        df_obs = pd.DataFrame(obs, index=smplist, columns=smplist)
+        np.fill_diagonal(df_obs.to_numpy(), np.nan)
+        return df_obs
+    if randomization not in {"features", "abundances"}:
+        raise ValueError("randomization must be 'features' or 'abundances'.")
 
-        rap[rap > 0] = rap[rap > 0].pow(q)
-        sum_denom = rap.sum().tolist()
-        smp1, smp2 = rap.columns.tolist()
+    for t in tqdm(
+            range(1, iterations + 1),
+            desc="iterations",
+            unit="iter",
+            leave=False,
+            ncols=80,
+            ascii=True,
+            mininterval=0.5,
+            position=0,
+            miniters=1,
+    ):
 
-        ra1 = rap[smp1][rap[smp1] > 0]
-        ra2 = rap[smp2][rap[smp2] > 0]
-        dm_sub = dm.loc[ra1.index, ra2.index]
+        if randomization == "features":
+            # Permute feature identities identically across samples
+            perm = rng.permutation(N)
+            R_perm = R[perm, :]
+        else:  # "abundances"
+            # Shuffle abundances within each sample (column-wise)
+            R_perm = np.empty_like(R)
+            for j in range(S):
+                R_perm[:, j] = R[rng.permutation(N), j]
 
-        # nearest neighbor distances for each SV to the opposite sample SV set
-        ra1 = ra1.mul(dm_sub.min(axis=1))
-        ra2 = ra2.mul(dm_sub.min(axis=0))
+        # Recompute q-weights from the permuted R (keeps presence mask consistent with R)
+        if q == 1.0:
+            Rq_perm = R_perm
+        else:
+            Rq_perm = R_perm.copy()
+            posp = Rq_perm > 0.0
+            Rq_perm[posp] = np.power(Rq_perm[posp], q)
 
-        denom1 = float(sum_denom[0]) if sum_denom[0] > 0 else np.nan
-        denom2 = float(sum_denom[1]) if sum_denom[1] > 0 else np.nan
+        x = _beta_mntdq_full(D, R_perm, Rq_perm)  # (S x S) null draw
 
-        return 0.5 * (float(ra1.sum()) / denom1 + float(ra2.sum()) / denom2)
+        # Welford updates
+        delta = x - mu
+        mu += delta / t
+        M2 += delta * (x - mu)
 
-    ra = tab / tab.sum()
-    smplist = ra.columns
+        # p-index bookkeeping
+        count_lt += (x < obs)
+        count_eq += (x == obs)
 
-    outputMNTD = pd.DataFrame(np.nan, index=smplist, columns=smplist)
-    outputNTI = pd.DataFrame(np.nan, index=smplist, columns=smplist)
-    outputAvg = pd.DataFrame(np.nan, index=smplist, columns=smplist)
-    outputStd = pd.DataFrame(np.nan, index=smplist, columns=smplist)
-    outputP = pd.DataFrame(np.nan, index=smplist, columns=smplist)
+    # Finalize stats
+    denom_var = max(1, iterations - 1)
+    null_mean = mu
+    null_std = np.sqrt(np.maximum(M2 / denom_var, 0.0))
+    p = (count_lt + 0.5 * count_eq) / iterations
+    with np.errstate(invalid="ignore", divide="ignore"):
+        ses = np.where(null_std > 0, (null_mean - obs) / null_std, np.nan)
 
-    total_pairs = (len(smplist) * (len(smplist) - 1)) // 2
-    bar = tqdm(total=total_pairs, desc="beta-NTIq pairs", unit="pair", leave=False) if show_progress else None
+    # Build DataFrames
+    idxcols = list(smplist)
+    df_obs = pd.DataFrame(obs, index=idxcols, columns=idxcols)
+    df_mean = pd.DataFrame(null_mean, index=idxcols, columns=idxcols)
+    df_std = pd.DataFrame(null_std, index=idxcols, columns=idxcols)
+    df_p = pd.DataFrame(p, index=idxcols, columns=idxcols)
+    df_ses = pd.DataFrame(ses, index=idxcols, columns=idxcols)
 
-    for i in range(len(smplist) - 1):
-        smp1 = smplist[i]
-        for j in range(i + 1, len(smplist)):
-            smp2 = smplist[j]
-            ra_sub = ra[[smp1, smp2]].copy()
-            obs_val = bMNTDq(ra_sub, distmat)
-            outputMNTD.loc[smp1, smp2] = obs_val
-            outputMNTD.loc[smp2, smp1] = obs_val
-
-            darr = np.empty(iterations, dtype=np.float64)
-            for x in range(iterations):
-                if randomization == "features":
-                    svlist = distmat.index.tolist()
-                    rng.shuffle(svlist)
-                    dm_random = pd.DataFrame(distmat.to_numpy(), index=svlist, columns=svlist)
-                    darr[x] = bMNTDq(ra_sub, dm_random)
-                elif randomization == "abundances":
-                    ra_shuffled = ra_sub.copy()
-                    for col in ra_shuffled.columns:
-                        ra_shuffled[col] = rng.permutation(ra_shuffled[col].values)
-                    darr[x] = bMNTDq(ra_shuffled, distmat)
-                else:
-                    raise ValueError("randomization must be 'features' or 'abundances'")
-
-            pval = (np.sum(darr < obs_val) + 0.5 * np.sum(darr == obs_val)) / len(darr)
-            outputP.loc[smp1, smp2] = pval
-            outputP.loc[smp2, smp1] = pval
-
-            dstd = float(darr.std())
-            if dstd > 0:
-                bNTI_val = (float(darr.mean()) - obs_val) / dstd
-                outputNTI.loc[smp1, smp2] = bNTI_val
-                outputNTI.loc[smp2, smp1] = bNTI_val
-
-            mean_val = float(darr.mean())
-            outputAvg.loc[smp1, smp2] = mean_val
-            outputAvg.loc[smp2, smp1] = mean_val
-            outputStd.loc[smp1, smp2] = dstd
-            outputStd.loc[smp2, smp1] = dstd
-
-            if bar is not None:
-                bar.update(1)
-
-    if bar is not None:
-        bar.close()
+    # Set diagonals to NaN for all outputs (consistent with prior beta-* functions)
+    for df in (df_obs, df_mean, df_std, df_p, df_ses):
+        np.fill_diagonal(df.to_numpy(), np.nan)
 
     return {
-        "beta_MNTDq": outputMNTD,
-        "null_mean": outputAvg,
-        "null_std": outputStd,
-        "p": outputP,
-        "ses": outputNTI,
+        "beta_MNTDq": df_obs,
+        "null_mean": df_mean,
+        "null_std": df_std,
+        "p": df_p,
+        "ses": df_ses,
     }

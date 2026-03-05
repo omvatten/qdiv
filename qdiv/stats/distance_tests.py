@@ -9,7 +9,8 @@ Public API:
 
 import pandas as pd
 import numpy as np
-import random
+from numpy.linalg import matrix_rank, pinv
+import warnings
 from typing import Literal, List, Union, Dict, Any, Sequence
 from ..utils import get_df
 from pandas.api.types import (
@@ -28,12 +29,39 @@ __all__ = [
 # -----------------------------------------------------------------------------
 # Mantel
 # -----------------------------------------------------------------------------
+def _rank_vector(a: np.ndarray) -> np.ndarray:
+    """
+    Fast rank (average ranks for ties) using NumPy only.
+    """
+    # argsort twice trick
+    order = np.argsort(a, kind="mergesort")                  # stable
+    ranks = np.empty_like(order, dtype=float)
+    ranks[order] = np.arange(1, a.size + 1, dtype=float)     # 1..m
+
+    # handle ties -> average ranks
+    # find groups of equal values in sorted order
+    s = a[order]
+    # run-length encoding
+    diff = np.ones_like(s, dtype=bool)
+    diff[1:] = s[1:] != s[:-1]
+    idx_start = np.flatnonzero(diff)
+    idx_end = np.r_[idx_start[1:], s.size]                   # exclusive end
+
+    for b, e in zip(idx_start, idx_end):
+        if e - b > 1:
+            # average rank for the block b..e-1
+            avg = (b + 1 + e) / 2.0
+            ranks[order[b:e]] = avg
+    return ranks
+
 def mantel(
     dis1: pd.DataFrame,
     dis2: pd.DataFrame,
     method: Literal["spearman", "pearson", "absDist"] = "spearman",
     getOnlyStat: bool = False,
-    permutations: int = 999
+    permutations: int = 999,
+    *,
+    random_state: Union[int, np.random.Generator, None] = None,
 ) -> Union[float, List[float]]:
     """
     Perform a Mantel test between two dissimilarity matrices.
@@ -72,210 +100,921 @@ def mantel(
     - For correlation methods, the statistic is expressed as a *dissimilarity*
       (1 − r or 1 − ρ), so **smaller values indicate stronger similarity**.
     """
-
-    # --- Input validation ----------------------------------------------------
     if not isinstance(dis1, pd.DataFrame) or not isinstance(dis2, pd.DataFrame):
         raise TypeError("dis1 and dis2 must be pandas DataFrames.")
-
     if dis1.shape != dis2.shape:
         raise ValueError("dis1 and dis2 must have the same shape.")
-
     if method not in {"spearman", "pearson", "absDist"}:
         raise ValueError("method must be 'spearman', 'pearson', or 'absDist'.")
 
-    # --- Align matrices by sorted sample names -------------------------------
+    # --- align to identical label order (sorted) like your current function ---
     samples = sorted(dis1.columns.tolist())
     dis1 = dis1.loc[samples, samples]
     dis2 = dis2.loc[samples, samples]
 
-    # --- Helper: compute Mantel statistic ------------------------------------
-    def get_stat(mat1: pd.DataFrame, mat2: pd.DataFrame) -> float:
-        mask = np.tril(np.ones(mat1.shape, dtype=bool), k=-1)
+    # --- convert to ndarray and extract lower triangle (k=-1) once ---
+    A = dis1.to_numpy(dtype=float, copy=False)
+    B = dis2.to_numpy(dtype=float, copy=False)
+    n = A.shape[0]
+    if n < 2:
+        # no pairs
+        return 0.0 if getOnlyStat else [0.0, 1.0]
 
-        v1 = mat1.values[mask]
-        v2 = mat2.values[mask]
+    tril_i, tril_j = np.tril_indices(n, k=-1)
+    v1 = A[tril_i, tril_j].astype(float, copy=True)
+    v2 = B[tril_i, tril_j].astype(float, copy=True)
 
-        if method in ("spearman", "pearson"):
-            dfcorr = pd.DataFrame({"x": v1, "y": v2})
-            corr = dfcorr.corr(method=method).loc["x", "y"]
-            return 1 - corr  # convert similarity → dissimilarity
+    # --- observed statistic ---
+    if method == "absDist":
+        obs = float(np.mean(np.abs(v1 - v2)))
+        if getOnlyStat:
+            return obs
+    else:
+        if method == "pearson":
+            # z-score once
+            v1_mean, v1_std = v1.mean(), v1.std(ddof=1)
+            v2_mean, v2_std = v2.mean(), v2.std(ddof=1)
+            z1 = (v1 - v1_mean) / v1_std
+            z2 = (v2 - v2_mean) / v2_std
+            obs_r = float((z1 @ z2) / (z1.size - 1))
+        else:  # spearman
+            r1 = _rank_vector(v1)
+            r2 = _rank_vector(v2)
+            r1_mean, r1_std = r1.mean(), r1.std(ddof=1)
+            r2_mean, r2_std = r2.mean(), r2.std(ddof=1)
+            z1 = (r1 - r1_mean) / r1_std
+            z2 = (r2 - r2_mean) / r2_std
+            obs_r = float((z1 @ z2) / (z1.size - 1))
+        # convert similarity -> dissimilarity like your code
+        obs = 1.0 - obs_r
+        if getOnlyStat:
+            return obs
 
-        elif method == "absDist":
-            return np.mean(np.abs(v1 - v2))
-
-    # --- Observed statistic ---------------------------------------------------
-    real_stat = get_stat(dis1, dis2)
-    if getOnlyStat:
-        return real_stat
-
-    # --- Permutation test -----------------------------------------------------
+    # --- permutations (NumPy RNG, no pandas in loop) ---
+    rng = random_state if isinstance(random_state, np.random.Generator) else np.random.default_rng(random_state)
     null_stats = np.empty(permutations, dtype=float)
 
-    for i in range(permutations):
-        perm = samples.copy()
-        random.shuffle(perm)
+    if method == "absDist":
+        # absDist doesn't need z-scores
+        for b in range(permutations):
+            perm = rng.permutation(n)
+            v1p = A[perm][:, perm][tril_i, tril_j]
+            null_stats[b] = np.mean(np.abs(v1p - v2))
+    elif method == "pearson":
+        # z2 fixed; z1 permutes as values permute (mean/std invariant)
+        for b in range(permutations):
+            perm = rng.permutation(n)
+            v1p = A[perm][:, perm][tril_i, tril_j]
+            z1p = (v1p - v1_mean) / v1_std
+            r = (z1p @ z2) / (z1p.size - 1)
+            null_stats[b] = 1.0 - r
+    else:  # spearman
+        # r2 fixed; need ranks of v1_perm each time (ties handled)
+        for b in range(permutations):
+            perm = rng.permutation(n)
+            v1p = A[perm][:, perm][tril_i, tril_j]
+            r1p = _rank_vector(v1p)
+            # Pearson on ranks
+            r1p_m, r1p_s = r1p.mean(), r1p.std(ddof=1)
+            z1p = (r1p - r1p_m) / r1p_s
+            r = (z1p @ z2) / (z1p.size - 1)
+            null_stats[b] = 1.0 - r
 
-        # permute rows and columns of dis1
-        perm_dis1 = dis1.loc[perm, perm]
+    # one-sided p-value (proportion of permuted stats <= observed), +1 correction
+    p = (np.sum(null_stats <= obs) + 1) / (permutations + 1)
+    return [obs, p]
 
-        null_stats[i] = get_stat(perm_dis1, dis2)
 
-    # For correlation-based stats: smaller = stronger association
-    # p-value = proportion of permuted stats <= observed
-    # (two-sided is not used here; Mantel is typically one-sided)
-    p_val = (np.sum(null_stats <= real_stat) + 1) / (permutations + 1)
+# def mantel(
+#     dis1: pd.DataFrame,
+#     dis2: pd.DataFrame,
+#     method: Literal["spearman", "pearson", "absDist"] = "spearman",
+#     getOnlyStat: bool = False,
+#     permutations: int = 999
+# ) -> Union[float, List[float]]:
+#     """
+#     Perform a Mantel test between two dissimilarity matrices.
 
-    return [real_stat, p_val]
+#     The Mantel test evaluates the association between two distance/dissimilarity
+#     matrices by comparing their lower‑triangular entries. A permutation test
+#     is used to assess significance by randomly permuting sample labels in one
+#     matrix.
+
+#     Parameters
+#     ----------
+#     dis1 : pandas.DataFrame
+#         First square dissimilarity matrix (samples × samples).
+#     dis2 : pandas.DataFrame
+#         Second square dissimilarity matrix (samples × samples).
+#     method : {'spearman', 'pearson', 'absDist'}, default='spearman'
+#         Correlation/dissimilarity measure:
+#         - 'spearman' : Spearman rank correlation (returns 1 − ρ)
+#         - 'pearson'  : Pearson correlation (returns 1 − r)
+#         - 'absDist'  : Mean absolute difference between distances
+#     getOnlyStat : bool, default=False
+#         If True, return only the observed statistic (no permutations).
+#     permutations : int, default=999
+#         Number of permutations for the null distribution.
+
+#     Returns
+#     -------
+#     float or list [statistic, p_value]
+#         - If getOnlyStat=True: returns the observed statistic.
+#         - Otherwise: returns [observed_statistic, p_value].
+
+#     Notes
+#     -----
+#     - Matrices are automatically reordered to have identical sample order.
+#     - Only the lower triangular part (excluding diagonal) is used.
+#     - For correlation methods, the statistic is expressed as a *dissimilarity*
+#       (1 − r or 1 − ρ), so **smaller values indicate stronger similarity**.
+#     """
+
+#     # --- Input validation ----------------------------------------------------
+#     if not isinstance(dis1, pd.DataFrame) or not isinstance(dis2, pd.DataFrame):
+#         raise TypeError("dis1 and dis2 must be pandas DataFrames.")
+
+#     if dis1.shape != dis2.shape:
+#         raise ValueError("dis1 and dis2 must have the same shape.")
+
+#     if method not in {"spearman", "pearson", "absDist"}:
+#         raise ValueError("method must be 'spearman', 'pearson', or 'absDist'.")
+
+#     # --- Align matrices by sorted sample names -------------------------------
+#     samples = sorted(dis1.columns.tolist())
+#     dis1 = dis1.loc[samples, samples]
+#     dis2 = dis2.loc[samples, samples]
+
+#     # --- Helper: compute Mantel statistic ------------------------------------
+#     def get_stat(mat1: pd.DataFrame, mat2: pd.DataFrame) -> float:
+#         mask = np.tril(np.ones(mat1.shape, dtype=bool), k=-1)
+
+#         v1 = mat1.values[mask]
+#         v2 = mat2.values[mask]
+
+#         if method in ("spearman", "pearson"):
+#             dfcorr = pd.DataFrame({"x": v1, "y": v2})
+#             corr = dfcorr.corr(method=method).loc["x", "y"]
+#             return 1 - corr  # convert similarity → dissimilarity
+
+#         elif method == "absDist":
+#             return np.mean(np.abs(v1 - v2))
+
+#     # --- Observed statistic ---------------------------------------------------
+#     real_stat = get_stat(dis1, dis2)
+#     if getOnlyStat:
+#         return real_stat
+
+#     # --- Permutation test -----------------------------------------------------
+#     null_stats = np.empty(permutations, dtype=float)
+
+#     for i in range(permutations):
+#         perm = samples.copy()
+#         random.shuffle(perm)
+
+#         # permute rows and columns of dis1
+#         perm_dis1 = dis1.loc[perm, perm]
+
+#         null_stats[i] = get_stat(perm_dis1, dis2)
+
+#     # For correlation-based stats: smaller = stronger association
+#     # p-value = proportion of permuted stats <= observed
+#     # (two-sided is not used here; Mantel is typically one-sided)
+#     p_val = (np.sum(null_stats <= real_stat) + 1) / (permutations + 1)
+
+#     return [real_stat, p_val]
 
 # -----------------------------------------------------------------------------
 # Permanova
 # -----------------------------------------------------------------------------
 def permanova(
     dis: pd.DataFrame,
-    meta: pd.DataFrame,
+    meta: Union[pd.DataFrame, Dict[str, Any], Any],
     by: Union[str, List[str]],
-    permutations: int = 999
+    *,
+    permutations: int = 999,
+    include_interaction: bool = False,
+    strata: Union[str, Sequence[str], None] = None,
+    seed: int | None = None,
+    perm_scheme: Literal["labels", "freedman-lane"] = "freedman-lane",
 ) -> Dict[str, Any]:
     """
-    Perform PERMANOVA (Permutational Multivariate Analysis of Variance).
-
-    This implementation supports:
-    - One‑way PERMANOVA (single categorical variable)
-    - Two‑way PERMANOVA with interaction (two categorical variables)
-
-    Distances are partitioned into within‑group and between‑group components
-    using sums of squares computed from the lower‑triangular entries of the
-    dissimilarity matrix. Significance is assessed by permuting sample labels.
+    PERMANOVA (Anderson, 2001) via projection matrices on the Gower‑centered
+    distance matrix. Supports one or two categorical factors (with optional
+    interaction) and stratified permutations (blocks). Tests are partial
+    (marginal), i.e., each term conditional on all other included terms.
 
     Parameters
     ----------
-    dis : pandas.DataFrame
-        Square dissimilarity matrix (samples × samples).
-    meta : pandas.DataFrame
-        Metadata table containing grouping variables (rows = samples).
-    by : str or list of str
-        One or two metadata column names defining the grouping.
-    permutations : int, default=999
+    dis : (n x n) pandas.DataFrame
+        Symmetric distance/dissimilarity matrix with identical row/column labels.
+    meta : DataFrame | dict | MicrobiomeData-like
+        Metadata with rows indexed by sample IDs matching dis.index.
+    by : str or list[str]
+        One or two column names in `meta` defining the factor(s).
+    permutations : int, default 999
         Number of permutations for the null distribution.
+    include_interaction : bool, default False
+        If len(by)==2 and both factors have >1 levels, include and test the interaction.
+    strata : str | list[str] | None
+        Column name(s) in `meta` defining permutation blocks (exchangeability strata).
+        When given, permutations are performed within each stratum only.
+    seed : int | None
+        Random seed for reproducible permutations.
+    perm_scheme : {'labels', 'freedman-lane'}, default 'labels'
+        - 'labels': classical label permutations (your current implementation).
+        - 'freedman-lane': residual-based permutation (permute residuals from the
+          reduced model for each tested term and refit to pseudo-response). This
+          makes main effects testable even when a factor is constant within strata.
 
     Returns
     -------
     dict
-        Dictionary containing:
-        - ``by`` : variable(s) tested
-        - ``F`` : array of F‑statistics (length 1 for one‑way, length 3 for two‑way)
-        - ``p`` : array of p‑values corresponding to each F‑statistic
-
-    Notes
-    -----
-    - Only the lower triangular part of the distance matrix is used.
-    - For two‑way PERMANOVA, the returned F‑statistics correspond to:
-        [main effect 1, main effect 2, interaction]
-    - p‑values are one‑sided (F_perm ≥ F_obs).
+        {
+          'by': [tested term names in order],
+          'table': pandas.DataFrame with index=['Term(s)', 'Residual'] and columns:
+                   ['df','SS','MS','F','p','R2'],
+          'permutations': int,
+          'strata': None | list[str],
+          'perm_scheme': str
+        }
     """
-
-    # --- Input validation ----------------------------------------------------
-    if not isinstance(dis, pd.DataFrame):
-        raise TypeError("dis must be a pandas DataFrame.")
-    if not isinstance(meta, pd.DataFrame):
-        raise TypeError("meta must be a pandas DataFrame.")
-    if dis.shape[0] != dis.shape[1]:
-        raise ValueError("dis must be a square matrix.")
+    # ---- validation / alignment ----
+    M = get_df(meta, "meta")
+    if not isinstance(M, pd.DataFrame) or M.empty:
+        raise ValueError("`meta` must be a non-empty pandas DataFrame.")
+    if not isinstance(dis, pd.DataFrame) or dis.shape[0] != dis.shape[1]:
+        raise ValueError("`dis` must be a square pandas DataFrame.")
     if not all(dis.index == dis.columns):
-        raise ValueError("dis must have identical row/column labels.")
-    if isinstance(by, list) and len(by) not in (1, 2):
-        raise ValueError("by must be a string or a list of length 1 or 2.")
+        raise ValueError("`dis` must have identical row and column labels.")
+    if isinstance(by, str):
+        by = [by]
+    if not (1 <= len(by) <= 2):
+        raise ValueError("`by` must be a str or a list of length 1 or 2.")
 
-    # Ensure metadata is aligned
-    meta = meta.loc[dis.index]
+    # Align metadata to the distance matrix order (do not reorder dis)
+    in_common = list(set(M.index).intersection(dis.index))
+    if len(in_common) < len(M.index) and len(in_common) == len(dis.index):
+        M = M.loc[dis.index]
+    elif len(in_common) < len(dis.index):
+        raise ValueError("Index in meta and dis are not identical.")
 
-    # --- Helper: compute sum of squares --------------------------------------
-    def get_SS(dist: pd.DataFrame, variable: str, metaSS: pd.DataFrame) -> float:
-        mask = np.tril(np.ones(dist.shape, dtype=bool), k=-1)
+    # Ensure categorical dtype for stable dummy coding
+    for b in by:
+        if b not in M.columns:
+            raise ValueError(f"Column '{b}' not found in metadata.")
+        if not pd.api.types.is_categorical_dtype(M[b]):
+            M[b] = M[b].astype("category")
 
-        # Total SS (no grouping)
-        if variable not in metaSS.columns:
-            vect = dist.values[mask]
-            return np.sum(vect ** 2) / len(dist)
-
-        # Grouped SS
-        SS = 0.0
-        for cat in metaSS[variable].unique():
-            idx = metaSS.index[metaSS[variable] == cat]
-            if len(idx) > 1:
-                sub = dist.loc[idx, idx]
-                vect = sub.values[np.tril(np.ones(sub.shape, dtype=bool), k=-1)]
-                SS += np.sum(vect ** 2) / len(idx)
-        return SS
-
-    # --- Helper: compute F‑statistics ----------------------------------------
-    def get_F(dist: pd.DataFrame, metaF: pd.DataFrame) -> np.ndarray:
-        SStot = get_SS(dist, "None", metaF)
-
-        # One‑way PERMANOVA
-        if isinstance(by, str) or (isinstance(by, list) and len(by) == 1):
-            v = by[0] if isinstance(by, list) else by
-            SSw = get_SS(dist, v, metaF)
-            SSa = SStot - SSw
-
-            dfa = metaF[v].nunique() - 1
-            dfw = len(dist) - metaF[v].nunique()
-
-            F = (SSa / dfa) / (SSw / dfw)
-            return np.array([F, np.nan, np.nan])
-
-        # Two‑way PERMANOVA
-        v1, v2 = by
-        mc = metaF.copy()
-        mc["interaction"] = mc[v1].astype(str) + mc[v2].astype(str)
-
-        SS1 = SStot - get_SS(dist, v1, mc)
-        SS2 = SStot - get_SS(dist, v2, mc)
-        SSr = get_SS(dist, "interaction", mc)
-
-        df1 = mc[v1].nunique() - 1
-        df2 = mc[v2].nunique() - 1
-        dfr = len(dist) - mc[v1].nunique() * mc[v2].nunique()
-
-        if SSr > 0:
-            SS12 = SStot - SS1 - SS2 - SSr
-            df12 = df1 * df2
-
-            F1 = (SS1 / df1) / (SSr / dfr)
-            F2 = (SS2 / df2) / (SSr / dfr)
-            F12 = (SS12 / df12) / (SSr / dfr)
-            return np.array([F1, F2, F12])
-
-        # No interaction variance
-        SSe = SStot - SS1 - SS2
-        dfe = df1 * df2
-
-        F1 = (SS1 / df1) / (SSe / dfe)
-        F2 = (SS2 / df2) / (SSe / dfe)
-        return np.array([F1, F2, np.nan])
-
-    # --- Observed F ----------------------------------------------------------
-    real_F = get_F(dis, meta)
-
-    # --- Permutation test ----------------------------------------------------
-    null_F = np.zeros((permutations, 3))
-    samples = dis.index.tolist()
-
-    for i in range(permutations):
-        perm = samples.copy()
-        random.shuffle(perm)
-        perm_dis = dis.loc[perm, perm]
-        null_F[i] = get_F(perm_dis, meta)
-
-    # p‑values: proportion of permuted F ≥ observed F
-    p_val = (np.sum(null_F >= real_F, axis=0) + 1) / (permutations + 1)
-    p_val[np.isnan(real_F)] = np.nan
-
-    # --- Output --------------------------------------------------------------
-    if isinstance(by, list):
-        return {"by": by, "F": real_F, "p": p_val}
+    # Normalize strata argument
+    if strata is not None:
+        if isinstance(strata, str):
+            strata_cols = [strata]
+        else:
+            strata_cols = list(strata)
+        if any(c not in M.columns for c in strata_cols):
+            missing = [c for c in strata_cols if c not in M.columns]
+            raise ValueError(f"strata columns not found in metadata: {missing}")
     else:
-        return {"by": by, "F": real_F[0], "p": p_val[0]}
+        strata_cols = None
+
+    if perm_scheme == "labels" and strata_cols is not None:
+        tested_terms = set(by) | (set([f"{by[0]}:{by[1]}"]) if len(by)==2 and include_interaction else set())
+        if any(s in tested_terms for s in strata_cols):
+            warnings.warn(
+                "The 'strata' include a tested term; its permutations are fixed. "
+                "P-values for that term will be uninformative (1.0/NaN).",
+                UserWarning
+            )
+
+    # ---- helpers ----
+    n = dis.shape[0]
+    I = np.eye(n, dtype=float)
+
+    def _rank(X: np.ndarray) -> int:
+        return 0 if X.size == 0 else int(matrix_rank(X))
+
+    def _hat(X: np.ndarray) -> np.ndarray:
+        if X.size == 0:
+            return np.zeros((n, n), dtype=float)
+        P = X @ pinv(X)  # numerically stable pseudo-hat
+        return (P + P.T) / 2.0
+
+    def _ss(H: np.ndarray, A: np.ndarray) -> float:
+        return float(np.trace(H @ A))
+
+    def _dummies(col: str, meta_df: pd.DataFrame) -> np.ndarray:
+        Z = pd.get_dummies(meta_df[col], drop_first=True)
+        return Z.to_numpy(dtype=float)
+
+    def _interaction_products(X1: np.ndarray, X2: np.ndarray) -> np.ndarray:
+        if X1.size == 0 or X2.size == 0:
+            return np.empty((n, 0), dtype=float)
+        return np.hstack(
+            [X1[:, [i]] * X2[:, [j]] for i in range(X1.shape[1]) for j in range(X2.shape[1])]
+        ).astype(float)
+
+    def _build_terms(meta_df: pd.DataFrame) -> list[tuple[str, np.ndarray]]:
+        terms: list[tuple[str, np.ndarray]] = []
+        Z0 = np.ones((n, 1), dtype=float)  # Intercept
+        terms.append(("Intercept", Z0))
+        if len(by) == 1:
+            terms.append((by[0], _dummies(by[0], meta_df)))
+        else:
+            v1, v2 = by
+            X1 = _dummies(v1, meta_df)
+            X2 = _dummies(v2, meta_df)
+            terms.append((v1, X1))
+            terms.append((v2, X2))
+            if include_interaction and meta_df[v1].nunique() > 1 and meta_df[v2].nunique() > 1:
+                X12 = _interaction_products(X1, X2)
+                terms.append((f"{v1}:{v2}", X12))
+        return terms
+
+    # ---- Gower centering ----
+    D2 = dis.to_numpy(dtype=float) ** 2
+    np.fill_diagonal(D2, 0.0)
+    D2 = (D2 + D2.T) / 2.0
+    G = I - np.ones((n, n), dtype=float) / n
+    A = -0.5 * (G @ D2 @ G)
+    total_SS = float(np.trace(A))
+
+    # ---- design & observed stats ----
+    terms = _build_terms(M)
+    X_all = np.concatenate([X for _, X in terms], axis=1) if terms else np.empty((n, 0))
+    r_all = _rank(X_all)
+    H_all = _hat(X_all)
+    H_res = I - H_all
+    SS_res = _ss(H_res, A)
+    df_res = n - r_all
+
+    if df_res <= 0:
+        rows = []
+        for name, X in terms:
+            if name == "Intercept":
+                continue
+            SS_t = np.nan
+            df_t = 0
+            rows.append([name, df_t, SS_t, np.nan, np.nan, np.nan, np.nan])
+        rows.append(["Residual", df_res, SS_res, np.nan, np.nan, np.nan,
+                     (SS_res / total_SS) if total_SS > 0 else np.nan])
+        out_df = pd.DataFrame(rows, columns=["term","df","SS","MS","F","p","R2"]).set_index("term")
+        return {"by": [t for t in out_df.index if t != "Residual"],
+                "table": out_df, "permutations": permutations,
+                "strata": (strata_cols if strata_cols else None),
+                "perm_scheme": perm_scheme}
+
+    rows = []
+    F_obs = []
+    df_list = []
+    # Cache per-term projections for re-use (also used by FL)
+    per_term_info: dict[str, dict[str, np.ndarray | int]] = {}
+
+    for i, (name_i, _) in enumerate(terms):
+        if name_i == "Intercept":
+            continue
+        X_others = np.concatenate([X for j, (nm, X) in enumerate(terms) if j != i], axis=1) \
+                   if len(terms) > 1 else np.empty((n, 0))
+        r_others = _rank(X_others)
+        H_others = _hat(X_others)
+        H_term = (H_all - H_others + (H_all - H_others).T) / 2.0
+        SS_t = _ss(H_term, A)
+        df_t = r_all - r_others
+        if df_t <= 0:
+            MS_t = F_t = np.nan
+        else:
+            MS_t = SS_t / df_t
+            MS_res = SS_res / df_res
+            F_t = MS_t / MS_res
+        R2_t = (SS_t / total_SS) if total_SS > 0 else np.nan
+        rows.append([name_i, df_t, SS_t, MS_t, F_t, np.nan, R2_t])
+        F_obs.append(F_t)
+        df_list.append(df_t)
+
+        # Store for later use (Freedman–Lane)
+        per_term_info[name_i] = {
+            "H_others": H_others,
+            "H_term": H_term,
+            "df_t": df_t,
+        }
+
+    rows.append(["Residual", df_res, SS_res, SS_res/df_res, np.nan, np.nan,
+                 (SS_res / total_SS) if total_SS > 0 else np.nan])
+    out_df = pd.DataFrame(rows, columns=["term","df","SS","MS","F","p","R2"]).set_index("term")
+
+    # ---- permutations ----
+    n_terms = len(F_obs)
+    if permutations and n_terms > 0:
+        rng = np.random.default_rng(seed)
+        F_null = np.zeros((permutations, n_terms), dtype=float)
+
+        # Helper: produce a permutation order (indices) respecting strata
+        # (for label permutations we permute meta, for FL we permute residuals A_resid)
+        index_to_pos = {lab: i for i, lab in enumerate(M.index)}
+
+        def _permute_order_within_strata() -> np.ndarray:
+            if strata_cols is None:
+                return rng.permutation(n)
+            order_list: list[int] = []
+            for _, grp in M.groupby(strata_cols, sort=False, observed=True):
+                pos = np.array([index_to_pos[idx] for idx in grp.index], dtype=int)
+                if pos.size <= 1:
+                    order_list.extend(pos.tolist())
+                else:
+                    perm_pos = pos[rng.permutation(pos.size)]
+                    order_list.extend(perm_pos.tolist())
+            return np.asarray(order_list, dtype=int)
+
+        # ------- Branch 1: classical label permutations -------
+        if perm_scheme == "labels":
+            # (This is your existing block, kept intact except minor refactoring)
+            def permute_meta_within_strata(M_in: pd.DataFrame) -> pd.DataFrame:
+                if strata_cols is None:
+                    order = rng.permutation(len(M_in))
+                    return M_in.iloc[order]
+                parts = []
+                for _, grp in M_in.groupby(strata_cols, sort=False, observed=True):
+                    idx = grp.index.to_numpy()
+                    if idx.size <= 1:
+                        parts.append(grp)
+                    else:
+                        perm = rng.permutation(idx.size)
+                        parts.append(grp.iloc[perm])
+                M_perm = pd.concat(parts, axis=0)
+                return M_perm.loc[M_in.index]
+
+            for b in range(permutations):
+                M_perm = permute_meta_within_strata(M)
+                terms_p = _build_terms(M_perm)
+                X_all_p = np.concatenate([X for _, X in terms_p], axis=1) if terms_p else np.empty((n, 0))
+                r_all_p = _rank(X_all_p)
+                H_all_p = _hat(X_all_p)
+                H_res_p = I - H_all_p
+                SS_res_p = _ss(H_res_p, A)
+                df_res_p = n - r_all_p
+                if df_res_p <= 0:
+                    F_null[b, :] = np.nan
+                    continue
+                term_names_p = [nm for nm, _ in terms_p if nm != "Intercept"]
+                for i, name_i in enumerate(out_df.index[:-1]):  # tested terms
+                    if name_i not in term_names_p:
+                        F_null[b, i] = np.nan
+                        continue
+                    X_others_p = np.concatenate(
+                        [X for (nm, X) in terms_p if nm not in ("Intercept", name_i)], axis=1
+                    ) if len(terms_p) > 2 else np.empty((n, 0))
+                    H_others_p = _hat(X_others_p)
+                    H_term_p = (H_all_p - H_others_p + (H_all_p - H_others_p).T) / 2.0
+                    SS_t_p = _ss(H_term_p, A)
+                    df_t_p = _rank(X_all_p) - _rank(X_others_p)
+                    if df_t_p <= 0:
+                        F_null[b, i] = np.nan
+                    else:
+                        MS_t_p = SS_t_p / df_t_p
+                        MS_res_p = SS_res_p / df_res_p
+                        F_null[b, i] = MS_t_p / MS_res_p
+
+        # ------- Branch 2: Freedman–Lane residual permutations -------
+        else:  # perm_scheme == "freedman-lane" (default)
+            # Precompute per-term components for FL: fitted (others) and residual (others)
+            per_term_FL: dict[str, dict[str, np.ndarray | int]] = {}
+            for name_i, info in per_term_info.items():
+                H_others_i = info["H_others"]
+                A_fit_others_i = H_others_i @ A @ H_others_i
+                R = (I - H_others_i) @ A @ (I - H_others_i)  # residuals of reduced model
+                # Symmetrize for numerical stability
+                R = (R + R.T) / 2.0
+                per_term_FL[name_i] = {
+                    "A_fit_others": A_fit_others_i,
+                    "R": R,
+                    "H_term": info["H_term"],
+                    "df_t": info["df_t"],
+                }
+
+            for b in range(permutations):
+                order = _permute_order_within_strata()
+                # For each term, build A* = A_fit(others) + P R P^T and compute F
+                for i, name_i in enumerate(out_df.index[:-1]):
+                    info = per_term_FL[name_i]
+                    df_t_i = info["df_t"]
+                    if df_t_i is None or df_t_i <= 0:
+                        F_null[b, i] = np.nan
+                        continue
+
+                    # Permute residuals of the reduced model
+                    R = info["R"]
+                    R_perm = R[order, :][:, order]  # P R P^T
+                    # Pseudo-response under H0 for the term
+                    A_star = info["A_fit_others"] + R_perm
+
+                    # Compute F using same H_term and H_res from observed design
+                    SS_t_star = _ss(info["H_term"], A_star)
+                    MS_t_star = SS_t_star / df_t_i
+                    SS_res_star = _ss(H_res, A_star)
+                    MS_res_star = SS_res_star / df_res
+                    F_null[b, i] = MS_t_star / MS_res_star
+
+        # ---- p-values with robustness checks ----
+        for i, name in enumerate(out_df.index[:-1]):
+            Fi = out_df.loc[name, "F"]
+            df_t = out_df.loc[name, "df"]
+            if not np.isfinite(Fi) or df_t <= 0:
+                out_df.loc[name, "p"] = np.nan
+                continue
+            perm_vals = F_null[:, i]
+            perm_vals = perm_vals[np.isfinite(perm_vals)]
+            if perm_vals.size == 0:
+                out_df.loc[name, "p"] = np.nan
+                continue
+            p = (np.sum(perm_vals >= Fi) + 1) / (perm_vals.size + 1)
+
+            if df_t > 0:
+                if perm_vals.size == 0:
+                    out_df.loc[name, "p"] = np.nan
+                    continue
+                if np.unique(np.round(perm_vals, 12)).size == 1:
+                    out_df.loc[name, "p"] = np.nan
+                    continue
+                if strata_cols is not None and any(
+                    (col == name or name.startswith(col + ":")) and
+                    any(len(g) <= 1 for _, g in M.groupby(strata_cols, observed=True))
+                    for col in strata_cols
+                ):
+                    out_df.loc[name, "p"] = np.nan
+                    continue
+            out_df.loc[name, "p"] = p
+
+    return {
+        "by": [t for t in out_df.index if t != "Residual"],
+        "table": out_df,
+        "permutations": permutations,
+        "strata": (strata_cols if strata_cols else None),
+        "perm_scheme": perm_scheme,
+    }
+
+
+# def permanova(
+#     dis: pd.DataFrame,
+#     meta: Union[pd.DataFrame, Dict[str, Any], Any],
+#     by: Union[str, List[str]],
+#     *,
+#     permutations: int = 999,
+#     include_interaction: bool = False,
+#     strata: Union[str, Sequence[str], None] = None,
+#     random_state: int | None = None
+# ) -> Dict[str, Any]:
+#     """
+#     PERMANOVA (Anderson, 2001) via projection matrices on the Gower‑centered
+#     distance matrix. Supports one or two categorical factors (with optional
+#     interaction) and *stratified permutations* (blocks), e.g., permute within
+#     a category to respect unbalanced/blocked designs.
+
+#     Tests are *partial (marginal)*: each term is tested conditional on the
+#     other included terms (intercept, other main effects, and interaction if present).
+
+#     Parameters
+#     ----------
+#     dis : (n x n) pandas.DataFrame
+#         Symmetric distance/dissimilarity matrix with identical row/column labels.
+#     meta : DataFrame | dict | MicrobiomeData-like
+#         Metadata with rows indexed by sample IDs matching dis.index.
+#     by : str or list[str]
+#         One or two column names in `meta` defining the factor(s).
+#     permutations : int, default 999
+#         Number of label permutations for the null distribution.
+#     include_interaction : bool, default False
+#         If len(by)==2 and both factors have >1 levels, include and test the interaction.
+#     strata : str | list[str] | None, default None
+#         Column name(s) in `meta` defining permutation blocks (exchangeability strata).
+#         When given, permutations are performed *within each stratum only*.
+#     random_state : int | None
+#         RNG seed for reproducible permutations.
+
+#     Returns
+#     -------
+#     dict
+#         {
+#           'by': [tested term names in order],
+#           'table': pandas.DataFrame with index=['Term(s)', 'Residual'] and columns:
+#                    ['df','SS','MS','F','p','R2'],
+#           'permutations': int,
+#           'strata': None | list[str]
+#         }
+
+#     Notes
+#     -----
+#     • Distance centering: A = -0.5 * G D^2 G, with G = I - 11ᵀ/n.
+#     • Projection matrices: H_X = X (XᵀX)^+ Xᵀ (pinv for stability).
+#     • Partial (marginal) SS for term t: SS_t = tr( (H_all - H_others) A ).
+#     • df_t = rank(X_all) - rank(X_others); df_res = n - rank(X_all).
+#     • p-values are one-sided: P(F_perm >= F_obs), with +1 correction.
+#     • Interaction is built as *products of main-effect dummies* to avoid
+#       collinearity and to remain estimable in unbalanced designs.
+#     • Zero-df terms and saturated models are handled gracefully (F, p → NaN).
+#     """
+
+#     # --------------------------- validation / alignment ---------------------------
+#     M = get_df(meta, "meta")
+#     if not isinstance(M, pd.DataFrame) or M.empty:
+#         raise ValueError("`meta` must be a non-empty pandas DataFrame.")
+#     if not isinstance(dis, pd.DataFrame) or dis.shape[0] != dis.shape[1]:
+#         raise ValueError("`dis` must be a square pandas DataFrame.")
+#     if not all(dis.index == dis.columns):
+#         raise ValueError("`dis` must have identical row and column labels.")
+
+#     if isinstance(by, str):
+#         by = [by]
+#     if not (1 <= len(by) <= 2):
+#         raise ValueError("`by` must be a str or a list of length 1 or 2.")
+
+#     # Align metadata to the distance matrix order (do not reorder dis)
+#     in_common = list(set(M.index).intersection(dis.index))
+#     if len(in_common) < len(M.index) and len(in_common) == len(dis.index):
+#         M = M.loc[dis.index]
+#     elif len(in_common) < len(dis.index):
+#         raise ValueError("Index in meta and dis are not identical.")
+
+#     # Ensure categorical dtype for stable dummy coding
+#     for b in by:
+#         if b not in M.columns:
+#             raise ValueError(f"Column '{b}' not found in metadata.")
+#         if not pd.api.types.is_categorical_dtype(M[b]):
+#             M[b] = M[b].astype("category")
+
+#     # Normalize strata argument
+#     if strata is not None:
+#         if isinstance(strata, str):
+#             strata_cols = [strata]
+#         else:
+#             strata_cols = list(strata)
+#             if any(c not in M.columns for c in strata_cols):
+#                 missing = [c for c in strata_cols if c not in M.columns]
+#                 raise ValueError(f"strata columns not found in metadata: {missing}")
+#     else:
+#         strata_cols = None
+
+#     if strata_cols is not None:
+#         tested_terms = set(by) | (set([f"{by[0]}:{by[1]}"]) if len(by)==2 and include_interaction else set())
+#         if any(s in tested_terms for s in strata_cols):
+#             warnings.warn("The 'strata' include a tested term; its permutations are fixed. "
+#                           "P-values for that term will be uninformative (1.0/NaN).", UserWarning)
+
+#     # --------------------------- helpers ---------------------------
+#     n = dis.shape[0]
+#     I = np.eye(n, dtype=float)
+
+#     def _rank(X: np.ndarray) -> int:
+#         """Safe rank: 0 for empty matrices, else matrix rank."""
+#         return 0 if X.size == 0 else int(matrix_rank(X))
+
+#     def _hat(X: np.ndarray) -> np.ndarray:
+#         """Projection H = X (XᵀX)^+ Xᵀ; robust to empty X; symmetrized."""
+#         if X.size == 0:
+#             return np.zeros((n, n), dtype=float)
+#         P = X @ pinv(X)     # numerically stable pseudo-hat
+#         return (P + P.T) / 2.0
+
+#     def _ss(H: np.ndarray, A: np.ndarray) -> float:
+#         """Sum of squares as trace(H @ A)."""
+#         return float(np.trace(H @ A))
+
+#     def _dummies(col: str, meta_df: pd.DataFrame) -> np.ndarray:
+#         """One-hot (drop_first=True) → full-rank contrasts per factor."""
+#         Z = pd.get_dummies(meta_df[col], drop_first=True)
+#         return Z.to_numpy(dtype=float)  # (n x (k-1)) or (n x 0) for single-level
+
+#     def _interaction_products(X1: np.ndarray, X2: np.ndarray) -> np.ndarray:
+#         """Column-wise products to span ONLY the interaction subspace."""
+#         if X1.size == 0 or X2.size == 0:
+#             return np.empty((n, 0), dtype=float)
+#         return np.hstack([X1[:, [i]] * X2[:, [j]]
+#                           for i in range(X1.shape[1])
+#                           for j in range(X2.shape[1])]).astype(float)
+
+#     def _build_terms(meta_df: pd.DataFrame) -> list[tuple[str, np.ndarray]]:
+#         """Intercept + main effects (+ interaction) with product construction."""
+#         terms: list[tuple[str, np.ndarray]] = []
+#         Z0 = np.ones((n, 1), dtype=float)     # Intercept
+#         terms.append(("Intercept", Z0))
+
+#         if len(by) == 1:
+#             terms.append((by[0], _dummies(by[0], meta_df)))
+#         else:
+#             v1, v2 = by
+#             X1 = _dummies(v1, meta_df)   # n x (a-1)
+#             X2 = _dummies(v2, meta_df)   # n x (b-1)
+#             terms.append((v1, X1))
+#             terms.append((v2, X2))
+#             # interaction only if requested and both factors have >1 levels
+#             if include_interaction and meta_df[v1].nunique() > 1 and meta_df[v2].nunique() > 1:
+#                 X12 = _interaction_products(X1, X2)
+#                 terms.append((f"{v1}:{v2}", X12))
+#         return terms
+
+#     # --------------------------- Gower centering ---------------------------
+#     D2 = dis.to_numpy(dtype=float) ** 2
+#     np.fill_diagonal(D2, 0.0)
+#     D2 = (D2 + D2.T) / 2.0
+#     G = I - np.ones((n, n), dtype=float) / n
+#     A = -0.5 * (G @ D2 @ G)
+#     total_SS = float(np.trace(A))
+
+#     # --------------------------- design & observed stats ---------------------------
+#     terms = _build_terms(M)
+#     X_all = np.concatenate([X for _, X in terms], axis=1) if terms else np.empty((n, 0))
+#     r_all = _rank(X_all)
+#     H_all = _hat(X_all)
+#     H_res = I - H_all
+
+#     SS_res = _ss(H_res, A)
+#     df_res = n - r_all
+#     if df_res <= 0:
+#         # Saturated model: no residual df → no F-tests possible
+#         rows = []
+#         for name, X in terms:
+#             if name == "Intercept":
+#                 continue
+#             SS_t = np.nan
+#             df_t = 0
+#             rows.append([name, df_t, SS_t, np.nan, np.nan, np.nan, np.nan])
+#         rows.append(["Residual", df_res, SS_res, np.nan, np.nan, np.nan,
+#                      (SS_res / total_SS) if total_SS > 0 else np.nan])
+#         out_df = pd.DataFrame(rows, columns=["term","df","SS","MS","F","p","R2"]).set_index("term")
+#         return {"by": [t for t in out_df.index if t != "Residual"],
+#                 "table": out_df, "permutations": permutations,
+#                 "strata": (strata_cols if strata_cols else None)}
+
+#     rows = []
+#     F_obs = []
+#     df_list = []
+
+#     for i, (name_i, _) in enumerate(terms):
+#         if name_i == "Intercept":
+#             # Intercept has SS≈0 with centered A; skip reporting/testing
+#             continue
+
+#         X_others = np.concatenate([X for j, (nm, X) in enumerate(terms) if j != i], axis=1) \
+#                    if len(terms) > 1 else np.empty((n, 0))
+#         r_others = _rank(X_others)
+#         H_others = _hat(X_others)
+
+#         H_term = (H_all - H_others + (H_all - H_others).T) / 2.0
+#         SS_t   = _ss(H_term, A)
+#         df_t   = r_all - r_others
+
+#         if df_t <= 0:
+#             MS_t = F_t = np.nan
+#         else:
+#             MS_t = SS_t / df_t
+#             MS_res = SS_res / df_res
+#             F_t = MS_t / MS_res
+
+#         R2_t = (SS_t / total_SS) if total_SS > 0 else np.nan
+#         rows.append([name_i, df_t, SS_t, MS_t, F_t, np.nan, R2_t])
+#         F_obs.append(F_t)
+#         df_list.append(df_t)
+
+#     # Residual row
+#     rows.append(["Residual", df_res, SS_res, SS_res/df_res, np.nan, np.nan,
+#                  (SS_res / total_SS) if total_SS > 0 else np.nan])
+
+#     out_df = pd.DataFrame(rows, columns=["term","df","SS","MS","F","p","R2"]).set_index("term")
+
+#     # --- Verify each tested term varies within at least one stratum ---
+#     if strata_cols is not None:
+#         # Helper to test if a categorical factor varies within any block
+#         def _varies_within_strata(factor: str) -> bool:
+#             # factor is a column in M; if it's dummy-coded later, check the original
+#             # True if there exists at least one block with >=2 levels of factor
+#             for _, grp in M.groupby(strata_cols, sort=False, observed=True):
+#                 if grp[factor].nunique(dropna=False) > 1:
+#                     return True
+#             return False
+    
+#         for name in out_df.index[:-1]:  # all tested terms (exclude Residual)
+#             # Only check main effects; interactions need a more elaborate check
+#             if name in M.columns and not _varies_within_strata(name):
+#                 warnings.warn(
+#                     f"Term '{name}' has no within-stratum variation under strata={strata_cols}. "
+#                     "Permutation test is not possible; setting p=NaN."
+#                 )
+#                 out_df.loc[name, "p"] = np.nan
+
+#     # --------------------------- permutations (with optional strata) 
+#     n_terms = len(F_obs)
+#     if permutations and n_terms > 0:
+#         rng = np.random.default_rng(random_state)
+#         F_null = np.zeros((permutations, n_terms), dtype=float)
+
+#         def permute_meta_within_strata(M_in: pd.DataFrame) -> pd.DataFrame:
+#             """Return a permuted copy of M_in respecting strata blocks."""
+#             if strata_cols is None:
+#                 order = rng.permutation(len(M_in))
+#                 return M_in.iloc[order]
+#             # Permute within each block; preserve overall index order by concatenation
+#             parts = []
+#             for _, grp in M_in.groupby(strata_cols, sort=False, observed=True):
+#                 idx = grp.index.to_numpy()
+#                 if idx.size <= 1:
+#                     parts.append(grp)
+#                 else:
+#                     perm = rng.permutation(idx.size)
+#                     parts.append(grp.iloc[perm])
+#             M_perm = pd.concat(parts, axis=0)
+#             # Reorder to match original dis index to keep addressability aligned
+#             return M_perm.loc[M_in.index]
+
+#         for b in range(permutations):
+#             M_perm = permute_meta_within_strata(M)
+#             terms_p = _build_terms(M_perm)
+#             X_all_p = np.concatenate([X for _, X in terms_p], axis=1) if terms_p else np.empty((n, 0))
+#             r_all_p = _rank(X_all_p)
+#             H_all_p = _hat(X_all_p)
+#             H_res_p = I - H_all_p
+
+#             SS_res_p = _ss(H_res_p, A)
+#             df_res_p = n - r_all_p
+#             if df_res_p <= 0:
+#                 F_null[b, :] = np.nan
+#                 continue
+
+#             # build mapping from reported terms to positions in terms_p (skip intercept)
+#             term_names_p = [nm for nm, _ in terms_p if nm != "Intercept"]
+
+#             for i, name_i in enumerate(out_df.index[:-1]):   # all tested terms (exclude Residual)
+#                 if name_i not in term_names_p:
+#                     F_null[b, i] = np.nan
+#                     continue
+#                 # compute marginal (partial) F for the same term under permutation
+#                 X_others_p = np.concatenate([X for (nm, X) in terms_p if nm not in ("Intercept", name_i)], axis=1) \
+#                              if len(terms_p) > 2 else np.empty((n, 0))
+#                 H_others_p = _hat(X_others_p)
+#                 H_term_p = (H_all_p - H_others_p + (H_all_p - H_others_p).T) / 2.0
+#                 SS_t_p = _ss(H_term_p, A)
+#                 df_t_p = _rank(X_all_p) - _rank(X_others_p)
+#                 if df_t_p <= 0:
+#                     F_null[b, i] = np.nan
+#                 else:
+#                     MS_t_p = SS_t_p / df_t_p
+#                     MS_res_p = SS_res_p / df_res_p
+#                     F_null[b, i] = MS_t_p / MS_res_p
+
+#         # p-values with +1 correction; NaN-safe
+#         for i, name in enumerate(out_df.index[:-1]):
+#             Fi = out_df.loc[name, "F"]
+#             df_t = out_df.loc[name, "df"]
+        
+#             # If F is undefined or df=0 → p is structurally NaN
+#             if not np.isfinite(Fi) or df_t <= 0:
+#                 out_df.loc[name, "p"] = np.nan
+#                 continue
+        
+#             perm_vals = F_null[:, i]
+#             perm_vals = perm_vals[np.isfinite(perm_vals)]
+        
+#             # If we have no usable permutations → NaN
+#             if perm_vals.size == 0:
+#                 out_df.loc[name, "p"] = np.nan
+#                 continue
+        
+#             # Compute the usual p-value
+#             p = (np.sum(perm_vals >= Fi) + 1) / (perm_vals.size + 1)
+        
+#             # --- robust detection of uninformative permutation tests ---
+#             # Conditions for p = NaN:
+#             # (1) df_t > 0 but no valid permutations change this term
+#             # (2) all F_perm values are identical (degenerate null)
+#             # (3) all permutation blocks have size 1 (no shuffling possible)
+#             if df_t > 0:
+#                 # (A) no valid permutation values
+#                 if perm_vals.size == 0:
+#                     out_df.loc[name, "p"] = np.nan
+#                     continue
+            
+#                 # (B) all F_perm identical (degenerate null distribution)
+#                 if np.unique(np.round(perm_vals, 12)).size == 1:
+#                     out_df.loc[name, "p"] = np.nan
+#                     continue
+            
+#                 # (C) if any strata block is size 1, AND term == a strata factor → untestable
+#                 if strata_cols is not None and any(
+#                     (col == name or name.startswith(col + ":")) and
+#                     any(len(g) <= 1 for _, g in M.groupby(strata_cols))
+#                     for col in strata_cols
+#                 ):
+#                     out_df.loc[name, "p"] = np.nan
+#                     continue
+
+#             # Default: informative test
+#             out_df.loc[name, "p"] = p
+
+#     return {
+#         "by": [t for t in out_df.index if t != "Residual"],
+#         "table": out_df,
+#         "permutations": permutations,
+#         "strata": (strata_cols if strata_cols else None),
+#     }
+
 
 # -----------------------------------------------------------------------------
 # Gower

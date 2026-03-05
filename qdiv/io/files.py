@@ -6,7 +6,7 @@ import os
 import gzip
 import pandas as pd
 import numpy as np
-from ..utils import parse_newick, to_newick
+from ..utils import parse_newick, tree_to_dataframe, dataframe_to_tree, tree_to_newick, reroot_midpoint
 
 # -----------------------------------------------------------------------------
 #  Add tab
@@ -325,7 +325,8 @@ def add_seq_from_fasta(
 def add_tree(
     tree: str,
     *,
-    path: str = ""
+    path: str = "",
+    midpoint_root: bool = False
 ) -> Dict[str, pd.DataFrame]:
     """
     Load tree from a newick file into a dictionary with a pandas DataFrame.
@@ -336,6 +337,8 @@ def add_tree(
         Name of the newick file with the tree.
     path : str, default ""
         Directory path (absolute or relative) containing `tree`. Can be "" for CWD.
+    midpoint_root : bool, default=False
+        Performs midpoint tree re-rooting if True.
 
     Returns
     -------
@@ -356,10 +359,17 @@ def add_tree(
     """
     file_path = Path(path) / tree
     if not file_path.exists():
-        raise ValueError(f"FASTA file not found: {file_path}")
+        raise ValueError(f"Newick tree file not found: {file_path}")
 
-    # --- Read tree file ---
-    branch_df = parse_newick(file_path)
+    with open(file_path, "r") as f:
+        newick = f.read().strip()
+
+    tree = parse_newick(newick)
+
+    if midpoint_root:
+        tree = reroot_midpoint(tree)
+
+    branch_df = tree_to_dataframe(tree)
     return {'tree': branch_df}
 
 # -----------------------------------------------------------------------------
@@ -535,7 +545,8 @@ def save(
     # Tree file
     if 'tree' in obj and obj['tree'] is not None:
         filename = os.path.join(path, f"{savename}_tree.nwk")
-        nwk = to_newick(obj['tree'])
+        tree = dataframe_to_tree(obj['tree'])
+        nwk = tree_to_newick(tree)
         with open(filename, 'w') as f:
             f.write(nwk)
         saved_files.append(filename)

@@ -195,9 +195,11 @@ def pcoa_lingoes(
     D_df = dis.copy().astype(float)
 
     # Enforce symmetry and zero diagonal
-    D_df = (D_df + D_df.T) / 2.0
-    np.fill_diagonal(D_df.values, 0.0)
-    if (D_df.values < 0).any():
+    D_df = ((D_df + D_df.T) / 2.0)
+    D = D_df.to_numpy(copy=True)
+    np.fill_diagonal(D, 0.0)
+    D_df = pd.DataFrame(D, index=D_df.index, columns=D_df.columns)
+    if (D < 0).any():
         raise ValueError("Distances must be non‑negative.")
 
     labels = D_df.index.to_list()

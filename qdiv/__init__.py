@@ -42,6 +42,6 @@ __all__ = [
     "stats",
     "diversity",
     "plot",
-    "model"
+    "model",
 ]
 

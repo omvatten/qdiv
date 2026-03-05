@@ -1,11 +1,38 @@
 import pandas as pd
 import numpy as np
 import math
-from typing import Optional, Dict, Any, Union
-from tqdm import tqdm
+from typing import Optional, Dict, Any, Union, Tuple
 from ..io import subset_samples
-from ..utils import rao, beta2dist, get_df, subset_tree, parse_leaves
+from ..utils import rao, beta2dist, get_df
+from ..utils import subset_tree_df, ra_to_branches, compute_Tmean
 from .alpha_div import naive_alpha, phyl_alpha, func_alpha
+
+def _get_tqdm(use_tqdm: bool):
+    """
+    Internal helper that returns tqdm if available and requested; otherwise provides
+    a minimal stub compatible with tqdm's API.
+    """
+    if use_tqdm:
+        try:
+            from tqdm import tqdm
+            return tqdm
+        except Exception:
+            pass
+
+    class _DummyTqdm:  # fallback with same constructor signature
+        def __init__(self, iterable=None, total=None, desc=None, unit=None, leave=False):
+            self._iterable = iterable if iterable is not None else range(total or 0)
+
+        def __iter__(self):
+            return iter(self._iterable)
+
+        def update(self, *_args, **_kwargs):
+            return None
+
+        def close(self):
+            return None
+
+    return _DummyTqdm
 
 # -----------------------------------------------------------------------------
 # Naive beta diversity
@@ -225,32 +252,9 @@ def phyl_beta(
         raise ValueError("`tab` must contain ≥ 2 samples (columns).")
 
     #Subset tree to features in tab
-    tree = subset_tree(tree, ra.index.tolist())
-
-    # Get Tmean
-    Tmean = tree[~tree['nodes'].str.startswith('in')].copy()
-    Tmean = Tmean.set_index('nodes')
-    asv_set = set(ra.index)
-    in_common = list(asv_set.intersection(Tmean.index.tolist()))
-    if len(in_common) < len(asv_set):
-        raise ValueError("Not all features in tab are found in the tree")
-    Tmean = Tmean.loc[in_common]
-    Tmean = Tmean['dist_to_root'].sum() / len(Tmean)
-
-    # --- Build branch × sample abundance matrix ------------------------------
-    # Initialize with zeros; ensure branch index matches tree
-    tree2 = pd.DataFrame(0.0, index=tree.index, columns=ra.columns)
-
-    for branch in tree.index:
-        leaves = parse_leaves(tree.loc[branch, "leaves"])
-
-        # Keep only features present in the abundance table
-        leaves = list(asv_set.intersection(leaves))
-        if leaves:
-            # Sum relative abundances for all leaves under the branch
-            tree2.loc[branch] = ra.loc[leaves].sum(axis=0)
-        else:
-            tree2.loc[branch] = 0.0
+    tree = subset_tree_df(tree, ra.index.tolist())
+    Tmean = compute_Tmean(tree, ra.index.tolist())
+    tree2 = ra_to_branches(ra, tree)
 
     # Align branch lengths to tree2 index
     branchL = tree["branchL"].reindex(tree2.index)
@@ -323,6 +327,7 @@ def func_beta(
     dis: bool = True,
     viewpoint: str = "regional",
     use_values_in_tab: bool = False,
+    use_tqdm: bool = True,
 ) -> pd.DataFrame:
     """
     Compute functional pairwise beta diversity of order *q*.
@@ -357,6 +362,8 @@ def func_beta(
     use_values_in_tab : bool, default=False
         If False, convert abundances to relative abundances.
         If True, assume `tab` already contains relative abundances.
+    use_tqdm : bool, default=True
+        Use `tqdm` for progress bars.
 
     Returns
     -------
@@ -403,6 +410,8 @@ def func_beta(
     outD = pd.DataFrame(0.0, index=smplist, columns=smplist)
 
     # Pairwise functional beta diversity
+    tqdm = _get_tqdm(use_tqdm)
+
     for i in tqdm(range(len(smplist) - 1), desc="func_beta", unit="sample"):
         for j in range(i + 1, len(smplist)):
             s1 = smplist[i]
@@ -850,7 +859,7 @@ def phyl_multi_beta(
         raise ValueError("`tree` must contain columns 'leaves' and 'branchL'.")
 
     #Subset tree to features in tab
-    tree = subset_tree(tree, tab.index.tolist())
+    tree = subset_tree_df(tree, tab.index.tolist())
 
     # Build dictionary of subtables by category
     if by is None:
@@ -891,19 +900,7 @@ def phyl_multi_beta(
         ra = subtab.div(col_sums)
 
         # Build branch × sample abundance matrix
-        tree2 = pd.DataFrame(0.0, index=tree.index, columns=ra.columns)
-        asv_set = set(ra.index)
-
-        for branch in tree.index:
-            leaves = parse_leaves(tree.loc[branch, "leaves"])
-    
-            # Keep only features present in the abundance table
-            leaves = list(asv_set.intersection(leaves))
-            if leaves:
-                # Sum relative abundances for all leaves under the branch
-                tree2.loc[branch] = ra.loc[leaves].sum(axis=0)
-            else:
-                tree2.loc[branch] = 0.0
+        tree2 = ra_to_branches(ra, tree)
 
         # --- Compute Tavg = Σ_b L_b * mean(p_b) -------------------------------------
         # Align branch lengths to tree2 (branch × sample) and ensure numeric
@@ -1267,16 +1264,10 @@ def evenness(
             ra = tab.div(tab.sum()) if not use_values_in_tab else tab.astype(float)
 
             #Subset tree to features in tab
-            tree = subset_tree(tree, ra.index.tolist())
+            tree = subset_tree_df(tree, ra.index.tolist())
 
             # Build branch × sample matrix
-            tree2 = pd.DataFrame(0.0, index=tree.index, columns=ra.columns)
-            asv_set = set(ra.index)
-
-            for branch in tree.index:
-                leaves = parse_leaves(tree.loc[branch, "leaves"])
-                leaves = list(asv_set.intersection(leaves))
-                tree2.loc[branch] = ra.loc[leaves].sum() if leaves else 0.0
+            tree2 = ra_to_branches(ra, tree)
 
             # Normalize across samples
             tree2 = tree2.T
@@ -1407,7 +1398,7 @@ def dissimilarity_by_feature(
         feature_index = ["dis", "N"] + tab.index.tolist()
     else:
         tree = get_df(obj, "tree")
-        tree = subset_tree(tree, tab.index.tolist())
+        tree = subset_tree_df(tree, tab.index.tolist())
         feature_index = ["dis", "N"] + tree.index.tolist()
 
     out = pd.DataFrame(np.nan, index=feature_index, columns=categories)
@@ -1463,13 +1454,7 @@ def dissimilarity_by_feature(
         elif div_type == "phyl":
 
             # Build branch × sample matrix
-            tree2 = pd.DataFrame(0.0, index=tree.index, columns=ra.columns)
-            asv_set = set(ra.index)
-    
-            for branch in tree.index:
-                leaves = parse_leaves(tree.loc[branch, "leaves"])
-                leaves = list(asv_set.intersection(leaves))
-                tree2.loc[branch] = ra.loc[leaves].sum() if leaves else 0.0
+            tree2 = ra_to_branches(ra, tree)
     
             # Evenness per node
             ev = evenness(
@@ -1505,3 +1490,380 @@ def dissimilarity_by_feature(
             out.loc[tree.index, 'nodes'] = tree['nodes']
     
     return out
+
+
+# -----------------------------------------------------------------------------
+# Partition beta diversity
+# -----------------------------------------------------------------------------
+
+# Structure-only dissimilarity on rank-sorted abundances (identity removed)
+def _get_structural_dis(
+    ra: pd.DataFrame,
+    *,
+    q: float = 1.0,
+) -> pd.DataFrame:
+    """
+    Compute structure-only Hill-number dissimilarity by:
+      1) building relative abundances from obj['tab'] (unless already relative)
+      2) sorting each sample's abundance vector descending (erases identity)
+      3) computing the same Hill-number dissimilarity on the sorted table
+
+    Parameters
+    ----------
+    ra : DataFrame
+        Relative abundance table.
+    q : float
+        Diversity order.
+
+    Returns
+    -------
+    dis_sorted : DataFrame (samples × samples)
+        Structure-only dissimilarity (identity erased).
+    """
+    # Vectorized column-wise sort (ascending), then flip to descending
+    a = np.sort(ra.to_numpy(dtype=float), axis=0)[::-1, :]
+    ra_sorted = pd.DataFrame(a, index=range(ra.shape[0]), columns=ra.columns)
+
+    # Compute structure-only dissimilarity using the same taxonomic Hill metric
+    dis_sorted = naive_beta(ra_sorted, q=q, dis=True, viewpoint="local", use_values_in_tab=True)
+
+    # Sanity: ensure sample order matches original
+    if not (dis_sorted.index.equals(ra.columns) and dis_sorted.columns.equals(ra.columns)):
+        dis_sorted = dis_sorted.reindex(index=ra.columns, columns=ra.columns)
+
+    return dis_sorted
+
+# A q-weighted mass-based approach get weights
+def _get_unique_fractions(
+    ra: pd.DataFrame,
+    *,
+    q: float = 1.0,
+) -> Tuple[float, float]:
+    """
+    Compute attribution weights u_A, u_B for two samples based on
+    community-specific 'unique' fractions at Hill order q, using a
+    min-based, abundance-compatible directional overlap.
+
+    For two columns A,B in `ra` (features × 2), define
+      C^{A|B}_{q,min} = sum_i min(p_iA, p_iB)^q / sum_i p_iA^q
+      C^{B|A}_{q,min} = sum_i min(p_iA, p_iB)^q / sum_i p_iB^q
+
+    Then the local unique fractions are
+      U_A^loc = 1 - C^{A|B}_{q,min}
+      U_B^loc = 1 - C^{B|A}_{q,min}
+
+    and weights are
+      λ_A = U_A^loc / (U_A^loc + U_B^loc),  λ_B = 1 - λ_A
+    with a 0.5/0.5 tie-break when both uniques are 0.
+
+    Parameters
+    ----------
+    ra : DataFrame
+        Relative abundances, shape (features × 2). Columns are the two samples.
+        Columns should sum to 1 (or will be normalized if eps>0 and sums>0).
+    q : float, default=1.0
+        Hill order.
+
+    Returns
+    -------
+    (w1, w2) : Tuple[float, float]
+        Weights for the first and second sample (λ_A, λ_B), in [0,1] and summing to 1.
+    """
+
+    def _get_qvector(vec, q):
+        vec = np.asarray(vec, dtype=float)
+        if q == 0:
+            return (vec > 0).astype(float)
+        if q == 1:
+            return vec
+        vec = np.clip(vec, 0.0, None)
+        return vec ** q
+
+    if not isinstance(ra, pd.DataFrame) or ra.shape[1] != 2:
+        raise ValueError("`ra` must be a DataFrame with exactly two columns (features × 2).")
+
+    # Extract as float arrays
+    A = ra.iloc[:, 0].to_numpy(dtype=float)
+    B = ra.iloc[:, 1].to_numpy(dtype=float)
+
+    if q == 1.0:
+        A_q = A
+        B_q = B
+    else:
+        # Use power; if q<0 or weird, user should guard upstream
+        A_q = _get_qvector(A, q)
+        B_q = _get_qvector(B, q)
+
+    # Shared term
+    M_q = np.minimum(A, B)
+    M_q = _get_qvector(M_q, q)
+
+    sum_Aq = A_q.sum()
+    sum_Bq = B_q.sum()
+    sum_Mq = M_q.sum()
+
+    # Degenerate cases: empty or zero vectors
+    if sum_Aq <= 0 and sum_Bq <= 0:
+        return 0.5, 0.5
+    if sum_Aq <= 0:
+        return 0.0, 1.0
+    if sum_Bq <= 0:
+        return 1.0, 0.0
+
+    # Directional overlaps in [0,1]
+    C_A_given_B = min(1.0, max(0.0, float(sum_Mq / sum_Aq)))
+    C_B_given_A = min(1.0, max(0.0, float(sum_Mq / sum_Bq)))
+
+    # Local unique fractions (bounded)
+    U_A_loc = max(0.0, 1.0 - C_A_given_B)
+    U_B_loc = max(0.0, 1.0 - C_B_given_A)
+
+    tot = U_A_loc + U_B_loc
+    if tot <= 0.0:
+        # Identical communities under the chosen q (or both unique=0)
+        return 0.5, 0.5
+
+    return U_A_loc, U_B_loc
+
+# Naive decomposition
+def partition_naive_beta(
+    tab: Union[pd.DataFrame, Dict[str, Any], Any],
+    *,
+    q: float = 1.0,
+    use_values_in_tab: bool = False,
+) -> Dict[str, pd.DataFrame]:
+    """
+    POD-style split of Hill-number dissimilarity (replacement/diversity-difference)
+    compared to regional dissimilarity,
+    identity–structure divergence (ISD_q) compared to local dissimilarity.
+
+    Returns
+    -------
+    dict of DataFrames:
+      - 'd_regional'  : observed regional dissimilarity
+      - 'd_replacement' : Podani-Schmera replacement component
+      - 'd_diversity' : diversity-difference component
+      - 'd_local' : observed local dissimilarity
+      - 'd_isd' : identity-structure divergence
+      - 'd_sorted' : dissimilarity caused by structure, calculated on sorted vectors
+    """
+
+    tab = get_df(tab, "tab").astype(float)
+
+    # Relative abundances
+    if not use_values_in_tab:
+        col_sums = tab.sum(axis=0)
+        if (col_sums == 0).any():
+            bad = col_sums.index[col_sums == 0].tolist()
+            raise ValueError(f"Zero-total samples: {bad}")
+        ra = tab.div(col_sums, axis=1)
+    else:
+        ra = tab
+
+    if ra.shape[1] < 2:
+        raise ValueError("`tab` must contain ≥ 2 samples (columns).")
+
+    # Observed alpha (for weights) and observed dissimilarity
+    alpha = naive_alpha(ra, q=q, use_values_in_tab=True)
+    disL = naive_beta(ra, q=q, dis=True, viewpoint="local", use_values_in_tab=True)
+    disR = naive_beta(ra, q=q, dis=True, viewpoint="regional", use_values_in_tab=True)
+
+    # Structure-only dissimilarity on sorted abundances
+    ds = _get_structural_dis(ra, q=q)
+    d_isd = disL - ds
+
+    # Replacement / Diversity-difference split on the observed dissimilarity
+    smplist = alpha.index.tolist()
+    dr = pd.DataFrame(0.0, index=smplist, columns=smplist)
+    dd = pd.DataFrame(0.0, index=smplist, columns=smplist)
+
+    for i in range(len(smplist) - 1):
+        s1 = smplist[i]
+        for j in range(i + 1, len(smplist)):
+            s2 = smplist[j]
+
+            a1, a2 = alpha[s1], alpha[s2]
+            if a1 + a2 == 0.0:
+                raise ValueError("Alpha diversity is zero for both samples.")
+            
+            u1, u2 = _get_unique_fractions(ra[[s1, s2]], q=q)
+            ud_a1 = u1 * a1
+            ud_a2 = u2 * a2
+
+            w1 = ud_a1 / (ud_a1 + ud_a2)
+            w2 = 1.0 - w1
+
+            D = float(disR.at[s1, s2])  # observed dissimilarity
+            repl = 2.0 * min(w1, w2) * D
+            rich = abs(w1 - w2) * D
+
+            dr.loc[s1, s2] = dr.loc[s2, s1] = repl
+            dd.loc[s1, s2] = dd.loc[s2, s1] = rich
+
+    return {"regional_d": disR, 
+            "regional_replacement": dr, 
+            "regional_diversity_difference": dd, 
+            "local_d": disL, 
+            "local_isd": d_isd, 
+            "local_structural_d": ds}
+
+# Phylogenetic decomposition
+def partition_phyl_beta(
+    obj: Union[Dict[str, Any], Any],
+    *,
+    q: float = 1.0,
+    viewpoint: str = "regional",
+    use_values_in_tab: bool = False,
+) -> Dict[str, pd.DataFrame]:
+    """
+    Phylogenetic analogue:
+      - 'd'  : observed phylogenetic dissimilarity  (on the real tree)
+      - 'dr' : replacement component
+      - 'dd' : diversity-difference component
+      - 'ds' : structure-only dissimilarity (sorted abundances; collapsed tree)
+      - 'di' : PD-ISD_q = d - ds
+    """
+    # Observed PD alpha (for weights) and PD dissimilarity
+    alpha = phyl_alpha(obj, q=q, use_values_in_tab=use_values_in_tab)                                # Series indexed by sample
+    dis   = phyl_beta(obj, q=q, dis=True, viewpoint=viewpoint, use_values_in_tab=use_values_in_tab)  # DataFrame
+
+    # Structure-only (collapsed phylogeny): ordinary Hill dissimilarity on sorted abundances
+    ds = _get_structural_dis(obj, q=q, viewpoint=viewpoint, use_values_in_tab=use_values_in_tab)
+
+    # PD-ISD_q (can be negative)
+    di = dis - ds
+
+    # Replacement / Diversity-difference split on the observed PD dissimilarity
+    smplist = alpha.index.tolist()     # <- FIX: use index, not columns
+    dr = pd.DataFrame(0.0, index=smplist, columns=smplist)
+    dd = pd.DataFrame(0.0, index=smplist, columns=smplist)
+
+    for i in range(len(smplist) - 1):
+        s1 = smplist[i]
+        for j in range(i + 1, len(smplist)):
+            s2 = smplist[j]
+
+            a1, a2 = alpha[s1], alpha[s2]
+            if a1 + a2 == 0.0:
+                raise ValueError("Alpha diversity is zero for both samples.")
+
+            w1 = a1 / (a1 + a2)
+            w2 = 1.0 - w1
+
+            D = float(dis.at[s1, s2])  # observed PD dissimilarity
+            repl = 2.0 * min(w1, w2) * D
+            rich = abs(w1 - w2) * D
+
+            dr.loc[s1, s2] = dr.loc[s2, s1] = repl
+            dd.loc[s1, s2] = dd.loc[s2, s1] = rich
+
+    return {"d": dis, "dr": dr, "dd": dd, "ds": ds, "di": di}
+
+# Functional decomposition
+def partition_func_beta(
+    tab: Union[pd.DataFrame, Dict[str, Any], Any],
+    distmat: pd.DataFrame,
+    *,
+    q: float = 1.0,
+    viewpoint: str = "regional",
+    use_values_in_tab: bool = False,
+) -> Dict[str, pd.DataFrame]:
+
+    """
+    Functional analogue:
+      - 'd'  : observed functional dissimilarity  (based on distmat)
+      - 'dr' : replacement component
+      - 'dd' : diversity-difference component
+      - 'ds' : structure-only dissimilarity (sorted abundances)
+      - 'di' : functional ISD_q = d - ds
+    """
+
+    # Observed PD alpha (for weights) and PD dissimilarity
+    alpha = func_alpha(tab, distmat=distmat, q=q, use_values_in_tab=use_values_in_tab)                                # Series indexed by sample
+    dis   = func_beta(tab, distmat=distmat, q=q, dis=True, viewpoint=viewpoint, use_values_in_tab=use_values_in_tab)  # DataFrame
+
+    # Structure-only (collapsed phylogeny): ordinary Hill dissimilarity on sorted abundances
+    ds = _get_structural_dis(tab, q=q, viewpoint=viewpoint, use_values_in_tab=use_values_in_tab)
+
+    # PD-ISD_q (can be negative)
+    di = dis - ds
+
+    # Replacement / Diversity-difference split on the observed PD dissimilarity
+    smplist = alpha.index.tolist()     # <- FIX: use index, not columns
+    dr = pd.DataFrame(0.0, index=smplist, columns=smplist)
+    dd = pd.DataFrame(0.0, index=smplist, columns=smplist)
+
+    for i in range(len(smplist) - 1):
+        s1 = smplist[i]
+        for j in range(i + 1, len(smplist)):
+            s2 = smplist[j]
+
+            a1, a2 = alpha[s1], alpha[s2]
+            if a1 + a2 == 0.0:
+                raise ValueError("Alpha diversity is zero for both samples.")
+
+            w1 = a1 / (a1 + a2)
+            w2 = 1.0 - w1
+
+            D = float(dis.at[s1, s2])  # observed PD dissimilarity
+            repl = 2.0 * min(w1, w2) * D
+            rich = abs(w1 - w2) * D
+
+            dr.loc[s1, s2] = dr.loc[s2, s1] = repl
+            dd.loc[s1, s2] = dd.loc[s2, s1] = rich
+
+    return {"d": dis, "dr": dr, "dd": dd, "ds": ds, "di": di}
+
+def beta_mpdq(
+    obj: Union[Dict[str, Any], Any],
+    distmat: pd.DataFrame,
+    *,
+    q: float = 1.0,
+) -> pd.DataFrame:
+    """
+    Computes beta-MPD_q for all sample pairs.
+
+    Parameters
+    ----------
+    obj : MicrobiomeData, dict, or compatible object
+        Input data. Must provide at least an abundance table ('tab').
+    distmat : pd.DataFrame
+        Square distance matrix indexed/columned by feature ids.
+    q : float, default=1.0
+        Order of diversity weighting applied to relative abundances.
+
+    Returns
+    -------
+    pandas.DataFrame (S x S):
+    """
+    from ..model import beta_nriq
+    return beta_nriq(obj, distmat, q=q, iterations=0)
+
+def beta_mntdq(
+    obj: Union[Dict[str, Any], Any],
+    distmat: pd.DataFrame,
+    *,
+    q: float = 1.0,
+    include_conspecifics: bool = False,
+) -> pd.DataFrame:
+    """
+    Computes beta-MNTD_q for all sample pairs.
+
+    Parameters
+    ----------
+    obj : MicrobiomeData, dict, or compatible object
+        Input data. Must provide at least an abundance table ('tab').
+    distmat : pd.DataFrame
+        Square distance matrix indexed/columned by feature ids.
+    q : float, default=1.0
+        Order of diversity weighting applied to relative abundances.
+    include_conspecifics : bool, default=False
+        Determines whether conspecifics (identical features shared between samples) are allowed 
+        to contribute zero-distance matches in the nearest-taxon calculation.
+
+    Returns
+    -------
+    pandas.DataFrame (S x S)
+    """
+    from ..model import beta_ntiq
+    return beta_ntiq(obj, distmat, q=q, iterations=0, include_conspecifics=include_conspecifics)

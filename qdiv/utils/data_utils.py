@@ -273,19 +273,16 @@ def rao(
 def rename_features(
     obj: Union[pd.DataFrame, Dict[str, Any], Any],
     name_type: str = 'OTU',
+    name_dict: dict = None,
     inplace: bool = False,
 ) -> Union["MicrobiomeData", Dict[str, Any]]:
 
     """
-    Rename feature identifiers (row indices) in microbiome-related data structures
-    based on their relative abundance or taxonomic order.
+    Rename feature identifiers in microbiome-related data structures.
 
-    This function supports two input types:
-    - A `MicrobiomeData` object (with components: tab, tax, seq, meta, tree)
-    - A dictionary containing any subset of these components.
-
-    The renaming assigns new feature names in the format `{name_type}{i}`, where `i`
-    is the rank of the feature after sorting:
+    The renaming is done either based on the rank of the feature after sorting 
+    based on relative abundance or based on a dictionary containing existing names
+    as keys and new names as values. If 'name_dict' is None, the features are sorted:
     - By mean relative abundance if `tab` (abundance table) is present.
     - By taxonomic order if `tax` is present and `tab` is absent.
     - By sequence order if `seq` is present and both `tab` and `tax` are absent.
@@ -296,6 +293,8 @@ def rename_features(
         The input object or dictionary containing microbiome data components.
     name_type : str, default='OTU'
         Prefix for new feature names (e.g., 'OTU', 'ASV').
+    name_dict : dict, default=None
+        Dictionary with feature name {'Old_name': 'New:name', ...}.
     inplace : bool, default=False
         If True and `obj` is a MicrobiomeData object, modify it in place.
         Otherwise, return a new object or dictionary.
@@ -325,11 +324,11 @@ def rename_features(
 
     # --- Extract components in a uniform way ---
     if is_object:
-        tab = obj.tab
-        tax = obj.tax
-        seq = obj.seq
-        meta = obj.meta
-        tree = obj.tree
+        tab = get_df(obj, "tab")
+        tax = get_df(obj, "tax")
+        seq = get_df(obj, "seq")
+        meta = get_df(obj, "meta")
+        tree = get_df(obj, "tree")
     elif isinstance(obj, dict):
         tab = obj.get("tab")
         tax = obj.get("tax")
@@ -337,19 +336,24 @@ def rename_features(
         meta = obj.get("meta")
         tree = obj.get("tree")
 
-    old2new = {}
-    if tab is not None:
-        mean_ra = tab / tab.sum()
-        mean_ra = mean_ra.mean(axis=1)
-        mean_ra = mean_ra.sort_values(ascending=False)
-        old2new = {ix: name_type + str(i+1) for i, ix in enumerate(mean_ra.index)}
-    elif tax is not None:
-        print(tax)
-        sorted_tax = tax.astype(str).sort_values(by=tax.columns.tolist())
-        print(sorted_tax)
-        old2new = {ix: name_type + str(i+1) for i, ix in enumerate(sorted_tax.index)}
-    elif seq is not None:
-        old2new = {ix: name_type + str(i+1) for i, ix in enumerate(seq.index)}
+    if name_dict is None:
+        old2new = {}
+        if tab is not None:
+            mean_ra = tab / tab.sum()
+            mean_ra = mean_ra.mean(axis=1)
+            mean_ra = mean_ra.sort_values(ascending=False)
+            old2new = {ix: name_type + str(i+1) for i, ix in enumerate(mean_ra.index)}
+        elif tax is not None:
+            print(tax)
+            sorted_tax = tax.astype(str).sort_values(by=tax.columns.tolist())
+            print(sorted_tax)
+            old2new = {ix: name_type + str(i+1) for i, ix in enumerate(sorted_tax.index)}
+        elif seq is not None:
+            old2new = {ix: name_type + str(i+1) for i, ix in enumerate(seq.index)}
+    elif isinstance(name_dict, dict):
+        old2new = name_dict
+    else:
+        raise ValueError("name_dict has unknown format in rename_features")
 
     out_tab = tab.rename(index=old2new) if tab is not None else None
     out_tax = tax.rename(index=old2new) if tax is not None else None
@@ -489,3 +493,144 @@ def tax_prefix(
         if tree is not None: out["tree"] = tree
         return out
 
+
+# ------------ Clean taxonomy  ------------
+_RANKS = ["d", "k", "p", "c", "o", "f", "g", "s", "sk", "cl", "r", "sf"]
+_RANK_COLS_CANONICAL = [f"{r}__" for r in _RANKS]
+
+_NAMED_TO_PREFIX = {
+    "superkingdom": "sk__", "clade": "cl__", "kingdom": "k__", "domain": "d__", 
+    "realm": "r__", "phylum": "p__", "class": "c__", "order": "o__", 
+    "family": "f__", "subfamily": "sf__", "genus": "g__", "species": "s__"
+}
+
+_UNKNOWN_TOKENS = {"", "unassigned", "unknown", "none", "na", "n/a", "nan"}
+
+# Regex helpers
+_RE_NUMERIC_TAIL = re.compile(r"(_\d+)$")
+_RE_PREFIX_UPPER = re.compile(r"^([A-Za-z]+)__")
+
+def _normalize_unknown(x):
+    if pd.isna(x):
+        return pd.NA
+    s = str(x).strip()
+    return pd.NA if s.lower() in _UNKNOWN_TOKENS else s
+
+def _ensure_rank_prefix(s, target_prefix):
+    if pd.isna(s):
+        return pd.NA
+    s = str(s).strip()
+    # Already correct
+    if s.startswith(target_prefix):
+        return s
+    # Fix wrong-case prefix: D__ → d__
+    if _RE_PREFIX_UPPER.match(s):
+        prefix = _RE_PREFIX_UPPER.match(s).group(1).lower() + "__"
+        s = _RE_PREFIX_UPPER.sub(prefix, s)
+    # Add missing prefix (e.g., "Bacillota_A" → "p__Bacillota_A")
+    if not any(s.startswith(p) for p in _RANK_COLS_CANONICAL):
+        s = f"{target_prefix}{s}"
+    return s
+
+def _strip_numeric_tail(s):
+    if pd.isna(s):
+        return pd.NA
+    return _RE_NUMERIC_TAIL.sub("", str(s).strip())
+
+def _detect_rank_columns(df):
+    """Return mapping: canonical_prefix -> actual_column_name."""
+    mapping = {}
+    # direct canonical matches
+    for col in _RANK_COLS_CANONICAL:
+        if col in df.columns:
+            mapping[col] = col
+    # named ranks → canonical
+    lower = {c.lower(): c for c in df.columns}
+    for name, pref in _NAMED_TO_PREFIX.items():
+        if name in lower:
+            mapping[pref] = lower[name]
+    return mapping
+
+def _clean_rank_series(s, target_prefix=None):
+    s = s.astype("string").map(_normalize_unknown)
+    s = s.map(lambda x: _ensure_rank_prefix(x, target_prefix) if not pd.isna(x) else pd.NA)
+    s = s.map(lambda x: _strip_numeric_tail(x) if not pd.isna(x) else pd.NA)
+    return s
+
+def clean_taxonomy_table(
+    obj: Union["MicrobiomeData", Dict[str, Any]],
+    inplace: bool = False
+):
+    """
+    Clean and standardize Greengenes2/GTDB taxonomy in a DataFrame.
+    """
+    is_object = hasattr(obj, "tax")
+
+    # --- Extract taxonomy table ---
+    tax = get_df(obj, "tax")
+    if tax is None:
+        raise ValueError("Object must contain a 'tax' dataframe")
+
+    taxout = tax.copy()
+
+    rank_map = _detect_rank_columns(taxout)
+    if not rank_map:
+        raise ValueError("Could not detect taxonomic levels.")
+
+    # Clean each rank column
+    for canonical, actual in rank_map.items():
+        taxout[actual] = _clean_rank_series(taxout[actual], target_prefix=canonical)
+
+    # --- Helper for safe selection on possibly-missing keys ---
+    def _take(df):
+        return df if df is not None else None
+
+    # --- Build output in the same type as input ---
+    if is_object:
+        if inplace:
+            obj.tab = _take(obj.tab)
+            obj.tax = taxout
+            obj.seq = _take(obj.seq)
+
+            if hasattr(obj, "_autocorrect"):
+                obj._autocorrect()
+            if hasattr(obj, "_validate"):
+                obj._validate()
+            return obj
+        else:
+            try:
+                from ..data_object import MicrobiomeData
+            except Exception:
+                MicrobiomeData = None
+
+            if MicrobiomeData is not None:
+                new_obj = MicrobiomeData(
+                    tab=_take(obj.tab),
+                    tax=taxout,
+                    seq=_take(obj.seq),
+                    meta=_take(obj.meta),
+                    tree=_take(obj.tree),
+                )
+                if hasattr(new_obj, "_autocorrect"):
+                    new_obj._autocorrect()
+                if hasattr(new_obj, "_validate"):
+                    new_obj._validate()
+                return new_obj
+            else:
+                # Fallback: return a dict if class isn't importable
+                return {
+                    "tab": _take(getattr(obj, "tab", None)),
+                    "tax": taxout,
+                    "seq": _take(getattr(obj, "seq", None)),
+                    "meta": _take(getattr(obj, "meta", None)),
+                    "tree": _take(getattr(obj, "tree", None)),
+                }
+    else:
+        # dict input
+        out: Dict[str, Any] = {}
+        out["tab"] = _take(obj.get("tab"))
+        out["tax"] = taxout
+        out["seq"] = _take(obj.get("seq"))
+        out["tree"] = _take(obj.get("tree"))
+        out["meta"] = _take(obj.get("meta"))
+        return out

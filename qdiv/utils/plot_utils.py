@@ -1,5 +1,4 @@
 import pandas as pd
-import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib import colors as mcolors
 from typing import Dict, List, Literal, Union, Any
@@ -337,7 +336,9 @@ def groupbytaxa(
                 ws1 = temp[temp[c].str.split(" ").str[0].str.startswith(n_tuple)].index.tolist()
                 ws2 = temp[temp[c].str.split(" ").str[0].str.endswith(n_tuple)].index.tolist()
                 ws_p1 = list(set(ws1 + ws2))
-    
+            else:
+                ws_p2 = []
+                ws_p1 = []
     
             # Two part names with underscore that should not be italics 
             wu = tax[tax[c].str.contains("_", case=False)].index.tolist()
@@ -351,6 +352,9 @@ def groupbytaxa(
                 wu1 = temp[temp[c].str.split("_").str[0].str.startswith(n_tuple)].index.tolist()
                 wu2 = temp[temp[c].str.split("_").str[0].str.endswith(n_tuple)].index.tolist()
                 wu_p1 = list(set(wu1 + wu2))
+            else:
+                wu_p2 = []
+                wu_p1 = []
     
             # Completely unclassified, should not be italics
             unclassified = tax.loc[tax[c].str.contains("unclassified", case=False), c].index

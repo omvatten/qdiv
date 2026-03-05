@@ -1,7 +1,9 @@
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-from matplotlib.patches import Ellipse
+from matplotlib.patches import Ellipse, Patch
+from matplotlib.textpath import TextPath
+from matplotlib.font_manager import FontProperties
 from typing import Dict, List, Optional, Tuple, Union, Any
 from ..stats import pcoa_lingoes
 from ..utils import get_colors_markers, get_df
@@ -120,7 +122,6 @@ def _scale_arrows_to_limits(Uproj: pd.DataFrame, xlims, ylims, margin=0.9):
 # ------------------------------
 # Helpers: ellipses
 # ------------------------------
-
 def _covariance_ellipse_params(x: np.ndarray, y: np.ndarray, n_std: float = 2.0):
     """
     Compute covariance ellipse parameters (center, width, height, angle in degrees).
@@ -186,7 +187,6 @@ def _draw_ellipses(ax, coords: pd.DataFrame, meta: pd.DataFrame, group_col: str,
             else:
                 # Single group fallback
                 order_vals = pd.Series([order_vals], index=[meta[group_col].unique()[0]])
-            print(order_vals)
             df_centers = pd.DataFrame(centers, columns=[group_col, 'x', 'y']).set_index(group_col)
             ordered = df_centers.loc[order_vals.index]
             ax.plot(ordered['x'].values, ordered['y'].values, color='black', lw=lw)
@@ -197,81 +197,280 @@ def _draw_ellipses(ax, coords: pd.DataFrame, meta: pd.DataFrame, group_col: str,
 # ------------------------------
 # Helpers: points & legends
 # ------------------------------
+def _estimate_text_width_in(texts, fontsize=12, fontproperties=None):
+    """
+    Estimate max text width in inches using TextPath (points -> inches).
+    """
+    fp = fontproperties or FontProperties(size=fontsize)
+    max_pt = 0.0
+    for t in texts:
+        tp = TextPath((0, 0), str(t), prop=fp, usetex=False)
+        bbox = tp.get_extents()
+        max_pt = max(max_pt, bbox.width)   # width in points
+    # 1 pt = 1/72 inch
+    return max_pt / 72.0
+
+def _auto_legend_fraction_fast(
+    meta,
+    *,
+    color_by,
+    shape_by,
+    figure_width_in,
+    fontsize=12,
+    marker_em=1.4,
+    pad_em=1.0,
+    min_fraction=0.16,
+    max_fraction=0.48,
+):
+    """
+    Heuristic legend fraction using text extents only.
+    """
+    if color_by is None:
+        color_labels = ["all"]
+    else:
+        color_labels = list(pd.unique(meta[color_by]))
+    if shape_by is not None:
+        if pd.api.types.is_categorical_dtype(meta[shape_by]):
+            shape_labels = list(meta[shape_by].cat.categories)
+        else:
+            shape_labels = list(pd.unique(meta[shape_by]))
+    else:
+        shape_labels = []
+
+    # Convert "em" (roughly font size) to inches: fontsize pt -> in
+    em_in = (fontsize / 72.0)
+
+    color_title = (color_by if color_by and color_by != "_all_" else "")
+    shape_title = (shape_by if shape_by else "")
+
+    color_text_in = _estimate_text_width_in([color_title] + color_labels, fontsize=fontsize)
+    shape_text_in = _estimate_text_width_in([shape_title] + shape_labels, fontsize=fontsize)
+
+    # add room for markers/patches and padding
+    color_w_in = color_text_in + marker_em * em_in + pad_em * em_in
+    shape_w_in = shape_text_in + marker_em * em_in + pad_em * em_in
+
+    extra_padding_in = 3 * fontsize / 72.0
+    needed_in = max(color_w_in, shape_w_in) + extra_padding_in
+    frac = needed_in / max(figure_width_in, 1e-6)
+    return float(np.clip(frac, min_fraction, max_fraction))
+
 def _default_colors(n):
     return get_colors_markers(get_type="colors")
 
 def _default_markers(n):
     return get_colors_markers(get_type="markers")
 
-def _draw_points(ax, coords: pd.DataFrame, meta: pd.DataFrame,
-                 color_by: str = None, shape_by: str = None,
-                 colors=None, markers=None, markersize=50, lw=1.0,
-                 connect=None, legend=True, legend_pos_colors=(1, 1), legend_pos_shapes=(1, 0.4),
-                 legend_titles=(None, None), markerscale=1.1, fontsize=12):
+def _draw_points(
+    ax, coords, meta,
+    *,
+    color_by=None, shape_by=None,
+    colors=None, markers=None, markersize=50, lw=1.0,
+    connect=None, legend=True,
+    legend_pos_colors=None, legend_pos_shapes=None,
+    legend_titles=(None, None),
+    markerscale=1.1,
+    fontsize=12,
+    ax_leg=None,
+    color_legend_style="patch",
+    color_legend_marker="o",
+    color_legend_title=None,
+    shape_legend_title=None,
+):
     """
-    Scatter plot of points grouped by color_by and shape_by, with optional connection lines.
+    Scatter plot of points grouped by color_by and shape_by,
+    with optional connection lines and separate legend axis.
     """
     xn, yn = coords.columns.tolist()
 
-    # Prepare grouping
+    # ---- Prepare grouping (avoid mutating input meta) ----
     if color_by is None:
-        meta['_all_'] = 'all'
-        color_by = '_all_'
+        meta = meta.copy()
+        meta["_all_"] = "all"
+        color_by = "_all_"
+
     cats1 = list(pd.unique(meta[color_by]))
     colors = colors or _default_colors(len(cats1))
-    markers = markers or _default_markers(max(len(cats1), len(pd.unique(meta[shape_by])) if shape_by else 1))
 
-    # Legend containers
-    linesColor = [[], []]
+    # Global shape levels (respect categorical order if present)
+    shape_levels: List[str] = []
+    if shape_by is not None:
+        if pd.api.types.is_categorical_dtype(meta[shape_by]):
+            shape_levels = list(meta[shape_by].cat.categories)
+        else:
+            shape_levels = list(pd.unique(meta[shape_by]))
+
+    # Markers must at least cover the number of distinct shapes
+    markers = markers or _default_markers(max(1, len(shape_levels)))
+
+    # Build a global mapping: shape category -> marker
+    shape_to_marker: Dict[Any, str] = {}
+    if shape_by is not None:
+        for idx, cat in enumerate(shape_levels):
+            shape_to_marker[cat] = markers[idx % len(markers)]
+
+    # ---- Legend containers ----
+    linesColor = [[], []]  # handles, labels
     linesShape = [[], []]
-    shapeTracker = []
 
+    # Prebuild SHAPE legend once, based on global shape_to_marker
+    if shape_by is not None and len(shape_levels) > 0:
+        for cat2 in shape_levels:
+            mk = shape_to_marker[cat2]
+            # neutral/black marker to illustrate shape
+            handle = ax.scatter([], [], label=str(cat2), color="black", marker=mk)
+            linesShape[0].append(handle)
+            linesShape[1].append(cat2)
+
+    # ---- Plot by COLOR groups ----
     for i, cat1 in enumerate(cats1):
         sel1 = meta[color_by] == cat1
         meta_i = meta.loc[sel1]
         coords_i = coords.loc[sel1]
 
-        # Connect lines by a numeric column
+        # Optional connection lines (within color group)
         if connect is not None:
-            order_vals = pd.to_numeric(meta_i[connect], errors='coerce')
+            order_vals = pd.to_numeric(meta_i[connect], errors="coerce")
             sorter = np.argsort(order_vals.values)
-            ax.plot(coords_i.iloc[sorter, 0], coords_i.iloc[sorter, 1], color=colors[i], lw=lw)
+            ax.plot(
+                coords_i.iloc[sorter, 0], coords_i.iloc[sorter, 1],
+                color=colors[i], lw=lw
+            )
 
-        if shape_by is not None:
-            cats2 = list(pd.unique(meta_i[shape_by]))
-            # add color legend stub
-            linesColor[0].append(ax.scatter([], [], label=str(cat1), color=colors[i]))
-            linesColor[1].append(cat1)
-            for j, cat2 in enumerate(cats2):
+        # Color legend stub
+        if color_legend_style == "patch":
+            linesColor[0].append(Patch(facecolor=colors[i], edgecolor="none", label=str(cat1)))
+        else:
+            linesColor[0].append(
+                ax.scatter([], [], label=str(cat1), color=colors[i], marker=color_legend_marker)
+            )
+        linesColor[1].append(cat1)
+
+        # Plot shapes within this color group
+        if shape_by is not None and len(shape_levels) > 0:
+            # Iterate only over shapes present in this color slice, but look up marker from the global map
+            for cat2 in pd.unique(meta_i[shape_by]):
                 sel2 = meta_i[shape_by] == cat2
                 xi = coords_i.loc[sel2, xn]
                 yi = coords_i.loc[sel2, yn]
-                mk = markers[j % len(markers)]
-                ax.scatter(xi, yi, label=None, color=colors[i], marker=mk, s=markersize)
-                # shape legend stub (one per shape)
-                if j not in shapeTracker:
-                    linesShape[0].append(ax.scatter([], [], label=str(cat2), color='black', marker=mk))
-                    linesShape[1].append(cat2)
-                    shapeTracker.append(j)
+                mk = shape_to_marker.get(cat2, markers[0])  # fallback safe-guard
+                ax.scatter(xi, yi, color=colors[i], marker=mk, s=markersize)
         else:
+            # No shape dimension: use a (color-specific) marker for the color legend
             mk = markers[i % len(markers)]
-            linesColor[0].append(ax.scatter([], [], label=str(cat1), color=colors[i], marker=mk))
-            linesColor[1].append(cat1)
-            ax.scatter(coords_i[xn], coords_i[yn], label=None, color=colors[i], marker=mk, s=markersize)
+            # Replace the legend patch with an example marker so legend matches the plot symbols
+            if color_legend_style == "patch":
+                linesColor[0][-1] = ax.scatter([], [], label=str(cat1), color=colors[i], marker=mk)
+            ax.scatter(coords_i[xn], coords_i[yn], color=colors[i], marker=mk, s=markersize)
 
-    # Legends
+    # Default legend anchors if not provided
+    if legend_pos_colors is None:
+        legend_pos_colors = (1.0, 1.0)
+    if legend_pos_shapes is None:
+        legend_pos_shapes = (1.0, 0.4)
+
+    # ---- Legends in a dedicated legend axis (Option B) ----
+    if legend and ax_leg is not None:
+        ax_leg.cla()
+        ax_leg.axis("off")
+
+        # Color legend (top)
+        if len(linesColor[0]) > 0:
+            title1 = (
+                color_legend_title
+                if color_legend_title is not None
+                else (legend_titles[0] if legend_titles[0] else (color_by if color_by != "_all_" else ""))
+            )
+            leg1 = ax_leg.legend(
+                handles=linesColor[0],
+                labels=[str(lbl) for lbl in linesColor[1]],
+                title=title1,
+                frameon=False,
+                loc="upper left",
+                fontsize=fontsize,
+                markerscale=markerscale,
+            )
+            try:
+                leg1.get_title().set_ha("left")
+                if hasattr(leg1, "_legend_title_box"):
+                    leg1._legend_title_box.align = "left"
+                if hasattr(leg1, "_legend_box"):
+                    leg1._legend_box.align = "left"
+            except Exception:
+                pass
+
+        # Shape legend (below)
+        if shape_by is not None and len(linesShape[0]) > 0:
+            from matplotlib.legend import Legend
+            title2 = shape_legend_title if shape_legend_title is not None else (legend_titles[1] if legend_titles[1] else shape_by)
+            leg2 = Legend(
+                ax_leg, linesShape[0], linesShape[1],
+                ncol=1, loc="lower left", bbox_to_anchor=(0.0, 0.0),
+                frameon=False, title=title2,
+                fontsize=fontsize, markerscale=markerscale,
+            )
+            ax_leg.add_artist(leg2)
+            try:
+                leg2.get_title().set_ha("left")
+                if hasattr(leg2, "_legend_title_box"):
+                    leg2._legend_title_box.align = "left"
+                if hasattr(leg2, "_legend_box"):
+                    leg2._legend_box.align = "left"
+            except Exception:
+                pass
+
+        return  # done with Option B
+
+    # ---- Fallback: legends anchored to the plotting axis ----
     if legend:
-        # Colors legend (var1)
-        title1 = legend_titles[0] if legend_titles[0] else (color_by if color_by != '_all_' else '')
-        ax.legend(linesColor[0], linesColor[1], ncol=1, bbox_to_anchor=legend_pos_colors, title=title1,
-                  frameon=False, markerscale=markerscale, fontsize=fontsize, loc=2)
-        # Shapes legend (var2)
+        # Color legend
+        title1 = legend_titles[0] if legend_titles[0] else (color_by if color_by != "_all_" else "")
+        leg1 = ax.legend(
+            linesColor[0],
+            [str(lbl) for lbl in linesColor[1]],
+            ncol=1,
+            bbox_to_anchor=legend_pos_colors,
+            title=title1,
+            frameon=False,
+            markerscale=markerscale,
+            fontsize=fontsize,
+            loc=2,
+        )
+        try:
+            leg1.get_title().set_ha("left")
+            if hasattr(leg1, "_legend_title_box"):
+                leg1._legend_title_box.align = "left"
+            if hasattr(leg1, "_legend_box"):
+                leg1._legend_box.align = "left"
+            leg1.set_in_layout(True)
+        except Exception:
+            pass
+
+        # Shape legend
         if shape_by is not None and len(linesShape[0]) > 0:
             from matplotlib.legend import Legend
             title2 = legend_titles[1] if legend_titles[1] else shape_by
-            leg = Legend(ax, linesShape[0], linesShape[1], ncol=1, bbox_to_anchor=legend_pos_shapes, title=title2,
-                         frameon=False, markerscale=markerscale, fontsize=fontsize, loc=2)
-            ax.add_artist(leg)
+            leg2 = Legend(
+                ax, linesShape[0], linesShape[1],
+                ncol=1,
+                bbox_to_anchor=legend_pos_shapes,
+                title=title2,
+                frameon=False,
+                markerscale=markerscale,
+                fontsize=fontsize,
+                loc=2,
+            )
+            ax.add_artist(leg2)
+            try:
+                leg2.get_title().set_ha("left")
+                if hasattr(leg2, "_legend_title_box"):
+                    leg2._legend_title_box.align = "left"
+                if hasattr(leg2, "_legend_box"):
+                    leg2._legend_box.align = "left"
+                leg2.set_in_layout(True)
+            except Exception:
+                pass
+
 
 # ------------------------------
 # Main: ordination plot function
@@ -298,12 +497,19 @@ def ordination(
     hide_ticks: bool = False,
     connect: Optional[str] = None,
     ellipse_connect: Optional[str] = None,
+    ellipse_std: float = 2.0,
     tag: Optional[str] = None,
     return_data: bool = False,
-    ax: Optional[plt.Axes] = None,
     colors: Optional[List[str]] = None,
     markers: Optional[List[str]] = None,
+    ellipse_colors: Optional[List[str]] = None,
+    color_legend_marker: Optional[str] = None,
+    color_legend_title: Optional[str] = None,
+    shape_legend_title: Optional[str] = None,
     which_axes: Tuple[int, int] = (0, 1),
+    ax: Optional[plt.Axes] = None,
+    legend_pos_colors: Tuple[float, float] = (1.0, 1.0),
+    legend_pos_shapes: Tuple[float, float] = (1.0, 0.4),
 ) -> Tuple["plt.Figure", "plt.axes", "pd.DataFrame", "pd.DataFrame"]:
     """
     Create an ordination plot (PCoA or db-RDA) with optional grouping, biplots, and annotations.
@@ -352,18 +558,32 @@ def ordination(
         Column in `meta` to connect points in order (e.g., time series).
     ellipse_connect : str, optional
         Column in `meta` to connect ellipse centers in order.
+    ellipse_std : float, default=2.0
+        Number of standard deviations around the centroid that the ellipse is drawn.
     tag : str, optional
         Column in `meta` or 'index' to annotate points.
     return_data : bool, default=False
         If True, return processed plotting data instead of the figure.
-    ax : matplotlib.axes.Axes, optional
-        Existing axes to draw the plot on. If None, a new figure is created.
     colors : list of str, optional
         Custom list of colors for groups.
     markers : list of str, optional
         Custom list of marker styles for groups.
+    ellipse_colors : list of str, optional
+        Custom list of colors for ellipses.
+    color_legend_marker : str, default=None
+        Shape of color legend marker. Defaults to a rectangular patch.
+    color_legend_title : str, optional
+        Color legend title.
+    shape_legend_title : str, optional
+        Marker legend title.
     which_axes : tuple of int, default=(0, 1)
         Indices of ordination axes to plot.
+    ax : matplotlib.axes.Axes, optional
+        Existing axes to draw the plot on. If None, a new figure is created.
+    legend_pos_colors : tuple of float, default=(1, 1)
+        Position of color legend. Only relevant for user-supplied ax.
+    legend_pos_shapes : tuple of float, default=(1, 0.4)
+        Position of shape legend. Only relevant for user-supplied ax.
 
     Returns
     -------
@@ -444,22 +664,71 @@ def ordination(
         Uproj = _compute_pcoa_biplot(coords, meta, biplot, evx, evy)
         Uproj = _scale_arrows_to_limits(Uproj, xaxislims, yaxislims)
 
-    # Plot setup
+    # --- Plot setup (Option B: dedicated legend column when ax is None) ---
     if ax is None:
         plt.rcParams.update({'font.size': fontsize})
-        fig, ax = plt.subplots(figsize=figsize)
+        fig = plt.figure(figsize=figsize, constrained_layout=True)
+
+        # Reserve right column for legends
+        auto_frac = _auto_legend_fraction_fast(
+            meta,
+            color_by=color_by,
+            shape_by=shape_by,
+            figure_width_in=fig.get_figwidth(),
+            fontsize=fontsize,
+            marker_em=markerscale,
+            pad_em=1.0,
+            min_fraction=0.16,
+            max_fraction=0.48,
+        )
+        gs = fig.add_gridspec(ncols=2, nrows=1, width_ratios=[1.0 - auto_frac, auto_frac])
+        ax = fig.add_subplot(gs[0, 0])
+        ax_leg = fig.add_subplot(gs[0, 1])
+        ax_leg.axis("off")  # hide ticks/frames on legend column
     else:
         fig = ax.figure
-
-    # Points & legends
-    _draw_points(ax, coords, meta, color_by=color_by, shape_by=shape_by,
-                 colors=colors, markers=markers, markersize=markersize, lw=lw,
-                 connect=connect, legend=show_legend, markerscale=markerscale, fontsize=fontsize)
+        ax_leg = None  # fallback to axes-anchored legends if external ax is supplied
+    
+    # --- Determine color legend style from marker preference ---
+    # If user does not provide a marker for the color legend, use neutral rectangles ("patch")
+    if color_legend_marker is None:
+        color_legend_style = "patch"
+    else:
+        color_legend_style = "marker"
+    
+    # --- Points & legends ---
+    _draw_points(
+        ax, coords, meta,
+        color_by=color_by, shape_by=shape_by,
+        colors=colors, markers=markers, markersize=markersize, lw=lw,
+        connect=connect, legend=show_legend, markerscale=markerscale, fontsize=fontsize,
+        legend_pos_colors=legend_pos_colors, legend_pos_shapes=legend_pos_shapes,
+        ax_leg=ax_leg,
+        color_legend_style=color_legend_style,
+        color_legend_marker=color_legend_marker,
+        color_legend_title=color_legend_title,
+        shape_legend_title=shape_legend_title
+    )
 
     # Ellipses
     if ellipse is not None and ellipse in meta.columns:
-        _draw_ellipses(ax, coords, meta, group_col=ellipse, n_std=2.0, edge_color='grey', lw=lw,
-                       label_centers=False, connect_by=ellipse_connect, colors=colors or _default_colors(len(pd.unique(meta[ellipse]))))
+        e_counts = len(meta[ellipse].unique())
+        if ellipse_colors is None:
+            e_colors = _default_colors(len(pd.unique(meta[ellipse])))
+        elif isinstance(ellipse_colors, str):
+            e_colors = [ellipse_colors]*e_counts
+        elif isinstance(ellipse_colors, list) and len(ellipse_colors) < e_counts:
+            e_colors = ellipse_colors * (int(e_counts/len(ellipse_colors))+1)
+        elif isinstance(ellipse_colors, list):
+            e_colors = ellipse_colors
+        else:
+            raise ValueError("ellipse_colors is not correctly defined. Should be list, str, or None.")
+        _draw_ellipses(
+            ax, coords, meta,
+            group_col=ellipse, n_std=ellipse_std, edge_color='grey', lw=lw,
+            label_centers=False, connect_by=ellipse_connect,
+            colors=e_colors
+        )
 
     # Arrow overlay
     if Uproj is not None and len(Uproj) > 0:
@@ -497,12 +766,11 @@ def ordination(
         ax.set_xticklabels([])
         ax.set_yticklabels([])
     ax.set_title(title)
-    plt.tight_layout()
 
     # Save
     if savename is not None:
-        fig.savefig(savename)
-        fig.savefig(savename + ".pdf", format="pdf")
+        fig.savefig(savename, bbox_inches="tight", dpi=240)
+        fig.savefig(savename + ".pdf", format="pdf", bbox_inches="tight")
 
     # Return
     if Uproj is not None:

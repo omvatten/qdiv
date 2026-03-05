@@ -297,17 +297,18 @@ def subset_abundant(
     obj: Union["MicrobiomeData", Dict[str, Any]],
     *,
     n: int = 25,
-    method: Literal["sum", "mean"] = "mean",
+    method: Literal["sum", "mean", "max", "frequency"] = "mean",
+    cutoff: float | None = None,
     exclude: bool = False,
     inplace: bool = False,
 ) -> Union["MicrobiomeData", Dict[str, Any]]:
     """
-    Keep (or exclude) the most abundant features based on relative abundance.
+    Keep (or exclude) the most abundant features based on relative abundance 
+    or frequency of detection.
 
-    The abundance score for each feature is computed from the per-sample
-    **relative abundance table** (tab / tab.sum per column), then reduced
-    across samples by either 'sum' or 'mean'. Ties are broken by feature index
-    order for determinism.
+    The abundance score for each feature is based on the 'sum' or 'mean' of its
+    relative abundance across samples, or its 'frequency' of detection in the sample set.
+    Ties are broken by feature index order for determinism.
 
     Parameters
     ----------
@@ -322,10 +323,16 @@ def subset_abundant(
     n : int, default 25
         Number of top features to keep (or exclude if `exclude=True`).
         Values outside [0, n_features] are clamped to the valid range.
-    method : {'sum','mean'}, default 'mean'
+    method : {'sum','mean','frequency'}, default 'mean'
         Reduction across samples of **relative abundance** per feature.
         - 'sum'  : total relative abundance across samples
         - 'mean' : mean relative abundance across samples
+        - 'max' : max relative abundance in a sample
+        - 'frequency' : proportion of samples in which the feature is detected
+    cutoff : float, default None
+        If cutoff is specific as a percentage (from 0 to 100%), all features 
+        with a 'sum', 'mean', or 'max' relative abundance or 'frequency' of detection
+        above this value will be kept, and the parameter n will be ignored.
     exclude : bool, default False
         If False (default), keep the top-n features.
         If True, exclude the top-n features (keep the rest).
@@ -341,8 +348,7 @@ def subset_abundant(
 
     Notes
     -----
-    - Relative abundances are computed as: RA = tab / tab.sum(axis=0).
-      Samples with zero total are treated as zeros after division.
+    - Cutoff values should be provided as percentages (0 to 100%).
     - The phylogenetic tree ('tree') is left unchanged. If you want to prune it,
       do so explicitly after calling this function.
     """
@@ -366,12 +372,17 @@ def subset_abundant(
         raise ValueError("'tab' must be a pandas DataFrame [features x samples].")
     if tab.shape[0] == 0 or tab.shape[1] == 0:
         raise ValueError("'tab' must have at least one feature and one sample.")
-    if method not in ("sum", "mean"):
-        raise ValueError("`method` must be 'sum' or 'mean'.")
+    if method not in ("sum", "mean", "max", "frequency"):
+        raise ValueError("`method` must be 'sum', 'mean', 'max', or 'frequency'.")
+    if n is None and cutoff is None:
+        raise ValueError("'n' or 'cutoff' must be specified.")
 
     # Clamp n
-    n_features = tab.shape[0]
-    n = int(max(0, min(n, n_features)))
+    if n is not None:
+        n_features = tab.shape[0]
+        n = int(max(0, min(n, n_features)))
+    if cutoff is not None:
+        cutoff = float(cutoff)
 
     # --- Compute relative abundances once ------------------------------------
     col_sums = tab.sum(axis=0)
@@ -381,19 +392,25 @@ def subset_abundant(
 
     # --- Feature scores and selection ----------------------------------------
     if method == "sum":
-        scores = ra.sum(axis=1)
-    else:  # "mean"
-        scores = ra.mean(axis=1)
+        scores = 100 * ra.sum(axis=1)
+    elif method == "mean":
+        scores = 100 * ra.mean(axis=1)
+    elif method == "max":
+        scores = 100 * ra.max(axis=1)
+    elif method == "frequency":
+        scores = 100 * (ra > 0).sum(axis=1) / len(ra.columns)
 
     # Deterministic sort: by score desc, then by index asc
     # (pandas' sort_values is stable; we add index as tie-breaker)
     tmp = pd.DataFrame({"__score__": scores})
     tmp["__ix__"] = tmp.index
     tmp = tmp.sort_values(by=["__score__", "__ix__"], ascending=[False, True])
-    top_features = tmp.index[:n]
-
+    if cutoff is not None:
+        top_features = tmp[tmp['__score__']>=cutoff].index
+    else:
+        top_features = tmp.index[:n]
     # --- Build keep mask ------------------------------------------------------
-    if n == 0:
+    if len(top_features) == 0:
         keep_mask = pd.Series(True, index=tab.index) if exclude else pd.Series(False, index=tab.index)
     else:
         in_top = tab.index.isin(top_features)
@@ -548,13 +565,6 @@ def subset_taxa(
         mask = ~mask
 
     keep_idx = tax.index[mask]  # preserves original order
-
-    # Optional: warn if nothing matched
-    if len(keep_idx) == 0:
-        # You may prefer to raise instead:
-        # raise ValueError("No taxa matched the provided patterns/levels.")
-        # Here we return an object with empty rows.
-        pass
 
     # --- Helper for safe selection on possibly-missing keys ---
     def _take(df):
@@ -822,7 +832,7 @@ def rarefy(
     obj: Union["MicrobiomeData", Dict[str, Any]],
     *,
     depth: Union[int, str] = "min",
-    seed: Optional[int] = None,
+    random_state: Optional[int] = None,
     replacement: bool = False,
     inplace: bool = False
 ) -> Union["MicrobiomeData", Dict[str, Any]]:
@@ -835,7 +845,7 @@ def rarefy(
         Object containing at least 'tab' (features x samples).
     depth : int or 'min'
         Target sequencing depth per sample.
-    seed : int, optional
+    random_state : int, optional
         Random seed for reproducibility.
     replacement : bool, default False
         Sample with replacement if True.
@@ -854,7 +864,7 @@ def rarefy(
         raise ValueError("Object must contain an abundance table ('tab').")
 
     # Rarefy table
-    rtab = _rarefy_table(tab, depth=depth, seed=seed, replacement=replacement)
+    rtab = _rarefy_table(tab, depth=depth, seed=random_state, replacement=replacement)
 
     # Remove zero-count features
     keep_features = rtab.index[rtab.sum(axis=1) > 0]

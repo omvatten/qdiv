@@ -2,7 +2,7 @@ import pandas as pd
 import numpy as np
 import math
 from typing import Union, Any, Dict
-from ..utils import rao, get_df, subset_tree, parse_leaves
+from ..utils import rao, get_df, subset_tree_df, compute_Tmean, ra_to_branches
 
 # -----------------------------------------------------------------------------
 # Naive alpha diversity
@@ -70,11 +70,8 @@ def naive_alpha(
         ra = tab.div(col_sums, axis=1)
 
     if q == 1:
-        raLn = ra.copy()
-        raLn[ra > 0] = ra[ra > 0] * np.log(ra[ra > 0])
-        Hillvalues = raLn.sum()
-        Hillvalues[Hillvalues < 0] = np.exp(-Hillvalues[Hillvalues < 0])
-        return Hillvalues
+        H = -(ra.where(ra > 0) * np.log(ra.where(ra > 0))).sum()
+        return np.exp(H)
     else:
         rapow = ra.copy()
         rapow[ra > 0] = ra[ra > 0].pow(q)
@@ -161,59 +158,43 @@ def phyl_alpha(
         ra = tab.div(col_sums, axis=1)
 
     #Subset tree to features in tab
-    tree = subset_tree(tree, ra.index.tolist())
+    tree = subset_tree_df(tree, ra.index.tolist())
 
     # Get Tmean
-    Tmean = tree[~tree['nodes'].str.startswith('in')].copy()
-    Tmean = Tmean.set_index('nodes')
-    asv_set = set(ra.index)
-    in_common = list(asv_set.intersection(Tmean.index.tolist()))
-    if len(in_common) < len(asv_set):
-        raise ValueError("Not all features in tab are found in the tree")
-    Tmean = Tmean.loc[in_common]
-    Tmean = Tmean['dist_to_root'].sum() / len(Tmean)
+    Tmean = compute_Tmean(tree, ra.index.tolist())
 
     # Build branch × sample abundance matrix
-    tree2 = pd.DataFrame(0.0, index=tree.index, columns=ra.columns)
-    asv_set = set(ra.index)
-
-    for branch in tree.index:
-        asvlist = parse_leaves(tree.loc[branch, "leaves"])
-
-        # Keep only ASVs present in the abundance table
-        asvlist = list(asv_set.intersection(asvlist))
-
-        if asvlist:
-            tree2.loc[branch] = ra.loc[asvlist].sum()
-        else:
-            tree2.loc[branch] = 0.0
+    tree2 = ra_to_branches(ra, tree)
 
     #Calculate diversities
-    tree_calc = tree2.copy()
-    
     if q == 1:
-        tree_calc[tree_calc > 0] = tree_calc[tree_calc > 0].map(math.log)
-        tree_calc = tree2.mul(tree_calc)
-        tree_calc = tree_calc.mul(tree['branchL'], axis=0) #Multiply with branch length
-        tree_calc = tree_calc.div(Tmean, axis=1) #Divide by Tmean
-        tree_calc = -tree_calc.sum()
-        hill_div = tree_calc
-        hill_div[hill_div > 0] = hill_div[hill_div > 0].apply(math.exp)
+        # Build log p_b with masking
+        mask = tree2 > 0
+        logp = pd.DataFrame(0.0, index=tree2.index, columns=tree2.columns)
+        logp[mask] = np.log(tree2[mask])
+        
+        # L_b * p_b ln p_b / Tmean, sum over branches
+        term = (tree2 * logp).mul(tree["branchL"], axis=0).div(Tmean, axis=1).sum()
+        term = -term
+        # D1 = exp( - Σ_b L_b * p_b ln p_b / Tmean )
+        D = np.exp(term)
+
     else:
+        tree_calc = tree2.copy()
         tree_calc[tree_calc > 0] = tree_calc[tree_calc > 0].pow(q) #Take power of q
-        tree_calc = tree_calc.mul(tree['branchL'], axis=0) #Multiply with branch length
+        tree_calc = tree_calc.mul(tree["branchL"], axis=0) #Multiply with branch length
         tree_calc = tree_calc.div(Tmean, axis=1) #Divide by Tmean
-        tree_calc = tree_calc.sum()
-        hill_div = tree_calc
-        hill_div[hill_div > 0] = hill_div[hill_div > 0].pow(1.0 / (1.0 - q))
+        term = tree_calc.sum() #Sum
+        D = term.copy()
+        D[D > 0] = D[D > 0].pow(1.0 / (1.0 - q))
 
     # Return requested index
-    if index == 'PD':
-        return hill_div.mul(Tmean)
-    elif index == 'D':
-        return hill_div
-    elif index == 'H':
-        return tree_calc
+    if index == "PD":
+        return D * Tmean
+    elif index == "D":
+        return D
+    elif index == "H":
+        return term
     else:
         raise ValueError("`index` must be one of: 'PD', 'D', 'H'.")
 
@@ -342,3 +323,58 @@ def func_alpha(
     else:
         raise ValueError("`index` must be one of: 'D', 'MD', 'FD'.")
 
+# -----------------------------------------------------------------------------
+# Phylo indices
+# -----------------------------------------------------------------------------
+def mpdq(
+    obj: Union[Dict[str, Any], Any],
+    distmat: pd.DataFrame,
+    *,
+    q: float = 1.0,
+) -> pd.DataFrame:
+    """
+    Mean phylogenetic distance (MPD) with q-weighting of relative abundances.
+    Accepts either a MicrobiomeData object or a dict with at least a 'tab' DataFrame.
+
+    Parameters
+    ----------
+    obj : MicrobiomeData, dict, or compatible object
+        Input data. Must provide at least an abundance table ('tab').
+    distmat : pd.DataFrame
+        Square distance matrix indexed/columned by feature ids.
+    q : float, default=1.0
+        Order of diversity weighting applied to relative abundances.
+    Returns
+    -------
+    pandas.DataFrame
+
+    References
+    ----------
+    Webb et al. (2002) *American Naturalist*.
+    """
+    from ..model import nriq
+    return nriq(obj, distmat, q=q, iterations=0)
+
+def mntdq(
+    obj: Union[Dict[str, Any], Any],
+    distmat: pd.DataFrame,
+    *,
+    q: float = 1.0,
+) -> pd.DataFrame:
+    """
+    Mean nearest taxon distance (MNTD) with q-weighting of relative abundances.
+
+    Parameters
+    ----------
+    obj : MicrobiomeData, dict, or compatible object
+        Input data. Must provide at least an abundance table ('tab').
+    distmat : pd.DataFrame
+        Square distance matrix indexed/columned by feature ids.
+    q : float, default=1.0
+        Order of diversity weighting applied to relative abundances.
+    Returns
+    -------
+    pandas.DataFrame
+    """
+    from ..model import ntiq
+    return ntiq(obj, distmat, q=q, iterations=0)
