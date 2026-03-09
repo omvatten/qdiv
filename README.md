@@ -30,3 +30,23 @@ Full documentation is available at: [https://qdiv.readthedocs.io](https://qdiv.r
 ## Licence
 From version 4.0.0, qdiv is licensed under the https://opensource.org/licenses/BSD-3-Clause.
 Previous versions were released under the GNU General Public License v3.0 (GPL-3.0).
+
+
+## Contributing
+Contributions are welcome!
+Please read the [CONTRIBUTING.md](CONTRIBUTING.md) for details on:
+
+- How to report bugs
+- How to request new features
+- How to submit pull requests
+
+
+## Support
+If you need help with qdiv.
+
+- Browse existing issues
+- If needed, open a support issue. See [SUPPORT.md](SUPPORT.md).
+
+
+## Code of Conduct
+To ensure a welcoming environment, this project follows the standards outlined in the [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md). All contributors are expected to uphold this code.
