@@ -42,7 +42,7 @@ Please read the [CONTRIBUTING.md](CONTRIBUTING.md) for details on:
 
 
 ## Support
-If you need help with qdiv.
+If you need help with qdiv:
 
 - Browse existing issues
 - If needed, open a support issue. See [SUPPORT.md](SUPPORT.md).

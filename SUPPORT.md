@@ -5,9 +5,9 @@ This page provides  guidance for users who need help with qdiv.
 ## Before Requesting Support
 Before opening a support request, please:
 
-- Review the README and documentations.
+- Review the [README.md](README.md) and documentations.
 - Search existing Issues to see whether your question has already been answered
-- Check CONTRIBUTING.md if your question relates to contributing code or reporting bugs
+- Check [CONTRIBUTING.md](CONTRIBUTING.md) if your question relates to contributing code or reporting bugs
 
 
 ## How to Get Help
