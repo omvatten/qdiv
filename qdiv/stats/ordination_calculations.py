@@ -278,6 +278,7 @@ def dbrda(
     Distance‑based Redundancy Analysis (db‑RDA).
 
     This function performs constrained ordination on a distance matrix by:
+
     1. Converting the distance matrix into principal coordinates (PCoA)
        using the specified PCoA function (default: Lingoes correction).
     2. Regressing the PCoA coordinates onto explanatory variables.
