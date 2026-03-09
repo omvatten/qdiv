@@ -204,9 +204,17 @@ def _estimate_text_width_in(texts, fontsize=12, fontproperties=None):
     fp = fontproperties or FontProperties(size=fontsize)
     max_pt = 0.0
     for t in texts:
-        tp = TextPath((0, 0), str(t), prop=fp, usetex=False)
-        bbox = tp.get_extents()
-        max_pt = max(max_pt, bbox.width)   # width in points
+        s = "" if t is None else str(t)
+        # Skip truly empty labels: they cause TextPath to return list-based paths.
+        if s.strip() == "":
+            continue
+        try:
+            tp = TextPath((0, 0), s, prop=fp, usetex=False)
+            bbox = tp.get_extents()
+            max_pt = max(max_pt, bbox.width)  # width in points
+        except Exception:
+            # Fallback heuristic: ~0.6 * fontsize (pt) per character
+            max_pt = max(max_pt, 0.6 * fontsize * max(1, len(s)))
     # 1 pt = 1/72 inch
     return max_pt / 72.0
 
@@ -517,8 +525,8 @@ def ordination(
     Parameters
     ----------
     ordination_results : pandas.DataFrame or dict
-        Ordination results from PCoA or db-RDA. For PCoA, provide a distance DataFrame;
-        for db-RDA, provide a dictionary containing scores.
+        Dissimilarity matrix (square DataFrame) → runs stats.pcoa_lingoes and plots PCoA. 
+        Results dict from stats.pcoa_lingoes or stats.dbrda → plotted directly.
     meta : DataFrame | MicrobiomeData-like | dict
         Metadata table with sample annotations.
     color_by : str, optional
