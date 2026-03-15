@@ -489,6 +489,7 @@ def ordination(
     *,
     color_by: Optional[str] = None,
     shape_by: Optional[str] = None,
+    order: Optional[str] = None,    
     biplot: Optional[List[str]] = None,
     ellipse: Optional[str] = None,
     title: str = "",
@@ -533,6 +534,8 @@ def ordination(
         Column in `meta` used to color points by group.
     shape_by : str, optional
         Column in `meta` used to vary marker shapes by group.
+    order : str, optional
+        Metadata column used to order samples for the color_by variable.
     biplot : list of str, optional
         For PCoA: list of numeric metadata columns to display as biplot vectors.
         For db-RDA: set to None to use 'biplot_scores' from ordination results.
@@ -637,6 +640,12 @@ def ordination(
         if len(common) != len(coords_df.index):
             raise ValueError("Samples in metadata don't match samples in ordination site scores.")
         meta = meta.loc[coords_df.index]
+
+    if order is not None and order not in meta.columns:
+        raise ValueError("order is missing in metadata.")
+    elif order is not None:
+        meta = meta.sort_values(by=order, ascending=True)
+        coords_df = coords_df.loc[meta.index]
 
     # Pick axes
     if len(axis_names) < max(which_axes) + 1:

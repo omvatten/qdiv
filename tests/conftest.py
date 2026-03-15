@@ -1,6 +1,6 @@
-
 import os
-import random
+import qdiv
+import pandas as pd
 import numpy as np
 import pytest
 
@@ -17,9 +17,7 @@ def rng():
 @pytest.fixture(scope="session")
 def qb():
     """Load the example MicrobiomeData object, rarefied, once per session.
-    Returns a qdiv.MicrobiomeData-like object that the qdiv API can consume.
     """
-    import qdiv
     obj = qdiv.MicrobiomeData.load_example("Saheb-Alam_DADA2")
     obj.rename_features(inplace=True, name_type="ASV")
     obj.tax_prefix(add=True, inplace=True)
@@ -30,5 +28,18 @@ def qb():
 def dis(qb):
     """A small beta-diversity distance matrix for the rarefied example.
     """
-    import qdiv
     return qdiv.diversity.naive_beta(qb, q=1)
+
+@pytest.fixture(scope="session")
+def qtoy():
+    """A tiny 3×4 toy dataset with known diversity values.
+    """
+    table = pd.DataFrame(
+        {
+            "S1": [10,  0,  0,  0],
+            "S2": [ 5,  5,  0,  0],
+            "S3": [ 1,  1,  1,  7],
+        },
+        index=["OTU1", "OTU2", "OTU3", "OTU4"]
+    )
+    return qdiv.MicrobiomeData(table)
