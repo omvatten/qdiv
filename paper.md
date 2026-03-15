@@ -11,7 +11,7 @@ authors:
 affiliations:
  - name: Chalmers University of Technology, Department of Architecture and Civil Engineering, Division of Water Environment Technology, Gothenburg, Sweden
    index: 1
-date: 13 March 2026
+date: 15 March 2026
 bibliography: paper.bib
 ---
 
@@ -34,12 +34,12 @@ offering a streamlined and versatile tool for investigating patterns of communit
 
 `qdiv` is a Python package designed for microbial ecology. 
 It was developed to facilitate the management and analysis of data generated from amplicon sequencing and metagenomics within a Python programming environment. 
-Specifically, qdiv implements the Hill number framework [@chao2014] for assessing diversity across a broad range of ecological metrics and analyses. 
+Specifically, `qdiv` implements the Hill number framework [@chao2014] for assessing diversity across a broad range of ecological metrics and analyses. 
 This framework enables systematic evaluation of how relative abundances influence diversity measures.
 
 Traditionally, Hill numbers [@hill1973] are applied to quantify alpha diversity, which is the diversity of taxa within a single community. 
 However, the framework can also be applied to beta diversity [@jost2007], which measures differences in composition between communities, 
-and extended to metrics that incorporate phylogenetic and functional relationships among taxa [@chiu2014][@chiuchao2014].
+and extended to metrics that incorporate phylogenetic and functional relationships among taxa [@chiu2014; @chiuchao2014].
 
 Many ecological statistical tests and null models, such as Raup-Crick [@raup1979], the Net Relatedness Index, and the Nearest-Taxon Index [@webb2002], 
 have used presence-absence data or relied on a single relative abundance-based index (e.g. Bray-Curtis). 
@@ -49,9 +49,8 @@ have used presence-absence data or relied on a single relative abundance-based i
 # Statement of the field
 
 A variety of software tools support microbial community analysis, particularly within the R programming environment.
-Packages such as vegan [vegan2026], phyloseq [@mcmurdie2013], microbiome [@lahti207], and ampvis2 [@andersen2018] provide comprehensive workflows 
-for diversity calculations, ordination, and phylogenetic analysis, 
-but they primarily rely on classical indices rather than a unified diversity framework. 
+Packages such as vegan [vegan2026], phyloseq [@mcmurdie2013], microbiome [@lahti2017], and ampvis2 [@andersen2018] provide comprehensive workflows 
+for diversity calculations, ordination, and phylogenetic analysis, but they primarily rely on classical indices rather than a unified diversity framework. 
 Several R packages implement the Hill number framework, including hilldiv [@alberdi2019], hillR [@li2018], vegetarian [@vegetarian2019], 
 and iNEXT [@inext2024]. However, to our knowledge there is no Python package that implements the Hill number framework in a unified way 
 for diversity metrics and statistical workflows. The `qdiv` package fills this gap by offering a systematic Python implementation of 
@@ -60,15 +59,7 @@ Hill‑based alpha and beta diversity, phylogenetic diversity, and associated st
 Other commonly used tools include QIIME [@bolyen2019], an end‑to‑end microbiome analysis platform typically 
 used through a command‑line interface, which limits flexible, script‑based workflows in Python.
 The Python library scikit‑bio [@aton2025] provides data structures and algorithms for omics analyses, 
-including sequence handling, phylogenetic tree operations, and ecological statistics, 
-but it does not center around, or generalize, the Hill number framework.
-
-
-#Build vs. contribute justification
-#A new package was required because none of the existing tools could accommodate a systematic implementation of the Hill number framework within the Python scientific ecosystem. Extending scikit‑bio would have required substantial restructuring, as its API and architecture are not designed around Hill‑based generalizations of diversity. Similarly, QIIME 2’s plugin‑based design is focused on command‑line workflows and controlled execution environments, making it unsuitable for flexible, interactive Python‑level development. The R‑based implementations (hilldiv, hillR, vegetarian, iNEXT) cannot be extended to Python without rewriting core components, and they do not provide a data‑container architecture analogous to MicrobiomeData. For these reasons, building a dedicated Python package offered a clearer path to a cohesive, extensible, and programmatically accessible implementation of Hill‑number diversity methods.
-
-
-
+including sequence handling, phylogenetic tree operations, and ecological statistics, but it does not center around, or generalize, the Hill number framework.
 
 
 # Software design
@@ -89,9 +80,9 @@ are implemented in dedicated subpackages that operate on MicrobiomeData instance
 This separation follows the principle of keeping data management and analytical logic independent. 
 
 Another important trade‑off relates to how much general-purpose data manipulation the package should include. 
-The primary objective of qdiv is to implement the Hill number framework and extend to statistical methods 
-where it has not previously been used, such as null models.
-For convenience, qdiv includes a limited set of helper functions for tasks such as simple phylogenetic tree manipulation. 
+The primary goal of qdiv is to implement the Hill number framework and extend it to statistical methods 
+for which it has not previously been applied, such as null models.
+For convenience, qdiv includes a limited set of helper functions for tasks such as simple phylogenetic tree manipulations. 
 However, for advanced tree operations, users are encouraged to rely on specialized libraries such as ete3 [@huerta2016].
 
 The `qdiv` package leverages the widely used Python libraries pandas, numpy, and matplotlib, 
@@ -101,17 +92,17 @@ A deliberate effort was made to keep dependencies to a minimum, to reduce instal
 
 # Research impact statement
 
-qdiv was first introduced by [@modin2020] to enable Hill-based beta diversity calculations and extend the Raup-Crick null model to such metrics. 
+The `qdiv` package was first introduced by [@modin2020] to enable Hill-based beta diversity calculations and extend the Raup-Crick null model to such metrics. 
 Since then, it has been adopted by other researchers, e.g., [@alberdi2021; @nikolova2021], and used by our own research group, e.g., [@abadikhah2024]. 
-It has been downloaded over 835 times from PyPI (excluding mirrors) from 2025-09-13 to 2026-03-12. 
+It has been downloaded 835 times from PyPI (excluding mirrors) from 2025-09-13 to 2026-03-12. 
 Version 4 introduces the MicrobiomeData class for streamlined data management, along with new statistical and visualization capabilities.
 
 
 # AI usage disclosure
 
-In `qdiv` version 4.0.0 and higher, Microsoft 365 Copilot powered by the GPT-5 chat model was used to revise most functions. 
-Copilot was also used to draft a new function for distance-based redundancy analysis and to revise parts of the text in this manuscript. 
-#The author takes full responsibility for
+Microsoft 365 Copilot powered by the GPT-5 chat model was used during the development of `qdiv` version 4.0.0 and higher. 
+Copilot was used to revise existing functions, draft a new function for distance-based redundancy analysis, and revise sections of this manuscript. 
+All design decisions, code implementations, and the content of the manuscript remain the sole responsibility of the author.
 
 
 # Acknowledgements
