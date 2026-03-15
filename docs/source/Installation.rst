@@ -7,6 +7,13 @@ qdiv can be installed with pip.
 
    pip install qdiv
 
+Some functions in the ``sequence_comparisons`` module support compilation via Numba. Installing qdiv with the optional ``accelerate`` extra 
+enables faster sequence distance computations. 
+
+.. code-block:: console
+
+   pip install qdiv[accelerate]
+
 The recommended method is to download `Anaconda <https://www.anaconda.com/products/individual>`_ or `Miniconda <https://docs.conda.io/en/latest/miniconda.html>`_
 
 Open the Anaconda or Miniconda prompt (a terminal window).
@@ -17,7 +24,7 @@ Create a new environment. You can, for example, call it qdiv_env. Then, activate
 
    conda create -n qdiv_env python=3.11
    conda activate qdiv_env
-   pip install qdiv
+   pip install qdiv[accelerate]
 
 To start using qdiv, you need some way of writing and executing Python code. One way is to use a Jupyter noteboook.
 

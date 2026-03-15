@@ -20,6 +20,14 @@
 pip install qdiv
 ```
 
+## Optional acceleration (Numba)
+Some functions in the sequence_comparisons module support compilation via Numba. Installing qdiv with the optional accelerate extra 
+enables faster sequence distance computations. 
+
+```bash
+pip install qdiv[accelerate]
+```
+
 ---
 
 ## Documentation

@@ -525,9 +525,9 @@ def ordination(
 
     Parameters
     ----------
-    ordination_results : pandas.DataFrame or dict
-        Dissimilarity matrix (square DataFrame) → runs stats.pcoa_lingoes and plots PCoA. 
-        Results dict from stats.pcoa_lingoes or stats.dbrda → plotted directly.
+    ordination_results : pandas.DataFrame or dict  
+        - If a dissimilarity matrix (square DataFrame) is provided, stats.pcoa_lingoes will be run and a PCoA plotted. 
+        - If a results dict from stats.pcoa_lingoes or stats.dbrda is provided, those results will be plotted directly.
     meta : DataFrame | MicrobiomeData-like | dict
         Metadata table with sample annotations.
     color_by : str, optional
