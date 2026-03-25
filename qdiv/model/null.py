@@ -46,6 +46,7 @@ def rcq(
     q: float = 1.0,
     use_tqdm: bool = True,
     random_state: Optional[Union[int, np.random.Generator]] = None,
+    **kwargs,
 ) -> Dict[str, pd.DataFrame]:
     """
     Raup–Crick-style null comparisons for beta-diversity.
@@ -109,6 +110,13 @@ def rcq(
     - A positive ses means observed dissimilarity is lower than the null expectation.
     - A negative ses means observed dissimilarity is higher than the null expectation.
     """
+    if "seed" in kwargs:
+        if random_state is not None:
+            raise TypeError("Specify only one of 'random_state' or 'seed'.")
+        random_state = kwargs.pop("seed")
+    if kwargs:
+        raise TypeError(f"Unexpected keyword arguments: {list(kwargs)}")
+
     # --- Extract tables & context
     tab = get_df(obj, "tab")
     if tab is None:
@@ -304,6 +312,7 @@ def nriq(
     randomization: Literal["features", "abundances"] = "features",
     use_tqdm: bool = True,
     random_state: Optional[Union[int, np.random.Generator]] = None,
+    **kwargs,
 ) -> pd.DataFrame:
     """
     Net Relatedness Index (NRI) with q-weighting of relative abundances.
@@ -348,6 +357,13 @@ def nriq(
     ----------
     Webb et al. (2002) *American Naturalist*.
     """
+    if "seed" in kwargs:
+        if random_state is not None:
+            raise TypeError("Specify only one of 'random_state' or 'seed'.")
+        random_state = kwargs.pop("seed")
+    if kwargs:
+        raise TypeError(f"Unexpected keyword arguments: {list(kwargs)}")
+
     # Robustly extract the abundance table using get_df
     tab = get_df(obj, "tab")
 
@@ -472,6 +488,7 @@ def ntiq(
     randomization: Literal["features", "abundances"] = "features",
     use_tqdm: bool = True,
     random_state: Optional[Union[int, np.random.Generator]] = None,
+    **kwargs,
 ) -> pd.DataFrame:
     """
     Nearest Taxon Index (NTI) with q-weighting of relative abundances.
@@ -514,6 +531,13 @@ def ntiq(
     - A positive ses means that the observed MNTD is lower than the null expectation
     - A negative ses means that the observed MNTD is higher than the null expectation
     """
+    if "seed" in kwargs:
+        if random_state is not None:
+            raise TypeError("Specify only one of 'random_state' or 'seed'.")
+        random_state = kwargs.pop("seed")
+    if kwargs:
+        raise TypeError(f"Unexpected keyword arguments: {list(kwargs)}")
+
     # --- Input & alignment ---
     tab = get_df(obj, "tab")
     if tab is None or tab.empty:
@@ -662,6 +686,7 @@ def beta_nriq(
     randomization: Literal["features", "abundances"] = "features",
     use_tqdm: bool = True,
     random_state: Optional[Union[int, np.random.Generator]] = None,
+    **kwargs,
 ) -> Dict[str, pd.DataFrame]:
     """
     Computes beta-MPD_q for all sample pairs, then contrasts against a null
@@ -703,6 +728,13 @@ def beta_nriq(
     - A positive ses means that the observed MPD between samples is lower than the null expectation
     - A negative ses means that the observed MPD between samples is higher than the null expectation
     """
+    if "seed" in kwargs:
+        if random_state is not None:
+            raise TypeError("Specify only one of 'random_state' or 'seed'.")
+        random_state = kwargs.pop("seed")
+    if kwargs:
+        raise TypeError(f"Unexpected keyword arguments: {list(kwargs)}")
+
     # --- Input & alignment ---
     tab = get_df(obj, "tab")
     if tab is None or tab.empty:
@@ -834,6 +866,7 @@ def beta_ntiq(
     randomization: Literal["features", "abundances"] = "features",
     use_tqdm: bool = True,
     random_state: Optional[Union[int, np.random.Generator]] = None,
+    **kwargs,
 ) -> Dict[str, pd.DataFrame]:
     """
     Computes beta-MNTD_q (mean nearest-taxon distance with q-weighted abundances)
@@ -892,6 +925,13 @@ def beta_ntiq(
     Webb et al. (2002) American Naturalist.
     Stegen et al. (2013) ISME Journal.
     """
+    if "seed" in kwargs:
+        if random_state is not None:
+            raise TypeError("Specify only one of 'random_state' or 'seed'.")
+        random_state = kwargs.pop("seed")
+    if kwargs:
+        raise TypeError(f"Unexpected keyword arguments: {list(kwargs)}")
+
     # ---- Input & alignment ----
     tab = get_df(obj, "tab")
     if tab is None or tab.empty:

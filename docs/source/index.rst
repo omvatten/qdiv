@@ -23,6 +23,7 @@ Welcome to qdiv's documentation!
    tutorials/Diversity
    tutorials/Plot
    tutorials/Model
+   tutorials/Statistical_functions
    Citations
 
 .. toctree::

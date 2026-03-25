@@ -763,8 +763,8 @@ def merge_samples(
 def _rarefy_table(
     tab: pd.DataFrame,
     depth: Union[int, str] = "min",
-    seed: Optional[int] = None,
-    replacement: bool = False
+    random_state: Optional[Union[int, np.random.Generator]] = None,
+    replacement: bool = False,
 ) -> pd.DataFrame:
     """
     Rarefy a frequency table to a fixed sequencing depth.
@@ -775,8 +775,8 @@ def _rarefy_table(
         Frequency table (features x samples).
     depth : int or 'min'
         Target sequencing depth per sample.
-    seed : int, optional
-        Random seed for reproducibility.
+    random_state : int | numpy.random.Generator, optional
+        Random seed or Generator for reproducibility.
     replacement : bool, default False
         Sample with replacement if True.
 
@@ -795,7 +795,7 @@ def _rarefy_table(
     if depth <= 0:
         raise ValueError("Depth must be a positive integer.")
 
-    rng = np.random.default_rng(seed)
+    rng = random_state if isinstance(random_state, np.random.Generator) else np.random.default_rng(random_state)
 
     if replacement:
         # Multinomial sampling
@@ -827,12 +827,11 @@ def _rarefy_table(
 
     return rtab
 
-
 def rarefy(
     obj: Union["MicrobiomeData", Dict[str, Any]],
     *,
     depth: Union[int, str] = "min",
-    random_state: Optional[int] = None,
+    random_state: Optional[Union[int, np.random.Generator]] = None,
     replacement: bool = False,
     inplace: bool = False
 ) -> Union["MicrobiomeData", Dict[str, Any]]:
@@ -845,8 +844,8 @@ def rarefy(
         Object containing at least 'tab' (features x samples).
     depth : int or 'min'
         Target sequencing depth per sample.
-    random_state : int, optional
-        Random seed for reproducibility.
+    random_state : int | numpy.random.Generator, optional
+        Random seed or Generator for reproducibility.
     replacement : bool, default False
         Sample with replacement if True.
     inplace : bool, default False
@@ -864,7 +863,7 @@ def rarefy(
         raise ValueError("Object must contain an abundance table ('tab').")
 
     # Rarefy table
-    rtab = _rarefy_table(tab, depth=depth, seed=random_state, replacement=replacement)
+    rtab = _rarefy_table(tab, depth=depth, random_state=random_state, replacement=replacement)
 
     # Remove zero-count features
     keep_features = rtab.index[rtab.sum(axis=1) > 0]

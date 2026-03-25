@@ -63,44 +63,77 @@ def mantel(
     permutations: int = 999,
     *,
     random_state: Union[int, np.random.Generator, None] = None,
+    **kwargs,
 ) -> Union[float, List[float]]:
     """
-    Perform a Mantel test between two dissimilarity matrices.
-
-    The Mantel test evaluates the association between two distance/dissimilarity
-    matrices by comparing their lower‑triangular entries. A permutation test
-    is used to assess significance by randomly permuting sample labels in one
-    matrix.
-
+    Perform a Mantel test to assess the association between two
+    dissimilarity matrices.
+    
+    The Mantel test evaluates whether pairs of samples that are close (or
+    far apart) in one dissimilarity matrix tend to be close (or far apart)
+    in another. The test statistic is computed by comparing the
+    lower‑triangular entries of the two matrices, and statistical
+    significance is assessed using a permutation test.
+    
+    For correlation-based methods, the association is quantified as a
+    *dissimilarity* (1 − r), where r is the Pearson or Spearman correlation
+    between the vectorized distance matrices.
+    
     Parameters
     ----------
     dis1 : pandas.DataFrame
-        First square dissimilarity matrix (samples × samples).
+        First square distance or dissimilarity matrix (samples × samples)
+        with identical row and column labels.
     dis2 : pandas.DataFrame
-        Second square dissimilarity matrix (samples × samples).
+        Second square distance or dissimilarity matrix (samples × samples)
+        with identical row and column labels matching `dis1`.
     method : {'spearman', 'pearson', 'absDist'}, default='spearman'
-        Correlation/dissimilarity measure:
-        - 'spearman' : Spearman rank correlation (returns 1 − ρ)
-        - 'pearson'  : Pearson correlation (returns 1 − r)
-        - 'absDist'  : Mean absolute difference between distances
+        Measure used to quantify association between distance matrices:
+    
+        * 'spearman' :
+            Spearman rank correlation between distances (reported as 1 − ρ).
+        * 'pearson' :
+            Pearson correlation between distances (reported as 1 − r).
+        * 'absDist' :
+            Mean absolute difference between corresponding distances.
     getOnlyStat : bool, default=False
-        If True, return only the observed statistic (no permutations).
+        If True, return only the observed test statistic without performing
+        permutations.
     permutations : int, default=999
-        Number of permutations for the null distribution.
-
+        Number of permutations used to approximate the null distribution.
+    random_state : int | numpy.random.Generator | None
+        Random seed or NumPy random generator for reproducible permutations.
+    
     Returns
     -------
     float or list [statistic, p_value]
-        - If getOnlyStat=True: returns the observed statistic.
-        - Otherwise: returns [observed_statistic, p_value].
-
+        * If `getOnlyStat=True`, returns the observed statistic only.
+        * Otherwise, returns a list containing the observed statistic and
+          its permutation-based p-value.
+    
     Notes
     -----
-    - Matrices are automatically reordered to have identical sample order.
-    - Only the lower triangular part (excluding diagonal) is used.
-    - For correlation methods, the statistic is expressed as a *dissimilarity*
-      (1 − r or 1 − ρ), so **smaller values indicate stronger similarity**.
+    * The test uses only the lower triangular part of each distance matrix
+      (excluding the diagonal), avoiding double counting of pairwise
+      distances.
+    * Sample labels are permuted in `dis1` while `dis2` is held fixed to
+      generate the null distribution.
+    * For correlation-based methods ('pearson', 'spearman'), the reported
+      statistic is a *dissimilarity* (1 − r or 1 − ρ), so **smaller values
+      indicate stronger association** between the two matrices.
+    * p-values are computed using a standard permutation test with a +1
+      correction: (count + 1) / (permutations + 1).
     """
+    # ---- alias handling ----
+    if "seed" in kwargs:
+        if random_state is not None:
+            raise TypeError("Specify only one of 'random_state' or 'seed'.")
+        random_state = kwargs.pop("seed")
+    if kwargs:
+        raise TypeError(f"Unexpected keyword arguments: {list(kwargs)}")
+
+    if dis1.isna().any().any() or dis2.isna().any().any():
+        raise ValueError("Mantel test does not support NaN values in distance matrices.")
     if not isinstance(dis1, pd.DataFrame) or not isinstance(dis2, pd.DataFrame):
         raise TypeError("dis1 and dis2 must be pandas DataFrames.")
     if dis1.shape != dis2.shape:
@@ -108,8 +141,16 @@ def mantel(
     if method not in {"spearman", "pearson", "absDist"}:
         raise ValueError("method must be 'spearman', 'pearson', or 'absDist'.")
 
-    # --- align to identical label order (sorted) like your current function ---
-    samples = sorted(dis1.columns.tolist())
+    # Require identical labels
+    if not dis1.index.equals(dis1.columns):
+        raise ValueError("dis1 must have identical row/column labels")
+    if not dis2.index.equals(dis2.columns):
+        raise ValueError("dis2 must have identical row/column labels")
+    if not dis1.index.equals(dis2.index):
+        raise ValueError("dis1 and dis2 must have identical sample labels")
+    
+    # Align both matrices to the same order
+    samples = dis1.index
     dis1 = dis1.loc[samples, samples]
     dis2 = dis2.loc[samples, samples]
 
@@ -196,50 +237,104 @@ def permanova(
     permutations: int = 999,
     include_interaction: bool = False,
     strata: Union[str, Sequence[str], None] = None,
-    seed: int | None = None,
+    random_state: Union[int, np.random.Generator, None] = None,
     perm_scheme: Literal["labels", "freedman-lane"] = "freedman-lane",
+    **kwargs,
 ) -> Dict[str, Any]:
     """
-    PERMANOVA (Anderson, 2001) via projection matrices on the Gower‑centered
-    distance matrix. Supports one or two categorical factors (with optional
-    interaction) and stratified permutations (blocks). Tests are partial
-    (marginal), i.e., each term conditional on all other included terms.
-
+    PERMANOVA (Anderson, 2001) implemented via projection matrices on the
+    Gower‑centered distance matrix.
+    
+    This function fits a distance‑based linear model with one or two
+    categorical factors (optionally including their interaction) and tests
+    each term using permutation-based pseudo‑F statistics. Tests are
+    *marginal (partial)*: each term is evaluated conditional on all other
+    included terms.
+    
+    Permutation inference can be performed either by permuting sample labels
+    or by permuting residuals from reduced models (Freedman–Lane scheme),
+    with optional restriction of permutations within exchangeability
+    blocks (strata).
+    
     Parameters
     ----------
     dis : (n x n) pandas.DataFrame
-        Symmetric distance/dissimilarity matrix with identical row/column labels.
-    meta : DataFrame | dict | MicrobiomeData-like
-        Metadata with rows indexed by sample IDs matching dis.index.
+        Symmetric distance or dissimilarity matrix with identical row and
+        column labels. Rows/columns correspond to samples.
+    meta : pandas.DataFrame | dict | MicrobiomeData-like
+        Sample metadata indexed by sample IDs matching `dis.index`.
     by : str or list[str]
-        One or two column names in `meta` defining the factor(s).
+        One or two column names in `meta` defining the categorical factor(s).
     permutations : int, default 999
-        Number of permutations for the null distribution.
+        Number of permutations used to approximate the null distribution.
     include_interaction : bool, default False
-        If len(by)==2 and both factors have >1 levels, include and test the interaction.
+        If `by` contains two factors and both have more than one level,
+        include and test their interaction term.
     strata : str | list[str] | None
-        Column name(s) in `meta` defining permutation blocks (exchangeability strata).
-        When given, permutations are performed within each stratum only.
-    seed : int | None
-        Random seed for reproducible permutations.
+        Column name(s) in `meta` defining exchangeability blocks. When given,
+        permutations are restricted to occur *within* each stratum only
+        (i.e. blocked permutations).
+    random_state : int | numpy.random.Generator | None
+        Random seed or generator for reproducible permutations.
     perm_scheme : {'labels', 'freedman-lane'}, default 'labels'
-        - 'labels': classical label permutations (your current implementation).
-        - 'freedman-lane': residual-based permutation (permute residuals from the
-          reduced model for each tested term and refit to pseudo-response). This
-          makes main effects testable even when a factor is constant within strata.
-
+        Permutation scheme used to generate the null distribution:
+    
+        * 'labels':
+            Classical label permutation. Sample labels (factor assignments)
+            are permuted across samples while the distance matrix is kept
+            fixed. When two factors are provided, their labels are permuted
+            jointly, preserving observed factor combinations. Permutations
+            may be restricted within strata if specified.
+    
+        * 'freedman-lane':
+            Residual-based permutation (Freedman & Lane, 1983). For each
+            tested term, residuals from the reduced model excluding that
+            term are permuted (optionally within strata), added back to the
+            fitted values of the reduced model, and the full model is
+            refitted. This scheme yields valid partial tests in the presence
+            of nuisance factors and allows testing main effects even when a
+            factor is constant within strata.
+    
     Returns
     -------
     dict
-        {
-          'by': [tested term names in order],
-          'table': pandas.DataFrame with index=['Term(s)', 'Residual'] and columns:
-                   ['df','SS','MS','F','p','R2'],
-          'permutations': int,
-          'strata': None | list[str],
-          'perm_scheme': str
-        }
+        A dictionary with the following entries:
+    
+        * 'by':
+            List of tested term names (main effects and, if included,
+            interaction).
+        * 'table':
+            pandas.DataFrame with rows corresponding to model terms and the
+            residual, and columns:
+            ['df', 'SS', 'MS', 'F', 'p', 'R2'].
+        * 'permutations':
+            Number of permutations performed.
+        * 'strata':
+            List of strata column names used for restricted permutations,
+            or None.
+        * 'perm_scheme':
+            The permutation scheme used ('labels' or 'freedman-lane').
+    
+    Notes
+    -----
+    * The analysis follows the geometric partitioning of sums of squares
+      described by Anderson (2001), using projection (hat) matrices on the
+      Gower‑centered distance matrix.
+    * P‑values are estimated from the permutation distribution using a
+      standard +1 correction: (count + 1) / (permutations + 1).
+    * If a tested factor does not vary within strata under label
+      permutation, the corresponding null distribution may be degenerate
+      and p‑values will be returned as NaN.
     """
+
+    # ---- alias handling ----
+    if "seed" in kwargs:
+        if random_state is not None:
+            raise TypeError("Specify only one of 'random_state' or 'seed'.")
+        random_state = kwargs.pop("seed")
+    if kwargs:
+        raise TypeError(f"Unexpected keyword arguments: {list(kwargs)}")
+
     # ---- validation / alignment ----
     M = get_df(meta, "meta")
     if not isinstance(M, pd.DataFrame) or M.empty:
@@ -252,13 +347,6 @@ def permanova(
         by = [by]
     if not (1 <= len(by) <= 2):
         raise ValueError("`by` must be a str or a list of length 1 or 2.")
-
-    # Align metadata to the distance matrix order (do not reorder dis)
-    in_common = list(set(M.index).intersection(dis.index))
-    if len(in_common) < len(M.index) and len(in_common) == len(dis.index):
-        M = M.loc[dis.index]
-    elif len(in_common) < len(dis.index):
-        raise ValueError("Index in meta and dis are not identical.")
 
     # Ensure categorical dtype for stable dummy coding
     for b in by:
@@ -287,6 +375,14 @@ def permanova(
                 "P-values for that term will be uninformative (1.0/NaN).",
                 UserWarning
             )
+
+    # Align metadata to the distance matrix order (do not reorder dis)
+    M = M.reindex(dis.index)
+    required = list(by) + (strata_cols if strata_cols else [])
+    missing_rows = M.index[M[required].isna().any(axis=1)]
+    if len(missing_rows) > 0:
+        raise ValueError(f"Missing required metadata for samples: {missing_rows.tolist()}")
+
 
     # ---- helpers ----
     n = dis.shape[0]
@@ -331,6 +427,65 @@ def permanova(
                 X12 = _interaction_products(X1, X2)
                 terms.append((f"{v1}:{v2}", X12))
         return terms
+
+    def _permute_labels_inplace(meta_df: pd.DataFrame,
+                                cols_to_permute: list[str],
+                                strata_cols: list[str] | None) -> pd.DataFrame:
+        """Return a copy of meta_df where specified columns are permuted across rows.
+        If strata_cols is given, permutation is done within each stratum block.
+        Index and row order are preserved.
+        """
+        out = meta_df.copy()
+    
+        if strata_cols is None:
+            perm = rng.permutation(n)
+            for col in cols_to_permute:
+                out[col] = meta_df[col].to_numpy()[perm]
+            return out
+    
+        for _, grp in meta_df.groupby(strata_cols, sort=False, observed=True):
+            idx = grp.index.to_numpy()
+            if idx.size <= 1:
+                continue
+            perm = rng.permutation(idx.size)
+            for col in cols_to_permute:
+                out.loc[idx, col] = grp[col].to_numpy()[perm]
+    
+        return out
+
+    def _permute_joint_labels_inplace(meta_df: pd.DataFrame,
+                                      cols: list[str],
+                                      strata_cols: list[str] | None,
+                                      rng: np.random.Generator) -> pd.DataFrame:
+        """
+        Permute joint labels (rows of cols moved together) while preserving index.
+        If strata_cols is provided, permute jointly within each stratum block.
+        """
+        out = meta_df.copy()
+    
+        # Encode joint labels as tuples (fast, no delimiter issues)
+        joint = list(zip(*(meta_df[c].to_numpy() for c in cols)))
+    
+        if strata_cols is None:
+            perm = rng.permutation(len(joint))
+            joint_perm = [joint[i] for i in perm]
+            for k, c in enumerate(cols):
+                out[c] = [t[k] for t in joint_perm]
+            return out
+    
+        # Permute within each stratum block
+        for _, grp in meta_df.groupby(strata_cols, sort=False, observed=True):
+            idx = grp.index.to_numpy()
+            m = idx.size
+            if m <= 1:
+                continue
+            joint_block = list(zip(*(grp[c].to_numpy() for c in cols)))
+            perm = rng.permutation(m)
+            joint_perm = [joint_block[i] for i in perm]
+            for k, c in enumerate(cols):
+                out.loc[idx, c] = [t[k] for t in joint_perm]
+    
+        return out
 
     # ---- Gower centering ----
     D2 = dis.to_numpy(dtype=float) ** 2
@@ -406,7 +561,7 @@ def permanova(
     # ---- permutations ----
     n_terms = len(F_obs)
     if permutations and n_terms > 0:
-        rng = np.random.default_rng(seed)
+        rng = random_state if isinstance(random_state, np.random.Generator) else np.random.default_rng(random_state)
         F_null = np.zeros((permutations, n_terms), dtype=float)
 
         # Helper: produce a permutation order (indices) respecting strata
@@ -428,24 +583,18 @@ def permanova(
 
         # ------- Branch 1: classical label permutations -------
         if perm_scheme == "labels":
-            # (This is your existing block, kept intact except minor refactoring)
-            def permute_meta_within_strata(M_in: pd.DataFrame) -> pd.DataFrame:
-                if strata_cols is None:
-                    order = rng.permutation(len(M_in))
-                    return M_in.iloc[order]
-                parts = []
-                for _, grp in M_in.groupby(strata_cols, sort=False, observed=True):
-                    idx = grp.index.to_numpy()
-                    if idx.size <= 1:
-                        parts.append(grp)
-                    else:
-                        perm = rng.permutation(idx.size)
-                        parts.append(grp.iloc[perm])
-                M_perm = pd.concat(parts, axis=0)
-                return M_perm.loc[M_in.index]
 
             for b in range(permutations):
-                M_perm = permute_meta_within_strata(M)
+                if len(by) == 1:
+                    M_perm = _permute_labels_inplace(M, list(by), strata_cols)
+                else:
+                    M_perm = _permute_joint_labels_inplace(M, list(by), strata_cols, rng)
+
+                if len(by) == 2:
+                    unchanged = (M_perm[by[0]].to_numpy() == M[by[0]].to_numpy()) & (M_perm[by[1]].to_numpy() == M[by[1]].to_numpy())
+                    if unchanged.all():
+                        raise RuntimeError("Joint permutation produced no changes; check strata sizes/permutation logic.")
+
                 terms_p = _build_terms(M_perm)
                 X_all_p = np.concatenate([X for _, X in terms_p], axis=1) if terms_p else np.empty((n, 0))
                 r_all_p = _rank(X_all_p)

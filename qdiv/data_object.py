@@ -1,5 +1,6 @@
 from __future__ import annotations
 import pandas as pd
+import numpy as np
 import copy
 import warnings
 from pathlib import Path
@@ -872,9 +873,10 @@ class MicrobiomeData:
         self,
         *,
         depth: Union[int, str] = "min",
-        random_state: Optional[int] = None,
+        random_state: Optional[Union[int, np.random.Generator]] = None,
         replacement: bool = False,
-        inplace: bool = False
+        inplace: bool = False,
+        **kwargs,
     ) -> MicrobiomeData:
         """
         Rarefy the abundance table to a fixed sequencing depth.
@@ -888,8 +890,8 @@ class MicrobiomeData:
         depth : int or 'min', default 'min'
             Target sequencing depth per sample. If 'min', the minimum depth across
             samples is used.
-        random_state : int, optional
-            Random seed for reproducibility.
+        random_state : int | numpy.random.Generator, optional
+            Random seed or Generator for reproducibility.
         replacement : bool, default False
             If True, sample with replacement (multinomial); otherwise sample
             without replacement.
@@ -916,6 +918,13 @@ class MicrobiomeData:
         >>> data.rarefy(depth=10000, seed=42, inplace=True)
         >>> rarefied = data.rarefy(depth='min', replacement=True)
         """
+        if "seed" in kwargs:
+            if random_state is not None:
+                raise TypeError("Specify only one of 'random_state' or 'seed'.")
+            random_state = kwargs.pop("seed")
+        if kwargs:
+            raise TypeError(f"Unexpected keyword arguments: {list(kwargs)}")
+
         return data_subset.rarefy(
             self,
             depth=depth,

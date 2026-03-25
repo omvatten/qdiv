@@ -363,6 +363,74 @@ def _upper_tri_mean(sub: np.ndarray) -> float:
     tri = sub[np.triu_indices(n, k=1)]
     return float(tri.mean()) if tri.size else np.nan
 
+def _weighted_mean_distance(
+    D: np.ndarray,
+    blocks: List[Tuple[np.ndarray, np.ndarray]],
+    *,
+    within: bool,
+) -> Tuple[float, int]:
+    """
+    Compute a pair-count-weighted mean distance over a collection of index blocks.
+
+    Parameters
+    ----------
+    D : numpy.ndarray
+        Square distance matrix of shape (n, n).
+    blocks : list of (idx1, idx2)
+        Each element defines a block of distances via index arrays.
+        Indices are deduplicated within this function to avoid duplicate->zero
+        inflation when bootstrap sampling is done with replacement.
+
+        - If within=True, each block is treated as within-group distances:
+          idx1 is used (idx2 ignored) and the mean of the upper triangle of
+          D[idx1, idx1] is computed.
+        - If within=False, each block is treated as between-group distances:
+          the mean of the full rectangular block D[idx1, idx2] is computed.
+    within : bool
+        Whether to compute within-group (upper triangle) or between-group
+        (rectangular block) distances.
+
+    Returns
+    -------
+    mean : float
+        Weighted mean distance across blocks, or NaN if no valid pairs exist.
+    total_pairs : int
+        Total number of contributing pairs (sum of weights).
+    """
+    weighted_sum = 0.0
+    total_pairs = 0
+
+    for idx1, idx2 in blocks:
+        idx1 = np.unique(idx1)
+        idx2 = np.unique(idx2)
+
+        if within:
+            n = idx1.size
+            w = n * (n - 1) // 2
+            if w <= 0:
+                continue
+            sub = D[np.ix_(idx1, idx1)]
+            m = _upper_tri_mean(sub)
+        else:
+            n1, n2 = idx1.size, idx2.size
+            w = n1 * n2
+            if w <= 0:
+                continue
+            sub = D[np.ix_(idx1, idx2)]
+            m = float(sub.mean()) if sub.size else np.nan
+
+        if not np.isfinite(m):
+            continue
+
+        weighted_sum += m * w
+        total_pairs += w
+
+    if total_pairs == 0:
+        return np.nan, 0
+
+    return weighted_sum / total_pairs, total_pairs
+
+
 def bootstrap_sample_matrix(
     df: pd.DataFrame,
     meta: Union[pd.DataFrame, Dict[str, Any], Any],
@@ -370,65 +438,127 @@ def bootstrap_sample_matrix(
     *,
     n_boot: int = 1000,
     alpha: float = 0.05,
-    random_state: int | None = None,
+    random_state: Union[int, np.random.Generator, None] = None,
     return_boot: bool = False,
     warn_small: bool = True,
+    **kwargs,
 ) -> Dict[str, Dict[str, Dict[str, Union[float, Tuple[float, float], np.ndarray, int]]]]:
     """
+    Compute bootstrap confidence intervals for within‑ and between‑group
+    summaries of a square sample×sample matrix.
+    
     For each variable listed in `by`, the function computes two aggregated
-    summary statistics—one describing variation within the categories of that
-    variable, and one describing variation between those categories.
-    These summaries are derived by applying a nested bootstrap (stratified
-    resampling within all fully crossed groups defined by `by`) to the input
-    square matrix. For each bootstrap draw, category‑level values are pooled and
-    combined using pair‑count weighting, and percentile confidence intervals are
-    then computed across all bootstrap replicates.
-
-    Additionally, it returns a single “Crossed” aggregation that pools across all
-    fully crossed cells (one `within`, one `between`) using the same nested resamples.
-
+    summary statistics:
+    
+    * **within**: the average pairwise value among samples sharing the same
+      category of that variable, and
+    * **between**: the average pairwise value among samples belonging to
+      different categories of that variable.
+    
+    These summaries are estimated using a **nested bootstrap**. Samples are
+    resampled *with replacement* within each fully crossed cell defined by
+    `by`. For each bootstrap replicate, category‑level values are pooled
+    across the remaining factor(s), and summary statistics are computed using
+    **pair‑count weighting**.
+    
+    To avoid artificial inflation of zero or repeated distances caused by
+    bootstrap duplicates, resampled indices are **deduplicated prior to
+    computing pairwise distances**. As a consequence, the effective number
+    of contributing sample pairs may vary across bootstrap replicates.
+    
+    In addition to per‑variable summaries, the function returns a single
+    **“Crossed”** aggregation that pools across all fully crossed cells,
+    providing one overall within‑cell and one overall between‑cell summary
+    computed using the same bootstrap resamples.
+    
     Parameters
     ----------
     df : (n x n) pandas.DataFrame
-        Symmetric sample×sample matrix with identical row/column labels and order.
-    meta : DataFrame | dict | MicrobiomeData-like
-        Metadata indexed by sample IDs matching `df.index`. Will be aligned to `df.index`.
+        Symmetric sample×sample matrix with identical row/column labels and
+        order.
+    meta : pandas.DataFrame | dict | MicrobiomeData-like
+        Metadata indexed by sample IDs matching `df.index`. Metadata will be
+        aligned to `df.index` without reordering `df`.
     by : str | list[str]
-        One or more metadata columns to define the fully crossed cells.
+        One or more categorical metadata columns defining the fully crossed
+        cells used for nested resampling.
     n_boot : int, default 1000
         Number of bootstrap replicates.
     alpha : float, default 0.05
-        Percentile CI level (95% CI if alpha=0.05).
-    random_state : int | None
-        Random seed for reproducibility.
+        Percentile confidence level (95% CI if alpha = 0.05).
+    random_state : int | numpy.random.Generator | None
+        Random seed or NumPy random generator for reproducible permutations.
     return_boot : bool, default False
-        If False, the returned dict omits the large "boot" arrays to save memory.
+        If False, the returned dictionary omits the bootstrap replicate arrays
+        to reduce memory usage.
     warn_small : bool, default True
-        If True, warn when a cell or category has very few samples.
-
+        If True, issue warnings when cells or categories contain very few
+        samples, which may lead to unstable bootstrap estimates.
+    
     Returns
     -------
     out : dict
+        Dictionary with the following structure:
+    
         {
           "<var>": {
-            "within":  { "mean": float, "ci": (lo, hi), "total_pairs": int, "boot": np.ndarray | None },
-            "between": { "mean": float, "ci": (lo, hi), "total_pairs": int, "boot": np.ndarray | None },
+            "within": {
+              "mean": float,
+              "ci": (lo, hi),
+              "total_pairs": int,
+              "boot": np.ndarray | None
+            },
+            "between": {
+              "mean": float,
+              "ci": (lo, hi),
+              "total_pairs": int,
+              "boot": np.ndarray | None
+            }
           },
           ...,
           "Crossed": {
-            "within":  { "mean": float, "ci": (lo, hi), "total_pairs": int, "boot": np.ndarray | None },
-            "between": { "mean": float, "ci": (lo, hi), "total_pairs": int, "boot": np.ndarray | None }
+            "within": {
+              "mean": float,
+              "ci": (lo, hi),
+              "total_pairs": int,
+              "boot": np.ndarray | None
+            },
+            "between": {
+              "mean": float,
+              "ci": (lo, hi),
+              "total_pairs": int,
+              "boot": np.ndarray | None
+            }
           }
         }
-        One entry per variable in `by` (each with a single within and between summary),
-        plus a pooled “Crossed” summary across all fully crossed cells.
-
+    
+        One entry is returned for each variable in `by`, each containing a
+        single within‑ and between‑category summary. If more than one variable
+        is supplied, an additional “Crossed” entry provides summaries pooled
+        across all fully crossed cells.
+    
     Notes
     -----
-    * This function performs nested resampling across the fully crossed cells of all
-      variables in `by`, then collapses results to per-variable summaries by pooling
-      across the other factor(s), and also provides a single pooled "Crossed" summary.
+    * Bootstrap resampling is performed at the **sample level** within fully
+      crossed cells, but duplicate resampled indices are **deduplicated before
+      computing pairwise distances**. This yields a bootstrap of pairwise
+      distance summaries rather than a bootstrap of raw samples.
+    * Because of deduplication, the effective number of contributing sample
+      pairs can differ between bootstrap replicates. The reported
+      `total_pairs` value corresponds to the **average number of distinct
+      pairs contributing per bootstrap replicate**, not a fixed property of
+      the original dataset.
+    * Pairwise summaries are computed using the upper triangle for within‑group
+      blocks and the full rectangular block for between‑group blocks.
     """
+
+    if "seed" in kwargs:
+        if random_state is not None:
+            raise TypeError("Specify only one of 'random_state' or 'seed'.")
+        random_state = kwargs.pop("seed")
+    if kwargs:
+        raise TypeError(f"Unexpected keyword arguments: {list(kwargs)}")
+
     # ---- Retrieve & validate metadata ----
     M = get_df(meta, "meta")
     if not isinstance(M, pd.DataFrame) or M.empty:
@@ -514,7 +644,7 @@ def bootstrap_sample_matrix(
                 cat_cells[var][c].append(lev)
 
     # ---- RNG and storage ----
-    rng = np.random.default_rng(random_state)
+    rng = random_state if isinstance(random_state, np.random.Generator) else np.random.default_rng(random_state)
     D = df.to_numpy()
 
     # Storage per variable
@@ -560,13 +690,13 @@ def bootstrap_sample_matrix(
                         UserWarning
                     )
 
-    # ---- Denominators for Crossed aggregation (fixed) ----
-    # Within: sum over cells C(n_cell,2); Between: sum over unordered cell pairs n_i*n_j
-    cells_list = list(present_cells)
-    cross_within_den = int(sum(max(n_by_cell[c] * (n_by_cell[c] - 1) // 2, 0) for c in cells_list))
-    cross_between_den = int(sum(n_by_cell[c1] * n_by_cell[c2] for (c1, c2) in combinations(cells_list, 2)))
-
     # ---- Bootstrap loop ----
+    cells_list = list(present_cells)
+    boot_within_den   = {var: np.empty(n_boot, dtype=int) for var in by}
+    boot_between_den  = {var: np.empty(n_boot, dtype=int) for var in by}
+    boot_cross_within_den  = np.empty(n_boot, dtype=int)
+    boot_cross_between_den = np.empty(n_boot, dtype=int)
+
     for b in range(n_boot):
         # 1) Nested resampling within each fully crossed cell
         boot_pos_by_cell = {
@@ -588,62 +718,25 @@ def bootstrap_sample_matrix(
                 pooled_by_cat[c] = pooled
                 n_by_cat[c] = int(pooled.size)
 
-            # WITHIN(var)
-            within_den = within_den_by_var[var]
-            if within_den > 0:
-                num = 0.0
-                for c in cats:
-                    n = n_by_cat[c]
-                    w = n * (n - 1) // 2
-                    if w <= 0:
-                        continue
-                    sub = D[np.ix_(pooled_by_cat[c], pooled_by_cat[c])]
-                    num += _upper_tri_mean(sub) * w
-                boot_within[var][b] = num / within_den
-            else:
-                boot_within[var][b] = np.nan
+            # WITHIN(var): weighted mean of within-category upper-triangle dissimilarities
+            # (deduplicating resampled indices to avoid duplicate->zero inflation)
+            blocks = [(pooled_by_cat[c], pooled_by_cat[c]) for c in cats]
+            boot_within[var][b], within_den = _weighted_mean_distance(D, blocks, within=True)
+            boot_within_den[var][b]  = within_den
 
-            # BETWEEN(var)
-            between_den = between_den_by_var[var]
-            if between_den > 0:
-                num = 0.0
-                for (c1, c2) in combinations(cats, 2):
-                    n1, n2 = n_by_cat[c1], n_by_cat[c2]
-                    w = n1 * n2
-                    if w <= 0:
-                        continue
-                    sub = D[np.ix_(pooled_by_cat[c1], pooled_by_cat[c2])]
-                    num += (float(sub.mean()) if sub.size else 0.0) * w
-                boot_between[var][b] = num / between_den
-            else:
-                boot_between[var][b] = np.nan
+            # BETWEEN(var): weighted mean of between-category distances (deduplicated)
+            blocks = [(pooled_by_cat[c1], pooled_by_cat[c2]) for (c1, c2) in combinations(cats, 2)]
+            boot_between[var][b], between_den = _weighted_mean_distance(D, blocks, within=False)
+            boot_between_den[var][b] = between_den
 
-        # 3) Crossed aggregation (pooled across all cells)
-        if cross_within_den > 0:
-            num = 0.0
-            for lev in cells_list:
-                n = n_by_cell[lev]
-                w = n * (n - 1) // 2
-                if w <= 0:
-                    continue
-                sub = D[np.ix_(boot_pos_by_cell[lev], boot_pos_by_cell[lev])]
-                num += _upper_tri_mean(sub) * w
-            boot_cross_within[b] = num / cross_within_den
-        else:
-            boot_cross_within[b] = np.nan
-
-        if cross_between_den > 0:
-            num = 0.0
-            for (c1, c2) in combinations(cells_list, 2):
-                n1, n2 = n_by_cell[c1], n_by_cell[c2]
-                w = n1 * n2
-                if w <= 0:
-                    continue
-                sub = D[np.ix_(boot_pos_by_cell[c1], boot_pos_by_cell[c2])]
-                num += (float(sub.mean()) if sub.size else 0.0) * w
-            boot_cross_between[b] = num / cross_between_den
-        else:
-            boot_cross_between[b] = np.nan
+        # 3) Crossed aggregation (pooled across all cells): WITHIN
+        blocks = [(boot_pos_by_cell[lev], boot_pos_by_cell[lev]) for lev in cells_list]
+        boot_cross_within[b], cross_within_den = _weighted_mean_distance(D, blocks, within=True)
+        boot_cross_within_den[b]  = cross_within_den
+        
+        blocks = [(boot_pos_by_cell[c1], boot_pos_by_cell[c2]) for (c1, c2) in combinations(cells_list, 2)]
+        boot_cross_between[b], cross_between_den = _weighted_mean_distance(D, blocks, within=False)
+        boot_cross_between_den[b] = cross_between_den
 
     # ---- Summaries & output ----
     out: Dict[str, Dict[str, Dict[str, Union[float, Tuple[float, float], np.ndarray, int]]]] = {}
@@ -657,13 +750,13 @@ def bootstrap_sample_matrix(
             "within": {
                 "mean": float(np.nanmean(wvec)),
                 "ci": w_ci,
-                "total_pairs": within_den_by_var[var],
+                "total_pairs": int(np.nanmean(boot_within_den[var])),
                 "boot": wvec if return_boot else None,
             },
             "between": {
                 "mean": float(np.nanmean(bvec)),
                 "ci": b_ci,
-                "total_pairs": between_den_by_var[var],
+                "total_pairs": int(np.nanmean(boot_between_den[var])),
                 "boot": bvec if return_boot else None,
             },
         }
@@ -676,14 +769,15 @@ def bootstrap_sample_matrix(
             "within": {
                 "mean": float(np.nanmean(boot_cross_within)),
                 "ci": cw_ci,
-                "total_pairs": cross_within_den,
+                "total_pairs": int(np.nanmean(boot_cross_within_den)),
                 "boot": boot_cross_within if return_boot else None,
             },
             "between": {
                 "mean": float(np.nanmean(boot_cross_between)),
                 "ci": cb_ci,
-                "total_pairs": cross_between_den,
+                "total_pairs": int(np.nanmean(boot_cross_between_den)),
                 "boot": boot_cross_between if return_boot else None,
             },
         }
+
     return out
