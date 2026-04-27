@@ -54,11 +54,73 @@ def phylo_tree(
     scale_bar: float | None = None,
     savename: str | None = None,
 ) -> plt.Axes:
-    """
-    Plot a rooted phylogenetic tree as a rectangular phylogram and return the Axes.
-    Accepts either the recursive dict or the DataFrame from your utils.
-    """
 
+    """
+    Plot a rooted phylogenetic tree as a rectangular phylogram.
+
+    This function renders a rooted phylogenetic tree using branch lengths
+    as horizontal distances (rectangular layout) and returns the Matplotlib
+    Axes object. Tip (leaf) positions are laid out vertically, and internal
+    node positions are computed as the mean of their descendant tips.
+
+    Parameters
+    ----------
+    tree : MicrobiomeData, dict, or compatible object
+        Input data. Must contain a 'tree' dataframe
+    ax : matplotlib.axes.Axes, optional
+        Existing axes to draw the tree on. If ``None``, a new figure and
+        axes are created.
+    label_tips : bool, default True
+        If True, label leaf (tip) nodes with their node names.
+    label_internals : bool, default False
+        If True, label internal nodes with their node names.
+    tip_order : {"as_is", "alpha"}, default "as_is"
+        Ordering of tips along the y-axis.
+        - ``"as_is"`` preserves planar depth-first order from the root
+          (respecting child order in the tree).
+        - ``"alpha"`` orders tips alphabetically by node name.
+    leaf_prefix : str, default "in"
+        Prefix intended for leaf naming. Currently not used for filtering
+        or labeling logic, but reserved for future extensions.
+    linewidth : float, default 1.5
+        Line width used when drawing branches.
+    color : str or matplotlib-compatible color, default "k"
+        Color used for branches and labels.
+    figsize : tuple of float, optional
+        Figure size ``(width, height)`` in inches when creating a new figure.
+        If None, the height is scaled automatically based on the number of tips.
+    fontsize : int, default 10
+        Font size used for tip and internal node labels.
+    ladderize : bool, default True
+        If True, reorder child subtrees to produce a ladderized tree layout
+        before plotting.
+    scale_bar : float, optional
+        Length of the scale bar to draw (in branch-length units). If None,
+        a scale bar corresponding to 10% of the tree width is drawn.
+    savename : str, optional
+        If provided, save the figure to this file path using
+        ``bbox_inches="tight"``.
+
+    Returns
+    -------
+    matplotlib.axes.Axes
+        The Matplotlib Axes containing the plotted phylogenetic tree.
+
+    Raises
+    ------
+    ValueError
+        If the tree DataFrame is missing, malformed, or does not contain
+        exactly one root.
+
+    RuntimeError
+        If y-positions for internal nodes cannot be resolved, indicating
+        an invalid or cyclic tree structure.
+
+    Notes
+    -----
+    - Axis spines, ticks, and labels are removed for a clean tree layout.
+    """
+    
     # -- Normalize input to DataFrame -----------------------------------------
     T = get_df(tree, "tree")   # your helper
     if T is None:

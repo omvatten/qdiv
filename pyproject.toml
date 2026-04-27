@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "qdiv"
-version = "4.0.2"
+version = "4.0.3"
 description = "Microbial diversity analysis toolkit"
 authors = [
     { name = "Oskar Modin", email = "omvatten@gmail.com" }

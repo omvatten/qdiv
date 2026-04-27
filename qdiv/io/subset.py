@@ -472,7 +472,8 @@ def subset_taxa(
     subset_patterns: Optional[Union[str, Sequence[str]]] = None,
     exclude: bool = False,
     case: bool = False,
-    regex: bool = True,
+    regex: bool = False,
+    na: bool = False,
     match_type: Literal["contains", "fullmatch", "startswith", "endswith"] = "contains",
     inplace: bool = False,
 ) -> Union["MicrobiomeData", Dict[str, Any]]:
@@ -492,8 +493,10 @@ def subset_taxa(
         If True, return taxa that do NOT match the given patterns (i.e., complement).
     case : bool, default False
         If True, pattern matching is case-sensitive.
-    regex : bool, default True
+    regex : bool, default False
         If True, patterns are treated as regex. If False, patterns are escaped (literal match).
+    na : bool, default False
+        If True, na are treated as matches. If False, na are treated as non-matches. Empty or whitespace-only taxonomy entries are treated as missing (NA) during subsetting.
     match_type : {'contains','fullmatch','startswith','endswith'}, default 'contains'
         Matching behavior applied to the strings in selected columns.
     inplace : bool, default False
@@ -537,34 +540,54 @@ def subset_taxa(
     elif match_type == "endswith":
         union = rf"(?:{union})$"
 
-    # --- Normalize subset_levels ---
+    # --- Normalize subset_levels (case-insensitive) ---
+    colmap = {c.lower(): c for c in tax.columns}
     if subset_levels is None:
         columns = list(tax.columns)
     elif isinstance(subset_levels, str):
-        if subset_levels not in tax.columns:
-            raise ValueError(f"'{subset_levels}' not found in tax columns")
-        columns = [subset_levels]
+        key = subset_levels.lower()
+        if key not in colmap:
+            raise ValueError(
+                f"'{subset_levels}' not found in tax columns "
+                f"(available: {list(tax.columns)})"
+            )
+        columns = [colmap[key]]
     else:
-        columns = list(subset_levels)
-        missing = [lvl for lvl in columns if lvl not in tax.columns]
+        columns = []
+        missing = []
+        for lvl in subset_levels:
+            key = lvl.lower()
+            if key in colmap:
+                columns.append(colmap[key])
+            else:
+                missing.append(lvl)
         if missing:
-            raise ValueError(f"subset_levels contains invalid columns: {missing}")
+            raise ValueError(
+                f"subset_levels contains invalid columns (case-insensitive): {missing}\n"
+                f"Available columns: {list(tax.columns)}"
+            )
 
     # --- Build a single boolean mask across all selected columns ---
     mask = pd.Series(False, index=tax.index)
 
     for col in columns:
-        s = tax[col].astype(str)
+        s = tax[col]
+        if not pd.api.types.is_string_dtype(s):
+            s = s.where(s.isna(), s.astype(str))
+        s = s.replace(r"^\s*$", pd.NA, regex=True)
+
         if match_type == "fullmatch":
-            col_mask = s.str.fullmatch(union, case=case, na=False, regex=True)
+            col_mask = s.str.fullmatch(union, case=case, na=na, regex=True)
         else:
-            col_mask = s.str.contains(union, case=case, na=False, regex=True)
+            col_mask = s.str.contains(union, case=case, na=na, regex=True)
         mask |= col_mask  # OR across columns
 
     if exclude:
         mask = ~mask
 
     keep_idx = tax.index[mask]  # preserves original order
+    if len(keep_idx) == 0:
+        raise ValueError("Matching features are missing in subset_taxa.")
 
     # --- Helper for safe selection on possibly-missing keys ---
     def _take(df):
@@ -583,11 +606,10 @@ def subset_taxa(
                 obj._validate()
             return obj
         else:
-            # Import locally to avoid hard dependency if not needed
             try:
-                from ..data_object import MicrobiomeData  # adjust path if needed
+                from ..data_object import MicrobiomeData
             except Exception:
-                MicrobiomeData = None  # type: ignore
+                MicrobiomeData = None
 
             if MicrobiomeData is not None:
                 new_obj = MicrobiomeData(

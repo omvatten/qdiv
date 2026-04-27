@@ -952,6 +952,10 @@ def pie(
     # Add 'Other'
     table = table.iloc[::-1]
     table.loc["Other"] = 100 - table.sum()
+    if min(table.min()) < 0 and min(table.min()) > -0.1:
+        table[table < 0] = 0 #Ensure small negative numbers are changed to 0
+    elif min(table.min()) < 0: #If large negative number, raise error
+        raise ValueError("Negative values encountered in relative abundance table.")
 
     # Colors
     if colorlist is None:

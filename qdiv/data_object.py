@@ -800,8 +800,8 @@ class MicrobiomeData:
     
         Examples
         --------
-        >>> data.merge_samples(by="Treatment", method="sum", inplace=True)
-        >>> merged = data.merge_samples(by="Site", method="mean")
+        >>> obj.merge_samples(by="Treatment", method="sum", inplace=True)
+        >>> merged = obj.merge_samples(by="Site", method="mean")
         """
         return data_subset.merge_samples(
             self,
@@ -819,7 +819,8 @@ class MicrobiomeData:
         subset_patterns: Optional[Union[str, Sequence[str]]] = None,
         exclude: bool = False,
         case: bool = False,
-        regex: bool = True,
+        regex: bool = False,
+        na: bool = False,
         match_type: Literal["contains", "fullmatch", "startswith", "endswith"] = "contains",
         inplace: bool = False,
     ) -> MicrobiomeData:
@@ -836,8 +837,10 @@ class MicrobiomeData:
             If True, return taxa that do NOT match the given patterns (i.e., complement).
         case : bool, default False
             If True, pattern matching is case-sensitive.
-        regex : bool, default True
+        regex : bool, default False
             If True, patterns are treated as regex. If False, patterns are escaped (literal match).
+        na : bool, default False
+            If True, na are treated as matches. If False, na are treated as non-matches. Empty or whitespace-only taxonomy entries are treated as missing (NA) during subsetting.
         match_type : {'contains','fullmatch','startswith','endswith'}, default 'contains'
             Matching behavior applied to the strings in selected columns.
         inplace : bool, default False
@@ -851,12 +854,12 @@ class MicrobiomeData:
         Raises
         ------
         ValueError
-            If taxonomy table is missing or no patterns are provided.
+            If taxonomy table is missing, no patterns are provided, or no matches are found.
     
         Examples
         --------
-        >>> data.subset_taxa(subset_levels="Genus", subset_patterns="Bacteroides", inplace=True)
-        >>> filtered = data.subset_taxa(subset_patterns=["Bacteroides", "Clostridium"], exclude=True)
+        >>> obj.subset_taxa(subset_levels="Genus", subset_patterns="Bacteroides", inplace=True)
+        >>> filtered_obj = obj.subset_taxa(subset_patterns=["Bacteroides", "Clostridium"], exclude=True)
         """
         return data_subset.subset_taxa(
             self,
@@ -865,6 +868,7 @@ class MicrobiomeData:
             exclude=exclude,
             case=case,
             regex=regex,
+            na=na,
             match_type=match_type,
             inplace=inplace
         )
@@ -915,8 +919,8 @@ class MicrobiomeData:
     
         Examples
         --------
-        >>> data.rarefy(depth=10000, seed=42, inplace=True)
-        >>> rarefied = data.rarefy(depth='min', replacement=True)
+        >>> obj.rarefy(depth=10000, seed=42, inplace=True)
+        >>> rarefied_obj = obj.rarefy(depth='min', replacement=True)
         """
         if "seed" in kwargs:
             if random_state is not None:

@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 import math
-from typing import Optional, Dict, Any, Union, Tuple
+from typing import Optional, Dict, Any, Union
 from ..io import subset_samples
 from ..utils import rao, beta2dist, get_df
 from ..utils import subset_tree_df, ra_to_branches, compute_Tmean
@@ -1188,7 +1188,6 @@ def evenness(
         Type of diversity measure used to compute D.
     index : {'CR1','CR2','CR3','CR4','CR5','local','regional','pielou'}
         Evenness index to compute.
-        - 'pielou' computes Pielou’s J = ln(D₁) / ln(S), valid only for q = 1.
     perspective : {'samples','taxa'}
         Whether to compute evenness across samples (columns)
         or across taxa/branches (rows).

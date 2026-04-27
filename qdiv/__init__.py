@@ -22,7 +22,7 @@ Subpackages
 
 """
 
-__version__ = "4.0.0"
+__version__ = "4.0.3"
 __author__ = "Oskar Modin"
 __docformat__ = "restructuredtext"
 
