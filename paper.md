@@ -93,7 +93,7 @@ A deliberate effort was made to keep dependencies to a minimum, to reduce instal
 # Research impact statement
 
 The `qdiv` package was first introduced by @modin2020 to enable Hill-based beta diversity calculations and extend the Raup-Crick null model to such metrics. 
-Since then, it has been adopted by other researchers, e.g., [@alberdi2021; @nikolova2021], and used by our own research group, e.g., [@abadikhah2024]. 
+Since then, it has been adopted by other researchers (e.g., [@alberdi2021; @nikolova2021]), and used by our own research group (e.g., [@abadikhah2024]). 
 It has been downloaded 835 times from PyPI (excluding mirrors) from 2025-09-13 to 2026-03-12. 
 Version 4 introduces the MicrobiomeData class for streamlined data management, along with new statistical and visualization capabilities.
 
