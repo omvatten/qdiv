@@ -87,50 +87,67 @@ def phyl_alpha(
     obj: Union[Dict[str, Any], Any],
     *,
     q: float = 1,
-    index: str = "PD",
+    index: str = "D",
     use_values_in_tab: bool = False
 ) -> Union[pd.Series, float]:
     """
-    Compute phylogenetic alpha diversity (Hill numbers) of order *q*.
+    Compute phylogenetic alpha diversity based on Hill numbers.
 
-    Implements the framework of Chao et al. (2010, Phil. Trans. R. Soc. B),
-    where branch lengths are weighted by the relative abundances of all features
-    descending from each branch.
+    This function implements the abundance-weighted phylogenetic diversity
+    framework of Chao et al. (2010, Phil. Trans. R. Soc. B). Diversity is
+    computed at the level of tree branches, where each branch is weighted by
+    its length and by the total relative abundance of all descendant features.
+
+    The primary quantity returned is the *mean phylogenetic diversity*
+    D̄_q(T), which is a true Hill number (dimensionless, continuous, and
+    monotone in q). A branch-length–scaled quantity (phylogenetic diversity,
+    PD_q) can optionally be returned as a derived measure.
 
     Parameters
     ----------
     obj : MicrobiomeData-like | dict
-        Abundance table and tree dataframe.
-        The tree dataframe must contain:
-            - 'leaves'     : list of tree leaves descending from each branch
+        Object containing an abundance table (`tab`) and a tree dataframe
+        (`tree`). The tree dataframe must include:
+            - 'leaves'   : list of descendant leaves for each branch
             - 'branchL'  : branch length
     q : float, default=1
         Diversity order:
-        - q = 0 : Faith's PD (if index='PD')
-        - q = 1 : exponential of phylogenetic Shannon entropy
-        - q = 2 : phylogenetic inverse Simpson
+        - q = 0 : presence/absence weighting (Faith’s PD when index='PD')
+        - q = 1 : exponential phylogenetic Shannon diversity
+        - q = 2 : phylogenetic inverse Simpson diversity
         - general q : phylogenetic Hill number
-    index : {'PD', 'D', 'H'}, default='PD'
-        Output type:
-        - 'PD' : Hill number × Tavg  (phylogenetic diversity)
-        - 'D'  : Hill number only
-        - 'H'  : entropy-like quantity before exponentiation
+    index : {'D', 'PD', 'H'}, default='D'
+        Quantity to return:
+        - 'D'  : mean phylogenetic diversity D̄_q(T) (dimensionless; Hill number)
+        - 'PD' : branch diversity PD_q(T) = T · D̄_q(T)
+        - 'H'  : entropy-like intermediate quantity:
+                 * q = 1  : phylogenetic entropy divided by T
+                 * q ≠ 1  : power-sum moment Σ_b (L_b/T) a_b^q
     use_values_in_tab : bool, default=False
-        If False, convert abundances to relative abundances.
-        If True, assume `tab` already contains relative abundances.
+        If False, abundances are converted to relative abundances per sample.
+        If True, the abundance table is assumed to already contain relative
+        abundances.
 
     Returns
     -------
-    pandas.Series or float
-        Phylogenetic diversity values for each sample.
+    pandas.Series
+        A vector of diversity values, one per sample.
 
     Notes
     -----
-    - For q = 1, the limit definition is used:
-          H₁ = exp( - Σ_b L_b * p_b * ln(p_b) / Tavg )
-    - For q ≠ 1:
-          H_q = ( Σ_b L_b * p_b^q / Tavg )^( 1 / (1 - q) )
-    - p_b is the total relative abundance of all features descending from branch b.
+    For each sample j, the mean tree height is computed as:
+        T_j = Σ_b L_b · a_{b,j}
+
+    Mean phylogenetic diversity is defined as:
+        D̄_q(T) = ( Σ_b (L_b / T_j) · a_{b,j}^q )^(1 / (1 − q)),   q ≠ 1
+        D̄_1(T) = exp( − Σ_b (L_b / T_j) · a_{b,j} · log a_{b,j} )
+
+    where a_{b,j} is the total relative abundance descending from branch b.
+
+    The branch diversity PD_q(T) = T_j · D̄_q(T) has units of branch length
+    (or evolutionary time) and represents effective evolutionary work.
+    Unlike D̄_q(T), PD_q(T) is not a Hill number for q ≠ 0, 1 and is not
+    guaranteed to be monotone in q.
     """
 
     # Get input
@@ -158,33 +175,33 @@ def phyl_alpha(
         ra = tab.div(col_sums, axis=1)
 
     #Subset tree to features in tab
-    tree = subset_tree_df(tree, ra.index.tolist())
-
-    # Get Tmean
-    Tmean = compute_Tmean(tree, ra.index.tolist())
+    tree = subset_tree_df(tree, ra.index.tolist()) #Function from utils
 
     # Build branch × sample abundance matrix
-    tree2 = ra_to_branches(ra, tree)
+    tree2 = ra_to_branches(ra, tree) #Function from utils
 
-    #Calculate diversities
-    if q == 1:
-        # Build log p_b with masking
+    # Get Tmean
+    Tmean = compute_Tmean(tree, tree2) #Function from utils
+
+    if abs(q - 1.0) < 1e-6:
         mask = tree2 > 0
         logp = pd.DataFrame(0.0, index=tree2.index, columns=tree2.columns)
         logp[mask] = np.log(tree2[mask])
-        
-        # L_b * p_b ln p_b / Tmean, sum over branches
-        term = (tree2 * logp).mul(tree["branchL"], axis=0).div(Tmean, axis=1).sum()
-        term = -term
-        # D1 = exp( - Σ_b L_b * p_b ln p_b / Tmean )
-        D = np.exp(term)
+        # - sum_b (L_b * a_{b,j} * log a_{b,j}) / T_j
+        term = ((tree2 * logp).mul(tree["branchL"], axis=0).div(Tmean, axis=1).sum(axis=0))
+        D = np.exp(-term)
 
     else:
         tree_calc = tree2.copy()
-        tree_calc[tree_calc > 0] = tree_calc[tree_calc > 0].pow(q) #Take power of q
-        tree_calc = tree_calc.mul(tree["branchL"], axis=0) #Multiply with branch length
-        tree_calc = tree_calc.div(Tmean, axis=1) #Divide by Tmean
-        term = tree_calc.sum() #Sum
+        # a_{b,j}^q
+        tree_calc[tree_calc > 0] = tree_calc[tree_calc > 0].pow(q)
+        # L_b * a_{b,j}^q
+        tree_calc = tree_calc.mul(tree["branchL"], axis=0)
+        # (L_b * a_{b,j}^q) / T_j
+        tree_calc = tree_calc.div(Tmean, axis=1)
+        # sum_b L_b a_{b,j}^q / T_j
+        term = tree_calc.sum(axis=0)
+        # D̄_q(T) = [term]^(1/(1−q))
         D = term.copy()
         D[D > 0] = D[D > 0].pow(1.0 / (1.0 - q))
 
@@ -194,7 +211,7 @@ def phyl_alpha(
     elif index == "D":
         return D
     elif index == "H":
-        return term
+        return term # entropy at q=1, moment at q≠1
     else:
         raise ValueError("`index` must be one of: 'PD', 'D', 'H'.")
 

@@ -253,7 +253,6 @@ def phyl_beta(
 
     #Subset tree to features in tab
     tree = subset_tree_df(tree, ra.index.tolist())
-    Tmean = compute_Tmean(tree, ra.index.tolist())
     tree2 = ra_to_branches(ra, tree)
 
     # Align branch lengths to tree2 index
@@ -273,37 +272,51 @@ def phyl_beta(
 
             # Subtree abundances per branch
             sub = tree2[[s1, s2]].copy()
+            pooled = str(s1)+str(s2)
+            sub[pooled] = sub.mean(axis=1)
+            Tmean = compute_Tmean(tree, sub)
+            Tgamma = Tmean[pooled]
 
             # --- γ-diversity ---------------------------------------------------
-            g = sub.mean(axis=1)
-            if q == 1:
+            g = sub[pooled]
+            if abs(q - 1.0) < 1e-6:
                 mask = g > 0
                 term = g.where(mask, 0.0) * np.log(g.where(mask, 1.0))
-                term = (term * (branchL / Tmean)).sum()
+                term = (term * (branchL / Tgamma)).sum()
                 gamma_div = math.exp(-term)
             elif q == 0:
                 occupied_gamma = (g > 0).astype(float)
-                gamma_div = (occupied_gamma.mul(branchL)).sum() / Tmean
+                gamma_div = (occupied_gamma.mul(branchL)).sum() / Tgamma
             else:
-                g = g / Tmean
-                term = (g.clip(lower=0) ** q).mul(branchL)
-                gamma_div = (term.sum()) ** (1.0 / (1.0 - q)) / Tmean
+                term = (branchL * g.clip(lower=0).pow(q)).sum() / Tgamma
+                gamma_div = term ** (1.0 / (1.0 - q))
 
             # --- α-diversity ---------------------------------------------------
-            if q == 1:
-                mask = sub > 0
-                term = sub.where(mask, 0.0) * np.log(sub.where(mask, 1.0))
-                term = term.mul(branchL / Tmean, axis=0)
-                term = term.sum().sum()
-                alpha_div = math.exp(-term / 2.0)
+            a1 = sub[s1]
+            a2 = sub[s2]
+            
+            if abs(q - 1.0) < 1e-6:
+                # Shannon limit
+                mask1 = a1 > 0
+                mask2 = a2 > 0
+            
+                H = -(
+                    (a1[mask1] * np.log(a1[mask1]) + a2[mask2] * np.log(a2[mask2]))
+                    .mul(branchL, axis=0)
+                    .sum()
+                    / (2.0 * Tgamma)
+                )
+                alpha_div = math.exp(H)
             elif q == 0:
-                pos_counts = (sub > 0).sum(axis=1).astype(float)
-                alpha_div = (pos_counts.mul(branchL)).sum() / (2.0 * Tmean)
+                pos_counts = ((a1 > 0).astype(float) + (a2 > 0).astype(float))
+                alpha_div = (branchL * pos_counts).sum() / (2.0 * Tgamma)
             else:
-                aq = sub.clip(lower=0) / (2.0 * Tmean)
-                aq = aq.pow(q)
-                term = aq.sum(axis=1).mul(branchL)
-                alpha_div = (term.sum() ** (1.0 / (1.0 - q))) / (2.0 * Tmean)
+                term = (
+                    branchL *
+                    ((a1.clip(lower=0).pow(q) + a2.clip(lower=0).pow(q)) / 2.0)
+                ).sum() / Tgamma
+            
+                alpha_div = term ** (1.0 / (1.0 - q))
 
             # β-diversity
             beta_val = gamma_div / alpha_div
@@ -504,7 +517,7 @@ def func_beta(
             outD.loc[s1, s2] = beta_val
             outD.loc[s2, s1] = beta_val
 
-    # Square β to get FD-like measure (your original behavior)
+    # Square β to get FD-like measure
     outFD = outD.pow(2)
 
     # Convert β to dissimilarity if requested
@@ -847,7 +860,6 @@ def phyl_multi_beta(
     """
 
     # Validate input
-
     tab = get_df(obj, "tab")
     meta = get_df(obj, "meta")
     tree = get_df(obj, "tree")
@@ -914,49 +926,41 @@ def phyl_multi_beta(
         
         # --- γ-diversity -------------------------------------------------------------
         g = mean_ra
-        
-        if q == 1:
-            # Shannon limit: use masked logs (zeros contribute 0)
-            g_safe = g.where(g > 0)                                  # NaN where zero
-            term = (g_safe * np.log(g_safe)).mul(branchL)            # L_b * γ_b ln γ_b
-            gamma_div = math.exp(-(term.sum() / Tavg))
+        if abs(q - 1.0) < 1e-6:
+            mask = g > 0
+            H = -((g[mask] * np.log(g[mask]) * branchL[mask]).sum() / Tavg)
+            gamma_div = math.exp(H)
         
         elif q == 0:
-            # Presence/absence: indicator of γ_b > 0 (avoid NaN**0 → 1)
-            I = (g > 0).astype(float)
-            term = I.mul(branchL)                                    # L_b * 1{γ_b>0}
-            gamma_div = term.sum() / Tavg
+            gamma_div = branchL[g > 0].sum() / Tavg
         
         else:
-            # General Hill number
-            g_norm = g / Tavg
-            term = (g_norm.clip(lower=0) ** q).mul(branchL)          # L_b * γ_b^q / Tavg^q
-            gamma_div = (term.sum()) ** (1.0 / (1.0 - q)) / Tavg
+            term = (branchL * g.clip(lower=0).pow(q)).sum() / Tavg
+            gamma_div = term ** (1.0 / (1.0 - q))
         
         # --- α-diversity -------------------------------------------------------------
-        # N must be the number of samples in the group (K communities)
-        # Ensure N is defined earlier as: N = tree2.shape[1] or len(group_samples)
-        tree2_scaled = tree2 / (N * Tavg)
-        a = tree2_scaled  # branch × N matrix
+        K = tree2.shape[1]
         
-        if q == 1:
-            # Shannon limit: masked logs per branch × community, weighted by branchL
-            a_safe = a.where(a > 0)
-            term = (a_safe * np.log(a_safe)).mul(branchL, axis=0)    # L_b * Σ_k a_bk ln a_bk
-            H = -term.sum().sum() - math.log(N * Tavg)
-            alpha_div = math.exp(H)
+        if abs(q - 1.0) < 1e-6:
+            mask = tree2 > 0
+            term = (
+                (tree2[mask] * np.log(tree2[mask]))
+                .mul(branchL, axis=0)
+                .sum().sum()
+                / (K * Tavg)
+            )
+            alpha_div = math.exp(-term)
         
         elif q == 0:
-            # Presence/absence across communities
-            I = (a > 0).astype(float)
-            term = I.sum(axis=1).mul(branchL)                        # L_b * Σ_k 1{a_bk>0}
-            alpha_div = term.sum() / (N * Tavg)
+            pos_counts = (tree2 > 0).sum(axis=1).astype(float)
+            alpha_div = (branchL * pos_counts).sum() / (K * Tavg)
         
         else:
-            # General Hill number
-            aq = (a.clip(lower=0) ** q)
-            term = aq.sum(axis=1).mul(branchL)                       # Σ_k a_bk^q * L_b
-            alpha_div = (term.sum()) ** (1.0 / (1.0 - q)) / (N * Tavg)
+            term = (
+                branchL *
+                (tree2.clip(lower=0).pow(q).sum(axis=1) / K)
+            ).sum() / Tavg
+            alpha_div = term ** (1.0 / (1.0 - q))
 
         # β-diversity
         beta = gamma_div / alpha_div
@@ -1090,7 +1094,6 @@ def func_multi_beta(
         # γ-diversity (pooled)
         p = ra_mean.to_numpy()
         outer = np.outer(p, p)
-        print(outer)
 
         if q == 1:
             mask = outer > 0
@@ -1103,7 +1106,6 @@ def func_multi_beta(
             outer_q = np.zeros_like(outer)
             outer_q[mask] = outer[mask] ** q
             Dg = (np.sum(outer_q * dqmat.values)) ** (1.0 / (2.0 * (1.0 - q)))
-        print('Dq', Dg)
 
         # α-diversity (mean over all ordered sample pairs)
         asum = 0.0
@@ -1235,7 +1237,7 @@ def evenness(
             tree = get_df(obj, "tree")
             if not isinstance(tree, pd.DataFrame):
                 raise ValueError("tree must be provided for div_type='phyl'.")
-            D_series = phyl_alpha(tab, tree, q=q, index="D",
+            D_series = phyl_alpha(obj, q=q, index="D",
                                   use_values_in_tab=use_values_in_tab)
 
         elif div_type == "func":
@@ -1251,7 +1253,7 @@ def evenness(
     else:
         if div_type == "naive":
             tabT = tab.T
-            S_series = tabT.count()
+            S_series = tabT.count().astype(float)
             D_series = naive_alpha(tabT, q=q, use_values_in_tab=use_values_in_tab)
 
         elif div_type == "phyl":
@@ -1270,9 +1272,9 @@ def evenness(
 
             # Normalize across samples
             tree2 = tree2.T
-            tree2 = tree2.div(tree2.sum())
+            tree2 = tree2.div(tree2.sum()).fillna(0.0)
 
-            S_series = tree2.count()
+            S_series = tree2.count().astype(float)
             D_series = naive_alpha(tree2, q=q, use_values_in_tab=True)
 
         else:
@@ -1287,8 +1289,8 @@ def evenness(
             logS = np.log(df.loc[mask, "S"])
             measure = logD / logS
         else:
-            Dp = D_series.pow(power)
-            Sp = S_series.pow(power)
+            Dp = D_series.astype(float).pow(power)
+            Sp = S_series.astype(float).pow(power)
             measure = (1 - Dp) / (1 - Sp)
     
     elif index == "CR3":
@@ -1451,11 +1453,11 @@ def dissimilarity_by_feature(
 
         # PHYLOGENETIC VERSION
         elif div_type == "phyl":
-
+        
             # Build branch × sample matrix
             tree2 = ra_to_branches(ra, tree)
-    
-            # Evenness per node
+        
+            # Evenness per node (correct)
             ev = evenness(
                 {"tab": subtab, "tree": tree},
                 q=q,
@@ -1464,27 +1466,24 @@ def dissimilarity_by_feature(
                 perspective="taxa",
                 use_values_in_tab=use_values_in_tab,
             )
-
-            # Compute weights
+        
+            # Compute branch weights
             if idx == "regional":  # CR1
                 zi = tree2.sum(axis=1)
-                mask = zi > 0
-                zi_q = np.zeros_like(zi)
-                zi_q[mask] = zi[mask] ** q
-                Lz = tree["branchL"] * zi_q
-                w = zi_q / Lz.sum()
+                zi_q = zi.clip(lower=0).pow(q)
+                w = (tree["branchL"] * zi_q)
+                w = w / w.sum()
+        
             else:  # local = CR2
-                tree2_q = tree2.copy()
-                mask = tree2_q > 0
-                tree2_q[mask] = tree2_q[mask].pow(q)
+                tree2_q = tree2.clip(lower=0).pow(q)
                 zv = tree2_q.sum(axis=1)
-                Lz = tree["branchL"] * zv
-                w = zv / Lz.sum()
-    
+                w = (tree["branchL"] * zv)
+                w = w / w.sum()
+        
             # Contribution
             contrib = tree["branchL"] * w * (1 - ev)
-    
-            out.loc["dis", cat] = contrib[contrib.notna()].sum()
+        
+            out.loc["dis", cat] = contrib.sum()
             out.loc[contrib.index, cat] = 100 * contrib / contrib.sum()
             out.loc[tree.index, 'nodes'] = tree['nodes']
     

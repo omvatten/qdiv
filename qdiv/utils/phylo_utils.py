@@ -1047,15 +1047,31 @@ def ra_to_branches(ra: pd.DataFrame, tree_df: pd.DataFrame) -> pd.DataFrame:
         A[rows, :] += ra_vals[pos, :]
     return pd.DataFrame(A, index=tree_df.index, columns=ra.columns)
 
-def compute_Tmean(tree_df: pd.DataFrame, features: list[str]) -> float:
-    # keep only leaf rows (tips) present in features
-    tips = tree_df[~tree_df["nodes"].astype(str).str.startswith("in")]
-    tips = tips.set_index("nodes")
-    in_common = list(set(features).intersection(tips.index))
-    if len(in_common) < len(features):
-        missing = set(features) - set(in_common)
-        raise ValueError(f"Not all features present in tree: {sorted(list(missing))[:5]} ...")
-    return float(tips.loc[in_common, "dist_to_root"].sum()) / len(in_common)
+def compute_Tmean(
+    tree_df: pd.DataFrame,
+    abund: pd.DataFrame,
+) -> pd.Series:
+    """
+    Compute sample-specific mean tree height T (Chao et al. 2010).
+
+    T_j = sum_b L_b * a_{b,j}
+
+    Parameters
+    ----------
+    tree_df : pd.DataFrame
+        Tree dataframe with column 'branchL'
+    abund : pd.DataFrame
+        Branch × sample matrix of descendant relative abundances (a_{b,j})
+
+    Returns
+    -------
+    pd.Series
+        One T value per sample (indexed by sample name)
+    """
+    L = tree_df["branchL"].to_numpy()[:, None]   # (branches × 1)
+    A = abund.to_numpy()                         # (branches × samples)
+    T = (L * A).sum(axis=0)
+    return pd.Series(T, index=abund.columns, name="Tmean")
 
 def ladderize_tree_df(df, *, right=True):
     """

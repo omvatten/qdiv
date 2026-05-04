@@ -619,11 +619,10 @@ def alpha_diversity_profile(
         if div_type == "naive":
             alphadiv = naive_alpha(tab_use, q=q, use_values_in_tab=use_values_in_tab)
         elif div_type == "phyl":
-            alphadiv = phyl_alpha(tab_use, tree=obj["tree"], q=q, use_values_in_tab=use_values_in_tab)
+            alphadiv = phyl_alpha(obj, q=q, index="D", use_values_in_tab=use_values_in_tab)
         elif div_type == "func":
-            alphadiv = func_alpha(tab_use, distmat=distmat, q=q, use_values_in_tab=use_values_in_tab)
+            alphadiv = func_alpha(tab_use, distmat=distmat, q=q, index='D', use_values_in_tab=use_values_in_tab)
         else:
-            # Defensive programming (unreachable due to earlier validation)
             raise RuntimeError(f"Unsupported div_type: {div_type}")
 
         # Expect alphadiv to be array-like or Series aligned to smplist
@@ -666,9 +665,9 @@ def alpha_diversity_profile(
     if div_type == "naive":
         ax.set_ylabel(r"Diversity ($^{q}$D)")
     elif div_type == "phyl":
-        ax.set_ylabel(r"Diversity ($^{q}$PD)")
+        ax.set_ylabel(r"Phyl. diversity ($^{q}$D)")
     elif div_type == "func":
-        ax.set_ylabel(r"Diversity ($^{q}$FD)")
+        ax.set_ylabel(r"Func. diversity ($^{q}$D)")
 
     ax.set_xlabel("Diversity order (q)")
 
