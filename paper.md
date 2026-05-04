@@ -64,7 +64,7 @@ including sequence handling, phylogenetic tree operations, and ecological statis
 
 # Software design
 
-`qdiv` has modular architecture centered around the core MicrobiomeData class. 
+`qdiv` has a modular architecture centered around the core MicrobiomeData class. 
 This class serves as a container for all essential components, including relative abundance tables, 
 taxonomic annotations, sequences, phylogenetic trees, and associated metadata.
 The motivation for this design is to provide users with a single, coherent object that keeps data, metadata, and analysis context together, 
