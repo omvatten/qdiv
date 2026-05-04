@@ -49,7 +49,7 @@ have used presence-absence data or relied on a single relative abundance-based i
 # Statement of the field
 
 A variety of software tools support microbial community analysis, particularly within the R programming environment.
-Packages such as vegan [vegan2026], phyloseq [@mcmurdie2013], microbiome [@lahti2017], and ampvis2 [@andersen2018] provide comprehensive workflows 
+Packages such as vegan [@vegan2026], phyloseq [@mcmurdie2013], microbiome [@lahti2017], and ampvis2 [@andersen2018] provide comprehensive workflows 
 for diversity calculations, ordination, and phylogenetic analysis, but they primarily rely on classical indices rather than a unified diversity framework. 
 Several R packages implement the Hill number framework, including hilldiv [@alberdi2019], hillR [@li2018], vegetarian [@vegetarian2019], 
 and iNEXT [@inext2024]. However, to our knowledge there is no Python package that implements the Hill number framework in a unified way 
@@ -92,7 +92,7 @@ A deliberate effort was made to keep dependencies to a minimum, to reduce instal
 
 # Research impact statement
 
-The `qdiv` package was first introduced by [@modin2020] to enable Hill-based beta diversity calculations and extend the Raup-Crick null model to such metrics. 
+The `qdiv` package was first introduced by Modin et al. [@modin2020] to enable Hill-based beta diversity calculations and extend the Raup-Crick null model to such metrics. 
 Since then, it has been adopted by other researchers, e.g., [@alberdi2021; @nikolova2021], and used by our own research group, e.g., [@abadikhah2024]. 
 It has been downloaded 835 times from PyPI (excluding mirrors) from 2025-09-13 to 2026-03-12. 
 Version 4 introduces the MicrobiomeData class for streamlined data management, along with new statistical and visualization capabilities.
