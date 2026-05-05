@@ -43,7 +43,7 @@ and extended to metrics that incorporate phylogenetic and functional relationshi
 
 Many ecological statistical tests and null models, such as Raup-Crick [@raup1979], the Net Relatedness Index, and the Nearest-Taxon Index [@webb2002], 
 have used presence-absence data or relied on a single relative abundance-based index (e.g. Bray-Curtis). 
-`qdiv` fills a critical gap by enabling the implementation of the Hill number framework for analysing diversity and microbial community assembly with a range of statistical methods, all within Python.
+`qdiv` fills a critical gap by enabling the implementation of the Hill number framework for analyzing diversity and microbial community assembly with a range of statistical methods, all within Python.
 
 
 # Statement of the field
