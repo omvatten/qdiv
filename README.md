@@ -65,3 +65,4 @@ If you use qdiv in your research, please cite:
 
 Modin. (2026). qdiv: A Python package for microbial ecology analysis using the Hill number framework. *Journal of Open Source Software*, 11(121), 10089. https://doi.org/10.21105/joss.10089.
 
+Download citation: [CITATION.md](CITATION.md).
