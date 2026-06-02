@@ -413,8 +413,10 @@ class MicrobiomeData:
             Separator to help extract sample names from column headings.
         second_sep : str, optional
             Second separator to help extract sample names from column headings.
-        detection_threshold : float, optional
-            Detection threshold for relative abundance (default: None).
+        detection_threshold : float, optional, default None
+            If set, all relative abundances below this threshold are set to zero,
+            but only if both 'Covered Bases' and 'Length' columns are available for the sample.
+            The detection threshold is a fraction from 0 to 1.
 
         Returns
         -------

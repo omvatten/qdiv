@@ -15,6 +15,7 @@ def citations(f="all") -> None:
     if f == "all" or f == "qdiv":
         print("qdiv package:")
         print("Modin, O. https://github.com/omvatten/qdiv")
+        print("Modin, O. (2026). Journal of Open Source Software, 11(121), 10089. DOI: 10.21105/joss.10089")
     if f == "all" or f in ["diversity.naive_alpha", "diversity.naive_beta", "diversity.naive_multi_beta", "naive"]:
         print("\nNaive diversity:")
         print("Hill, M. O. (1973). Ecology 54(2): 427-432.")

@@ -819,6 +819,7 @@ def add_tab_from_coverm(
     detection_threshold : float, optional
         If set, all relative abundances below this threshold are set to zero,
         but only if both 'Covered Bases' and 'Length' columns are available for the sample.
+        The detection threshold is a fraction from 0 to 1.
 
     Returns
     -------

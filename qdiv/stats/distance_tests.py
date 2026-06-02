@@ -276,7 +276,7 @@ def permanova(
         (i.e. blocked permutations).
     random_state : int | numpy.random.Generator | None
         Random seed or generator for reproducible permutations.
-    perm_scheme : {'labels', 'freedman-lane'}, default 'labels'
+    perm_scheme : {'labels', 'freedman-lane'}, default 'freedman-lane'
         Permutation scheme used to generate the null distribution:
     
         * 'labels':
