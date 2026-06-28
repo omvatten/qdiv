@@ -246,19 +246,19 @@ def subset_features(
             keepix = tab.index.difference(featurelist)
             out_tab = tab.loc[keepix]
         else:
-            out_tab = tab.reindex(featurelist).dropna(how="all")
+            out_tab = tab.loc[tab.index.intersection(featurelist)]
     if tax is not None:
         if exclude:
             keepix = tax.index.difference(featurelist)
             out_tax = tax.loc[keepix]
         else:
-            out_tax = tax.reindex(featurelist).dropna(how="all")
+            out_tax = tax.loc[tax.index.intersection(featurelist)]
     if seq is not None:
         if exclude:
             keepix = seq.index.difference(featurelist)
             out_seq = seq.loc[keepix]
         else:
-            out_seq = seq.reindex(featurelist).dropna(how="all")
+            out_seq = seq.loc[seq.index.intersection(featurelist)]
 
     # Build output in the same type as input
     if is_object:

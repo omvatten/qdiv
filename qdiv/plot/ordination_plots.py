@@ -104,7 +104,8 @@ def _compute_pcoa_biplot(coords_2d: pd.DataFrame, meta: pd.DataFrame, variables:
     biglambda = np.array([[eigen_x ** -0.5 if eigen_x > 0 else 1.0, 0.0],
                           [0.0, eigen_y ** -0.5 if eigen_y > 0 else 1.0]])
     Uproj_arr = (len(coords_2d.index) - 1) ** 0.5 * np.matmul(Spc, biglambda)
-    return pd.DataFrame(Uproj_arr, index=Y.columns, columns=coords_2d.columns.tolist())
+    Uproj_arr.columns = coords_2d.columns
+    return Uproj_arr
 
 def _scale_arrows_to_limits(Uproj: pd.DataFrame, xlims, ylims, margin=0.9):
     """
@@ -609,14 +610,23 @@ def ordination(
 
     Notes
     -----
+    If `return_data=True`, the function returns only the processed data:
+    
+        meta : pandas.DataFrame
+            Metadata table with ordination coordinates.
+        Uproj : pandas.DataFrame
+            Biplot coordinates (if applicable).
+    
+    In this mode, no figure or axes object is returned.
+
     - Supports both PCoA and db-RDA ordination results.
     - Ellipses represent group dispersion; biplots show variable contributions.
     - Axis flipping and padding allow fine control over plot appearance.
 
     Examples
     --------
-    >>> fig = ordination(pcoa_results, meta, color_by='Treatment', ellipse='Group')
-    >>> fig.savefig('ordination_plot.png')
+    >>> fig, ax, df_meta, df_Uproj = ordination(pcoa_results, meta, color_by='Treatment', ellipse='Group')
+    >>> df_meta, df_Uproj = ordination(pcoa_results, meta, return_data=True)
     """
     # Validation
     if ordination_results is None:
@@ -682,7 +692,7 @@ def ordination(
         Uproj = _scale_arrows_to_limits(Uproj, xaxislims, yaxislims)
 
     # --- Plot setup (Option B: dedicated legend column when ax is None) ---
-    if ax is None:
+    if ax is None and not return_data:
         plt.rcParams.update({'font.size': fontsize})
         fig = plt.figure(figsize=figsize, constrained_layout=True)
 
@@ -702,7 +712,7 @@ def ordination(
         ax = fig.add_subplot(gs[0, 0])
         ax_leg = fig.add_subplot(gs[0, 1])
         ax_leg.axis("off")  # hide ticks/frames on legend column
-    else:
+    elif not return_data:
         fig = ax.figure
         ax_leg = None  # fallback to axes-anchored legends if external ax is supplied
     
@@ -714,21 +724,22 @@ def ordination(
         color_legend_style = "marker"
     
     # --- Points & legends ---
-    _draw_points(
-        ax, coords, meta,
-        color_by=color_by, shape_by=shape_by,
-        colors=colors, markers=markers, markersize=markersize, lw=lw,
-        connect=connect, legend=show_legend, markerscale=markerscale, fontsize=fontsize,
-        legend_pos_colors=legend_pos_colors, legend_pos_shapes=legend_pos_shapes,
-        ax_leg=ax_leg,
-        color_legend_style=color_legend_style,
-        color_legend_marker=color_legend_marker,
-        color_legend_title=color_legend_title,
-        shape_legend_title=shape_legend_title
-    )
+    if not return_data:
+        _draw_points(
+            ax, coords, meta,
+            color_by=color_by, shape_by=shape_by,
+            colors=colors, markers=markers, markersize=markersize, lw=lw,
+            connect=connect, legend=show_legend, markerscale=markerscale, fontsize=fontsize,
+            legend_pos_colors=legend_pos_colors, legend_pos_shapes=legend_pos_shapes,
+            ax_leg=ax_leg,
+            color_legend_style=color_legend_style,
+            color_legend_marker=color_legend_marker,
+            color_legend_title=color_legend_title,
+            shape_legend_title=shape_legend_title
+        )
 
     # Ellipses
-    if ellipse is not None and ellipse in meta.columns:
+    if ellipse is not None and ellipse in meta.columns and not return_data:
         e_counts = len(meta[ellipse].unique())
         if ellipse_colors is None:
             e_colors = _default_colors(len(pd.unique(meta[ellipse])))
@@ -748,7 +759,7 @@ def ordination(
         )
 
     # Arrow overlay
-    if Uproj is not None and len(Uproj) > 0:
+    if Uproj is not None and len(Uproj) > 0 and not return_data:
         xn, yn = Uproj.columns.tolist()
         for var_name in Uproj.index:
             vx = float(Uproj.loc[var_name, xn])
@@ -761,7 +772,7 @@ def ordination(
         ax.axvline(0, 0, 1, linestyle='--', color='grey', lw=0.5)
 
     # Point/ellipse tags
-    if tag is not None:
+    if tag is not None and not return_data:
         if tag == 'index':
             for ix in meta.index:
                 ax.annotate(str(ix), (coords.loc[ix, xn_name], coords.loc[ix, yn_name]))
@@ -771,25 +782,29 @@ def ordination(
                 ax.annotate(tagtext, (coords.loc[ix, xn_name], coords.loc[ix, yn_name]))
 
     # Final formatting
-    ax.set_xlabel(xlab)
-    ax.set_ylabel(ylab)
-    ax.set_xlim(xaxislims)
-    ax.set_ylim(yaxislims)
-    if flipx:
-        ax.invert_xaxis()
-    if flipy:
-        ax.invert_yaxis()
-    if hide_ticks:
-        ax.set_xticklabels([])
-        ax.set_yticklabels([])
-    ax.set_title(title)
+    if not return_data:
+        ax.set_xlabel(xlab)
+        ax.set_ylabel(ylab)
+        ax.set_xlim(xaxislims)
+        ax.set_ylim(yaxislims)
+        if flipx:
+            ax.invert_xaxis()
+        if flipy:
+            ax.invert_yaxis()
+        if hide_ticks:
+            ax.set_xticklabels([])
+            ax.set_yticklabels([])
+        ax.set_title(title)
 
     # Save
-    if savename is not None:
+    if savename is not None and not return_data:
         fig.savefig(savename, bbox_inches="tight", dpi=240)
         fig.savefig(savename + ".pdf", format="pdf", bbox_inches="tight")
 
     # Return
-    if Uproj is not None:
+    if return_data:
+        return pd.concat([meta, coords], axis=1), Uproj
+    elif Uproj is not None:
         return fig, ax, pd.concat([meta, coords], axis=1), Uproj
-    return fig, ax, pd.concat([meta, coords], axis=1), None
+    else:
+        return fig, ax, pd.concat([meta, coords], axis=1), None

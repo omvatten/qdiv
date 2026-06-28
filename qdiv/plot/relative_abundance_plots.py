@@ -60,7 +60,7 @@ def _get_ra_table(
         Number of top taxa to plot (ignored if `featurelist` is provided).
     featurelist : list of str, optional
         Specific features to plot.
-    method : {'max', 'min'}, default = 'max'
+    method : {'max', 'mean'}, default = 'max'
     sorting : {'abundance', 'alphabetical'}, default = 'abundance'
     use_values_in_tab : bool, default = False
     italics : bool, default=False
@@ -212,7 +212,7 @@ def heatmap(
         Number of top taxa to plot (ignored if `featurelist` is provided).
     featurelist : list of str, optional
         Specific features to plot.
-    method : {'max', 'min'}, default = 'max'
+    method : {'max', 'mean'}, default = 'max'
     sorting : {'abundance', 'alphabetical'}, default = 'abundance'
     italics : bool, default=False
         If True, italicize taxonomic names where appropriate.
