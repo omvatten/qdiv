@@ -662,6 +662,7 @@ class MicrobiomeData:
             How to select samples: "index" for sample names, or a column name in meta.
         values : list or scalar, optional
             Values to include (or exclude if exclude=True).
+            If None and `by != "index"`, all unique values of meta[by] are used, exluding nan.
         exclude : bool, default False
             If True, exclude samples that match values.
         keep_absent : bool, default False
@@ -770,6 +771,7 @@ class MicrobiomeData:
         by: Union[List[str], str],
         values: Optional[list] = None,
         method: str = "sum",
+        weight: str | None = None,
         keep_absent: bool = False,
         inplace: bool = False
     ) -> MicrobiomeData:
@@ -783,8 +785,14 @@ class MicrobiomeData:
         values : list, optional
             Metadata values to keep. If None, all unique values in `by` are used.
         method : {'sum', 'mean'}, default 'sum'
-            Aggregation method for counts.
-        keep_absent : bool, default False
+            Aggregation method used when `weight=None`. If `weight` is provided,
+            samples are merged using a weighted average based on the specified metadata column.
+        weight : str, optional, default None
+            Name of a numeric metadata column used for weighted merging. 
+            Within each group, weights are normalized to sum to 1 and used to calculate 
+            a weighted average of feature abundances. If None, samples are merged 
+            using the specified `method` ('sum' or 'mean').    
+            keep_absent : bool, default False
             If False, remove features with zero counts after merging.
         inplace : bool, default False
             If True, modify this object in place; if False, return a new object.
@@ -810,6 +818,7 @@ class MicrobiomeData:
             by=by,
             values=values,
             method=method,
+            weight=weight,
             keep_absent=keep_absent,
             inplace=inplace
         )

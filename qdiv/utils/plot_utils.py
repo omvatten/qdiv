@@ -277,7 +277,12 @@ def groupbytaxa(
     if len(taxlevels) > 1:
         for i in range(1, len(taxlevels)):
             parent, child = taxlevels[i - 1].lower(), taxlevels[i].lower()
-            taxAcc[child] = taxAcc[parent] + taxAcc[child]
+            same_name_ix = tax[tax[parent]==tax[child]].index
+            diff_name_ix = tax.index.difference(same_name_ix)
+            if len(same_name_ix) > 0:
+                taxAcc.loc[same_name_ix, child] = taxAcc.loc[same_name_ix, parent]
+            if len(diff_name_ix) > 0:
+                taxAcc.loc[diff_name_ix, child] = taxAcc.loc[diff_name_ix, parent] + taxAcc.loc[diff_name_ix, child]
     if include_index:
         taxAcc[group_level] = taxAcc[group_level] + ": " + taxAcc.index
     taxAcc["index"] = taxAcc.index
@@ -390,11 +395,20 @@ def groupbytaxa(
             tax.loc[prefix["prefix"].str.len()>1, c] = "\\mathrm{" + prefix.loc[prefix["prefix"].str.len() > 1, "prefix"] + "}" + tax.loc[prefix["prefix"].str.len()>1, c]
 
     # Combine taxonomy for the levels
+    tax0 = tax.copy()
     if len(levels) > 1:
         for i in range(1, len(levels)):
             parent, child = levels[i-1].lower(), levels[i].lower()
-            tax.loc[tax[parent]!=tax[child], child] = tax.loc[tax[parent]!=tax[child], parent] + "; " + tax.loc[tax[parent]!=tax[child], child]
-    tax["Name"] = tax[group_level]
+            same_name_ix = tax0[tax0[parent]==tax0[child]].index
+            diff_name_ix = tax0.index.difference(same_name_ix)
+            if len(same_name_ix) > 0:
+                tax.loc[same_name_ix, child] = tax.loc[same_name_ix, parent]
+            if len(diff_name_ix) > 0:
+                tax.loc[diff_name_ix, child] = tax.loc[diff_name_ix, parent] + "; " + tax.loc[diff_name_ix, child]
+    if include_index:
+        tax["Name"] = tax[group_level] + ": " + tax.index.astype(str)
+    else:
+        tax["Name"] = tax[group_level]
 
     if italics:
         tax["Name"] = "$" + tax["Name"].str.replace("-", "_").str.replace(" ","\\ ").str.replace("_","\\_") + "$"

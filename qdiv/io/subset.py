@@ -34,7 +34,7 @@ def subset_samples(
         - or a column name in meta (e.g., "Treatment")
     values : list or scalar, optional
         Values to include (or exclude if `exclude=True`).
-        If None and `by != "index"`, all unique values of meta[by] are used.
+        If None and `by != "index"`, all unique values of meta[by] are used, exluding nan.
     exclude : bool, default False
         If True, exclude samples that match `values` (inverse selection).
     keep_absent : bool, default False
@@ -652,6 +652,7 @@ def merge_samples(
     by: Union[List[str], str],
     values: Optional[List[Any]] = None,
     method: str = "sum",
+    weight: str | None = None,
     keep_absent: bool = False,
     inplace: bool = False
 ) -> Union["MicrobiomeData", Dict[str, Any]]:
@@ -667,7 +668,13 @@ def merge_samples(
     values : list, optional
         Metadata values to keep. If None, all unique values in `by` are used.
     method : {'sum', 'mean'}, default 'sum'
-        Aggregation method for counts.
+        Aggregation method used when `weight=None`. If `weight` is provided,
+        samples are merged using a weighted average based on the specified metadata column.
+    weight : str, optional, default None
+        Name of a numeric metadata column used for weighted merging. 
+        Within each group, weights are normalized to sum to 1 and used to calculate 
+        a weighted average of feature abundances. If None, samples are merged 
+        using the specified `method` ('sum' or 'mean').    
     keep_absent : bool, default False
         If False, remove features with zero counts after merging.
     inplace : bool, default False
@@ -726,20 +733,47 @@ def merge_samples(
         meta_df[ix] = meta_df[by].astype(str).agg('-'.join, axis=1)
 
     # Group metadata by ix
-    meta_grouped = meta_df.groupby(ix).first()
+    agg_dict = {}
+    for col in meta_df.columns:
+        if col == ix:
+            continue
+        elif pd.api.types.is_numeric_dtype(meta_df[col]):
+            agg_dict[col] = method
+        else:
+            agg_dict[col] = 'first'
+    
+    meta_grouped = meta_df.groupby(ix).agg(agg_dict)
     meta_grouped[ix] = meta_grouped.index
 
     # Subset tab to selected samples
     tab_filtered = tab.loc[:, meta_df.index]
+    tab_filteredT = tab_filtered.T
 
     # Map each selected sample (column) to its group label
     group_labels = meta_df[ix]
     
-    # Aggregate by transposing -> group rows -> aggregate -> transpose back
-    if method == "sum":
-        merged_tab = tab_filtered.T.groupby(group_labels).sum().T
-    else:  # method == "mean"
-        merged_tab = tab_filtered.T.groupby(group_labels).mean().T
+    # Combine values in tab
+    if weight is not None:
+        if weight not in meta_df.columns:
+            raise ValueError(f"Weight column '{weight}' not found")
+    
+        weights = pd.to_numeric(meta_df[weight], errors='raise')
+    
+        group_sums = weights.groupby(group_labels).transform('sum')
+    
+        if (group_sums == 0).any():
+            raise ValueError("Some groups have a total weight of zero")
+    
+        weights = weights / group_sums
+    
+        weighted_tab = tab_filteredT.mul(weights, axis=0)
+        merged_tab = weighted_tab.groupby(group_labels).sum().T
+    
+    elif method == "sum":
+        merged_tab = tab_filteredT.groupby(group_labels).sum().T
+    
+    else:  # mean
+        merged_tab = tab_filteredT.groupby(group_labels).mean().T
 
     # Remove zero-count features if requested
     if not keep_absent:

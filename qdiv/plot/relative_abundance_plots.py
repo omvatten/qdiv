@@ -131,7 +131,7 @@ def _get_ra_table(
     if sorting == "abundance":
         table["avg"] = table.mean(axis=1)
         table = table.sort_values(by="avg", ascending=True).drop(columns="avg")
-    elif sorting == "tax":
+    elif sorting in ["tax", "alphabetical"]:
         tax = taxa_obj["tax"].loc[table.index].fillna("zzz")
         tax = tax.sort_values(tax.columns.tolist())
         table = table.loc[tax.index]
@@ -180,6 +180,7 @@ def heatmap(
     vmin: Optional[float] = None,
     vmax: Optional[float] = None,
     dpi: int = 240,
+    ax: Optional[plt.Axes] = None,
     savename: Optional[str] = None,
 ) -> Tuple["plt.Figure", "plt.Axes", "pd.DataFrame"]:
     """
@@ -214,6 +215,7 @@ def heatmap(
         Specific features to plot.
     method : {'max', 'mean'}, default = 'max'
     sorting : {'abundance', 'alphabetical'}, default = 'abundance'
+    use_values_in_tab : bool, default = False
     italics : bool, default=False
         If True, italicize taxonomic names where appropriate.
 
@@ -243,10 +245,10 @@ def heatmap(
         Maximum value for cplor normalization (passed to PowerNorm).
     dpi : int, default 240
         Resolution of saved figure.
+    ax : matplotlib.axes.Axes, optional
+        Existing axes to draw the plot on. If None, a new figure is created.
     savename : str, optional
         Filename to save figure (PNG and PDF). If None, figure is not saved.
-    use_values_in_tab : bool, default = False
-
 
     Returns
     -------
@@ -266,6 +268,8 @@ def heatmap(
     meta = get_df(obj, "meta")
     if meta is None and group_by is not None:
         raise ValueError('meta is missing in obj')
+
+    created_fig = ax is None #True if function creates a new fig and ax
 
     if group_by is None:
         combined = None
@@ -335,10 +339,13 @@ def heatmap(
 
     # --- Plot heatmap ---
     plt.rcParams.update({"font.size": fontsize})
-    fig, ax = plt.subplots(figsize=figsize)
+    if created_fig:
+        fig, ax = plt.subplots(figsize=figsize)
+    else:
+        fig = ax.figure
     im = ax.imshow(table, cmap=cmap, norm=mcolors.PowerNorm(gamma=gamma, vmin=vmin, vmax=vmax), aspect="auto")
     if colorbar_ticks:
-        fig.colorbar(im, ticks=colorbar_ticks)
+        fig.colorbar(im, ax=ax, ticks=colorbar_ticks)
 
     # Axes
     ax.set_xticks(np.arange(len(table.columns)))
@@ -375,7 +382,8 @@ def heatmap(
                 )
 
     # Adjust layout
-    fig.tight_layout()
+    if created_fig:
+        fig.tight_layout()
 
     # Save figure if requested
     if savename:
