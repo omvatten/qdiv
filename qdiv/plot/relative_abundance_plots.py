@@ -17,8 +17,8 @@ def _get_ra_table(
     *,
     group_by: Optional[str] = None,
     value_aggregation: Literal["sum", "mean"] = "sum",
-    order: Optional[str] = None,
-    levels: Optional[List[str]] = None,
+    order: str | List[str] | None = None,
+    levels: str | List[str] | None = None,
     include_index: bool = False,
     levels_shown: Optional[str] = None,
     subset_levels: Optional[Union[str, List[str]]] = None,
@@ -91,10 +91,21 @@ def _get_ra_table(
 
     # --- Order samples ---
     logiclist = None
-    if order and "meta" in merged_obj:
+    if order is not None and "meta" in merged_obj:
+        if isinstance(order, str):
+            orderlist = [order]
+        elif isinstance(order, list):
+            orderlist = order
+        else:
+            raise ValueError("'order' must be str or list")
         md = merged_obj["meta"].copy()
-        md[order] = md[order].astype(float)
-        md = md.sort_values(by=order)
+        for r in orderlist:
+            if r not in md.columns:
+                raise ValueError((f"The '{r}' is not a column in the metadata."))
+            numeric = pd.to_numeric(md[r], errors="coerce")
+            if numeric.notna().all():
+                md[r] = numeric
+        md = md.sort_values(by=orderlist)
         logiclist = list(dict.fromkeys(md[group_by] if group_by else md.index))
         merged_obj["meta"] = md
 
@@ -118,7 +129,7 @@ def _get_ra_table(
         raise ValueError("Data is missing in table after groupbytaxa.")
 
     # --- Select top taxa ---
-    if not featurelist:
+    if featurelist is None:
         if method == "max":
             ra["rank"] = ra.max(axis=1)
         elif method == "mean":
@@ -126,6 +137,14 @@ def _get_ra_table(
         ra = ra.sort_values(by="rank", ascending=False)
         retain = ra.index[:n]
         table = table.loc[retain]
+    else:
+        missing = set(featurelist) - set(table.index)
+        if missing:
+            raise ValueError(
+                f"Features in featurelist are missing in relative abundance table: "
+                f"{', '.join(sorted(missing))}"
+            )
+        table = table.loc[featurelist]
 
     # --- Sort taxa (y-axis) ---
     if sorting == "abundance":
@@ -135,6 +154,8 @@ def _get_ra_table(
         tax = taxa_obj["tax"].loc[table.index].fillna("zzz")
         tax = tax.sort_values(tax.columns.tolist())
         table = table.loc[tax.index]
+    else:
+        table = table
 
     # --- Sort samples (x-axis) ---
     if logiclist:
@@ -154,8 +175,8 @@ def heatmap(
     *,
     group_by: Optional[Union[str, List[str]]] = None,
     value_aggregation: Literal["sum", "mean"] = "sum",
-    order: Optional[str] = None,
-    levels: Optional[List[str]] = None,
+    order: str | List[str] | None = None,
+    levels: str | List[str] | None = None,
     include_index: bool = False,
     levels_shown: Optional[str] = None,
     subset_levels: Optional[Union[str, List[str]]] = None,
@@ -197,10 +218,11 @@ def heatmap(
     group_by : str or list, optional
         Metadata column(s) used to merge samples.
     value_aggregation : {'sum', 'mean'}, default = 'sum'
-    order : str, optional
-        Metadata column used to order samples along the x-axis.
-    levels : list of str, optional
-        Taxonomic levels used for y-axis grouping.
+    order : str or list, optional, default=None
+        Metadata column(s) used to order samples along the x-axis.
+    levels : list of str or str, default=None
+        Taxonomic levels to use for grouping. The last level in the list determines
+        the grouping resolution. If a single string is provided, it is converted to a list.
     include_index : bool, default=False
         Whether to include the feature index in labels.
     levels_shown : {'number', None}, optional
@@ -261,7 +283,7 @@ def heatmap(
 
     Examples
     --------
-    >>> heatmap(obj, group_by='Treatment', levels=['Genus'], n=30, savename='heatmap.png')
+    >>> fig, ax, table = heatmap(obj, group_by='Treatment', levels=['Genus'], n=30, savename='heatmap.png')
     """
 
     obj = copy.deepcopy(obj)
@@ -999,8 +1021,7 @@ def pie(
         ax.legend(
             handles=legend_patches,
             fontsize=fontsize,
-            bbox_to_anchor=(0, 1),
-            loc="upper left",
+            loc="center left",
             frameon=False,
             ncol=legend_columns,
         )

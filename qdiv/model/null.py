@@ -161,38 +161,6 @@ def rcq(
         cats = pd.unique(meta[constrain_by])
         groups = [meta.index[meta[constrain_by] == cat].tolist() for cat in cats]
 
-    # --- Precompute per-group selection probabilities and sample stats
-    features = tab.index.tolist()
-
-    group_specs = []
-    for smp_list in groups:
-        subtab = tab[smp_list]
-        # selection probs
-        if randomization == "abundance":
-            abund_series = subtab.sum(axis=1).astype(float)            # (N,)
-            abund_total = float(abund_series.sum())
-            if abund_total <= 0:
-                sel_p = np.full(len(features), 1.0 / len(features), dtype=float)
-            else:
-                sel_p = (abund_series / abund_total).to_numpy()
-            # store for within-selected allocation too
-            group_specs.append(("abundance", smp_list, sel_p, abund_series))
-        else:  # "frequency"
-            sub_bin = (subtab > 0).astype(np.int8)
-            freq_counts = sub_bin.sum(axis=1).to_numpy(dtype=np.int64)  # (N,)
-            if int(freq_counts.sum()) == 0:
-                sel_p = np.full(len(features), 1.0 / len(features), dtype=float)
-            else:
-                sel_p = freq_counts / int(freq_counts.sum())
-            # for allocation we still use abundances (fallback uniform if zero)
-            abund_series = subtab.sum(axis=1).astype(float)
-            group_specs.append(("frequency", smp_list, sel_p, abund_series))
-
-    # per-sample richness and read totals (preserved)
-    richness_vec = (tab > 0).sum(axis=0).to_numpy(dtype=np.int64)   # (S,)
-    reads_vec = tab.sum(axis=0).to_numpy(dtype=np.int64)            # (S,)
-    smp_index = {smp: i for i, smp in enumerate(tab.columns)}
-
     # --- Helper: compute beta-diversity for a table (dispatch)
     def _beta_for_table(t: pd.DataFrame) -> pd.DataFrame:
         if div_type.lower() == "bray":
@@ -217,7 +185,61 @@ def rcq(
     count_lt = np.zeros_like(obs_arr, dtype=np.int64)  # p-index counts (null < obs)
     count_eq = np.zeros_like(obs_arr, dtype=np.int64)  # p-index ties
 
-    # --- Iteration loop
+    # --- Convert table to NumPy for faster iteration-loop randomization
+    if not np.all(np.isfinite(tab.to_numpy(dtype=float))):
+        raise ValueError("'tab' contains non-finite values.")
+    
+    tab_float = tab.to_numpy(dtype=float)
+    
+    if not np.allclose(tab_float, np.round(tab_float)):
+        raise ValueError(
+            "rcq requires an integer count table because richness and total reads "
+            "are preserved during randomization."
+        )
+
+    tab_arr = tab.to_numpy(dtype=np.int64)
+    n_features, n_samples = tab_arr.shape
+    
+    feature_index = np.arange(n_features)
+    sample_names_all = tab.columns.tolist()
+    feature_names_all = tab.index
+    
+    smp_index = {smp: i for i, smp in enumerate(sample_names_all)}
+    
+    # per-sample richness and read totals, preserved by randomization
+    richness_vec = (tab_arr > 0).sum(axis=0).astype(np.int64)
+    reads_vec = tab_arr.sum(axis=0).astype(np.int64)
+    
+    # --- Precompute group-level probabilities as NumPy arrays
+    group_specs = []
+    
+    for smp_list in groups:
+        smp_idx = np.array([smp_index[smp] for smp in smp_list], dtype=np.int64)
+        subarr = tab_arr[:, smp_idx]
+    
+        # Group-level abundances, used for allocating reads within selected taxa
+        abund_arr = subarr.sum(axis=1).astype(float)
+    
+        if randomization == "abundance":
+            total = abund_arr.sum()
+    
+            if total > 0:
+                sel_p = abund_arr / total
+            else:
+                sel_p = np.full(n_features, 1.0 / n_features, dtype=float)
+    
+        else:  # randomization == "frequency"
+            freq_counts = (subarr > 0).sum(axis=1).astype(float)
+            total = freq_counts.sum()
+    
+            if total > 0:
+                sel_p = freq_counts / total
+            else:
+                sel_p = np.full(n_features, 1.0 / n_features, dtype=float)
+    
+        group_specs.append((smp_idx, sel_p, abund_arr))
+    
+
     for t in tqdm(
             range(1, iterations + 1),
             desc="iterations",
@@ -229,55 +251,71 @@ def rcq(
             position=0,
             miniters=1,
     ):
-        # fresh randomized table (zeros)
-        rtab = pd.DataFrame(0, index=tab.index, columns=tab.columns, dtype=np.int64)
-
-        # randomize within each group
-        for mode, smp_list, sel_p, abund_series in group_specs:
-            # shared pre-objects
-            features_arr = np.array(features, dtype=object)
-            smp_cols = smp_list
-
-            for smp in smp_cols:
-                sidx = smp_index[smp]
+        # Fast randomized table as NumPy array
+        rtab_arr = np.zeros((n_features, n_samples), dtype=np.int64)
+    
+        # Randomize within each constraint group
+        for smp_idx, sel_p, abund_arr in group_specs:
+            for sidx in smp_idx:
                 richness = int(richness_vec[sidx])
                 reads = int(reads_vec[sidx])
+    
                 if richness <= 0 or reads <= 0:
                     continue
-
-                # 1) draw a set of taxa of size 'richness' without replacement
-                rows = rng.choice(features_arr, size=richness, replace=False, p=sel_p)
-
-                # mark presence (1) for selected taxa
-                rtab.loc[rows, smp] = 1
-
-                # 2) allocate extra reads to match total counts
+    
+                if richness > n_features:
+                    raise ValueError(
+                        f"Sample '{sample_names_all[sidx]}' has richness larger "
+                        f"than the number of available features."
+                    )
+    
+                # 1) Draw taxa without replacement
+                rows = rng.choice(
+                    feature_index,
+                    size=richness,
+                    replace=False,
+                    p=sel_p,
+                )
+    
+                # Each selected taxon gets one read first
+                rtab_arr[rows, sidx] = 1
+    
+                # 2) Allocate remaining reads among selected taxa
                 extra = reads - richness
+    
                 if extra > 0:
-                    # probabilities within the selected set proportional to group abundance
-                    sub_abund = abund_series.loc[rows].to_numpy(dtype=float)
-                    sub_total = float(sub_abund.sum())
+                    sub_abund = abund_arr[rows]
+                    sub_total = sub_abund.sum()
+    
                     if sub_total > 0:
                         sub_p = sub_abund / sub_total
                     else:
-                        sub_p = np.full(len(rows), 1.0 / len(rows), dtype=float)
-                    # sample with replacement and accumulate counts
-                    draws = rng.choice(rows, size=extra, replace=True, p=sub_p)
-                    uniq, cnts = np.unique(draws, return_counts=True)
-                    rtab.loc[uniq, smp] += cnts
-
-        # compute null beta for this iteration
+                        sub_p = np.full(richness, 1.0 / richness, dtype=float)
+    
+                    # Much faster than rng.choice(..., size=extra) + np.unique(...)
+                    extra_counts = rng.multinomial(extra, sub_p)
+    
+                    rtab_arr[rows, sidx] += extra_counts
+    
+        # Convert back to DataFrame only once per iteration
+        rtab = pd.DataFrame(
+            rtab_arr,
+            index=feature_names_all,
+            columns=sample_names_all,
+        )
+    
+        # Compute beta-diversity for this randomized table
         null_beta = _beta_for_table(rtab)
         x = null_beta.to_numpy()
-
+    
         # --- Welford updates
         delta = x - mu
         mu += delta / t
         M2 += delta * (x - mu)
-
-        # --- p-index bookkeeping (Raup–Crick)
-        count_lt += (x < obs_arr)
-        count_eq += (x == obs_arr)
+    
+        # --- Raup-Crick counts
+        count_lt += x < obs_arr
+        count_eq += x == obs_arr
 
     # --- Finalize statistics
     denom_var = max(1, iterations - 1)

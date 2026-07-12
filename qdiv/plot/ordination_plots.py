@@ -520,7 +520,7 @@ def ordination(
     ax: Optional[plt.Axes] = None,
     legend_pos_colors: Tuple[float, float] = (1.0, 1.0),
     legend_pos_shapes: Tuple[float, float] = (1.0, 0.4),
-) -> Tuple["plt.Figure", "plt.axes", "pd.DataFrame", "pd.DataFrame"]:
+) -> Union[Dict[str, Any], Tuple["plt.Figure", "plt.Axes", Dict[str, Any]]]:
     """
     Create an ordination plot (PCoA or db-RDA) with optional grouping, biplots, and annotations.
 
@@ -575,7 +575,8 @@ def ordination(
     tag : str, optional
         Column in `meta` or 'index' to annotate points.
     return_data : bool, default=False
-        If True, return processed plotting data instead of the figure.
+        If True, return only the ordination results dictionary.
+        If False, return ``fig``, ``ax``, and the results dictionary.
     colors : list of str, optional
         Custom list of colors for groups.
     markers : list of str, optional
@@ -599,25 +600,33 @@ def ordination(
 
     Returns
     -------
+    When ``return_data=False`` (default):
+    
     fig : matplotlib.figure.Figure
-        The matplotlib Figure object for the ordination.
+        Figure object.
     ax : matplotlib.axes.Axes
-        The matplotlib Axes object for the ordination.
-    meta : pandas.DataFrame
-        meta data with ordination coordinates.
-    Uproj: pandas.DataFrame
-        biplot coordinates (if used)
+        Axes object.
+    results : dict
+        Dictionary containing:
+    
+        - ``meta`` : Metadata table with ordination coordinates.
+        - ``biplot`` : Biplot coordinates, when available.
+        - ``pct_explained`` : Percentage of variation explained by each axis.
+        - ``eigenvalues`` : Ordination eigenvalues.
+        - ``axis_names`` : Names of the ordination axes.
+        - ``kind`` : Ordination type (``'pcoa'`` or ``'dbrda'``).
+    
+    When ``return_data=True``:
+    
+    results : dict
+        Same dictionary as above.
+        No figure is created and no Matplotlib objects are returned.
 
     Notes
     -----
-    If `return_data=True`, the function returns only the processed data:
-    
-        meta : pandas.DataFrame
-            Metadata table with ordination coordinates.
-        Uproj : pandas.DataFrame
-            Biplot coordinates (if applicable).
-    
-    In this mode, no figure or axes object is returned.
+    If ``return_data=True``, no figure is generated and the returned
+    dictionary contains only ordination results and metadata. The
+    ``fig`` and ``ax`` entries are omitted.
 
     - Supports both PCoA and db-RDA ordination results.
     - Ellipses represent group dispersion; biplots show variable contributions.
@@ -625,8 +634,14 @@ def ordination(
 
     Examples
     --------
-    >>> fig, ax, df_meta, df_Uproj = ordination(pcoa_results, meta, color_by='Treatment', ellipse='Group')
-    >>> df_meta, df_Uproj = ordination(pcoa_results, meta, return_data=True)
+    >>> fig, ax, res = ordination(pcoa_results, meta, color_by="Treatment")
+    >>> res["meta"]
+    >>> res["pct_explained"]
+    >>> res["biplot"]
+
+    >>> res = ordination(pcoa_results, meta, return_data=True)
+    >>> res["meta"]
+    >>> res["pct_explained"]
     """
     # Validation
     if ordination_results is None:
@@ -802,9 +817,15 @@ def ordination(
         fig.savefig(savename + ".pdf", format="pdf", bbox_inches="tight")
 
     # Return
+    out = {
+        "meta": pd.concat([meta, coords], axis=1),
+        "biplot": Uproj,
+        "pct_explained": pct_explained,
+        "eigenvalues": eigenvalues,
+        "axis_names": axis_names,
+        "kind": kind,
+    }
     if return_data:
-        return pd.concat([meta, coords], axis=1), Uproj
-    elif Uproj is not None:
-        return fig, ax, pd.concat([meta, coords], axis=1), Uproj
+        return out
     else:
-        return fig, ax, pd.concat([meta, coords], axis=1), None
+        return fig, ax, out

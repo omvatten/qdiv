@@ -799,6 +799,7 @@ def add_tab_from_coverm(
     path: str = "",
     first_sep: Optional[str] = None,
     second_sep: str = " ",
+    ra_col: str = "Relative Abundance",
     detection_threshold: Optional[float] = None
 ) -> Dict[str, pd.DataFrame]:
     """
@@ -816,6 +817,8 @@ def add_tab_from_coverm(
     second_sep : str
         Separator used to find sample name in CoverM-file column headings.
         Defaults to " ".
+    ra_col : str, default='Relative Abundance'
+        Column in CoverM output file used to calculate relative abundance.
     detection_threshold : float, optional
         If set, all relative abundances below this threshold are set to zero,
         but only if both 'Covered Bases' and 'Length' columns are available for the sample.
@@ -838,7 +841,10 @@ def add_tab_from_coverm(
     df = pd.read_csv(file_path, sep=delimiter, dtype=str, index_col=0)
     df = df.replace('NA', np.nan)
 
-    relabund_cols = [col for col in df.columns if re.search(r'Relative Abundance', col, re.IGNORECASE)]
+    relabund_cols = [col for col in df.columns if re.search(re.escape(ra_col), col, re.IGNORECASE)]
+    if not relabund_cols:
+        raise ValueError(f"No columns matching '{ra_col}' were found in {filename}.")
+
     sample_names = []
     for col in relabund_cols:
         # Case 1: Both separators present
@@ -869,14 +875,21 @@ def add_tab_from_coverm(
     if detection_threshold is not None:
         for col in sample_names:
             # Use regex for stricter matching
-            covered_col = [c for c in df.columns if re.search(rf'{re.escape(col)}.*Covered Bases', c)]
-            length_col = [c for c in df.columns if re.search(rf'{re.escape(col)}.*Length', c)]
+            covered_col = [c for c in df.columns if re.search(rf'{re.escape(col)}.*Covered Bases', c, re.IGNORECASE)]
+            length_col = [c for c in df.columns if re.search(rf'{re.escape(col)}.*Length', c, re.IGNORECASE)]
+            covered_frac = [c for c in df.columns if re.search(rf'{re.escape(col)}.*Covered Fraction', c, re.IGNORECASE)]
             if covered_col and length_col:
                 covered = pd.to_numeric(df[covered_col[0]], errors='coerce')
                 length = pd.to_numeric(df[length_col[0]], errors='coerce')
                 detected = (covered / length) >= detection_threshold
                 abundance_df.loc[~detected, col] = 0.0
-
+            elif covered_frac:
+                frac = pd.to_numeric(df[covered_frac[0]], errors='coerce')
+                detected = frac >= detection_threshold
+                abundance_df.loc[~detected, col] = 0.0
+            else:
+                raise ValueError(f"Could not find 'Covered Fraction' or both "
+                                 f"'Covered Bases' and 'Length' columns for sample '{col}'.")
     abundance_df.index.name = 'Feature'
     out = {'tab': abundance_df}
     if unmapped is not None:

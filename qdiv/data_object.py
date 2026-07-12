@@ -398,6 +398,7 @@ class MicrobiomeData:
         path: str = "",
         first_sep: str = None,
         second_sep: str = " ",
+        ra_col: str = "Relative Abundance",
         detection_threshold: float = None,
     ) -> Self:
         """
@@ -413,6 +414,8 @@ class MicrobiomeData:
             Separator to help extract sample names from column headings.
         second_sep : str, optional
             Second separator to help extract sample names from column headings.
+        ra_col : str, default='Relative Abundance'
+            Column in CoverM output file used to calculate relative abundance.
         detection_threshold : float, optional, default None
             If set, all relative abundances below this threshold are set to zero,
             but only if both 'Covered Bases' and 'Length' columns are available for the sample.
@@ -428,6 +431,7 @@ class MicrobiomeData:
             path=path,
             first_sep=first_sep,
             second_sep=second_sep,
+            ra_col=ra_col,
             detection_threshold=detection_threshold
         )
         self.tab = result.get("tab")
@@ -542,9 +546,9 @@ class MicrobiomeData:
         # Abundance table
         if self.tab is not None:
             print(f"Abundance table: {self.tab.shape[0]} features x {self.tab.shape[1]} samples")
-            print(f"Total reads: {self.tab.sum().sum()}")
-            print(f"Min reads/sample: {self.tab.sum().min()}")
-            print(f"Max reads/sample: {self.tab.sum().max()}")
+            print(f"Sum of abundance values: {self.tab.sum().sum()}")
+            print(f"Min. abundance value per sample: {self.tab.sum().min()}")
+            print(f"Max. abundance value per sample: {self.tab.sum().max()}")
         else:
             print("Abundance table: None")
         # Taxonomy

@@ -145,7 +145,7 @@ def groupbytaxa(
                 Sample metadata table (samples x variables).
         The input can be a dictionary or a MicrobiomeData object.
 
-    levels : list of str or str, default=['Phylum', 'Genus']
+    levels : list of str or str, default=None
         Taxonomic levels to use for grouping. The last level in the list determines
         the grouping resolution. If a single string is provided, it is converted to a list.
 
