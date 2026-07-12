@@ -43,10 +43,10 @@ def test_dbrda_basic(qb, dis):
 def test_plot_ordination_accepts_distance_and_dict(qb, dis):
     import qdiv
     # A) Distance matrix path (PCoA computed internally)
-    fig1, ax1, _, _ = qdiv.plot.ordination(dis, qb, color_by='feed', show_legend=False)
+    fig1, ax1, _ = qdiv.plot.ordination(dis, qb, color_by='feed', show_legend=False)
     plt.close(fig1)
 
     # B) Pre-computed dict path (db-RDA)
     rda = qdiv.stats.dbrda(dis, qb, by='feed', perm_n=19, perm_seed=1)
-    fig2, ax2, _, _ = qdiv.plot.ordination(rda, qb, color_by='feed', show_legend=False)
+    fig2, ax2, _ = qdiv.plot.ordination(rda, qb, color_by='feed', show_legend=False)
     plt.close(fig2)
