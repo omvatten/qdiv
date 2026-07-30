@@ -15,6 +15,7 @@ __all__ = [
     "func_alpha",
     "mpdq",
     "mntdq",
+    "impdq",
     "naive_beta",
     "phyl_beta",
     "func_beta",

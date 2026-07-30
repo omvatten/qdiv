@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 import math
-from typing import Optional, Dict, Any, Union
+from typing import Optional, Dict, Any, Union, Tuple
 from ..io import subset_samples
 from ..utils import rao, beta2dist, get_df
 from ..utils import subset_tree_df, ra_to_branches, compute_Tmean
@@ -1545,3 +1545,36 @@ def beta_mntdq(
     """
     from ..model import beta_ntiq
     return beta_ntiq(obj, distmat, q=q, iterations=0, include_conspecifics=include_conspecifics)
+
+def beta_impdq(
+    obj: Union[Dict[str, Any], Any],
+    distmat: pd.DataFrame,
+    *,
+    q: float = 1.0,
+    locality: float = 1.0,
+    include_conspecifics: bool = True,
+) -> Tuple[pd.DataFrame, pd.DataFrame]:
+    """
+    Computes interpolated beta-MPD_q for all sample pairs.
+
+    Parameters
+    ----------
+    obj : MicrobiomeData, dict, or compatible object
+        Input data. Must provide at least an abundance table ('tab').
+    distmat : pd.DataFrame
+        Square distance matrix indexed/columned by feature ids.
+    q : float, default=1.0
+        Order of diversity weighting applied to relative abundances.
+    include_conspecifics : bool, default=True
+        Determines whether conspecifics (identical features shared between samples) are allowed 
+        to contribute zero-distance matches in the nearest-taxon calculation.
+
+    Returns
+    -------
+    pandas.DataFrame (S x S), pandas.DataFrame (S x S)
+        - Dataframe with iMPDq values
+        - Dataframe with nearest taxon focus (NTF) index values
+    """
+    from ..model import beta_inriq
+    out = beta_inriq(obj, distmat, q=q, locality=locality, iterations=0, include_conspecifics=include_conspecifics)
+    return out['beta_iMPDq'], out['NTF']

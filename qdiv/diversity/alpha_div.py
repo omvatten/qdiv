@@ -395,3 +395,54 @@ def mntdq(
     """
     from ..model import ntiq
     return ntiq(obj, distmat, q=q, iterations=0)
+
+def impdq(
+    obj: Union[Dict[str, Any], Any],
+    distmat: pd.DataFrame,
+    *,
+    q: float = 1.0,
+    locality: float = 1,
+) -> pd.DataFrame:
+    """
+    Interpolated mean phylogenetic distance (iMPD) using q-weighting of 
+    relative abundances as well as weighting of distances using a soft-min kernel.
+
+    The kernel, K_ij = exp(-r * D_ij), where r is a distance-sensitivity parameter 
+    with physical units (1 / distance), produces a continuous, monotonic transition 
+    between MPD_q and MNTD_q:
+
+        • r = 0      →  MPD_q exactly (uniform kernel)
+        • r → ∞      →  MNTD_q (nearest-taxon limit)
+
+    The method computes, for each sample separately, the q‑weighted average of
+    rowwise soft-min distances (directed i→sample), followed by an abundance-weighted
+    aggregation across all present taxa. Only strictly positive relative abundances
+    are transformed by the Hill exponent q; zeros remain zero.
+
+    Parameters
+    ----------
+    obj : dict-like or MicrobiomeData
+        Must contain an abundance table under key 'tab' (N taxa × S samples).
+    distmat : pandas.DataFrame (N × N)
+        Square, symmetric distance matrix aligned to tab.index.
+    q : float, default 1.0
+        Hill exponent applied to strictly positive relative abundances.
+        q = 1 leaves abundances unchanged; q > 1 emphasizes common taxa; q < 1 emphasizes rare.
+    locality : float, default 1.0
+        Controls the “locality” of the phylogenetic kernel on a standardized scale
+        from MPD-like to nearest-neighbour-like behavior; Locality=0 means uniform kernel
+        (fully MPD-like behaviour); locality=1 means intermediate behaviours; and
+        locality=2 means nearest-taxon focus. 
+
+    Returns
+    -------
+    pandas.DataFrame
+        Indexed by sample name, with the following columns:
+            • iMPDq           – interpolated mean phylogenetic distance
+            • NTF               – 0–1 nearest taxon focus measure:
+                                   0 = MPD-like (uniform kernel),
+                                   1 = MNTD-like (nearest-neighbor kernel)
+    """
+    from ..model import inriq
+    return inriq(obj, distmat, q=q, locality=locality, iterations=0)
+
