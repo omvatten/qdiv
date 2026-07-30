@@ -28,4 +28,5 @@ __all__ = [
     "dissimilarity_by_feature",
     "beta_mpdq",
     "beta_mntdq",
+    "beta_impdq",
 ]
