@@ -198,6 +198,10 @@ def heatmap(
     cmap: str = "Reds",
     gamma: float = 0.5,
     colorbar_ticks: Optional[List[float]] = None,
+    colorbar_location: str = 'right',
+    colorbar_aspect: float = 20.0,
+    colorbar_pad: float = 0.05,
+    colorbar_label: str | None = None,
     vmin: Optional[float] = None,
     vmax: Optional[float] = None,
     dpi: int = 240,
@@ -261,6 +265,14 @@ def heatmap(
         Gamma for PowerNorm scaling.
     colorbar_ticks : list of float, optional
         Tick marks for colorbar.
+    colorbar_location : {'right', 'left', 'top', 'bottom'}, default = 'right'
+        Location of colorbar in relation to the heatmap.
+    colorbar_aspect : float, default=20
+        Ratio of long to short dimensions.
+    colorbar_pad : float, default=0.05
+        Space between colorbar and heatmap.
+    colorbar_label : str, default=None
+        Label on the colorbar.
     vmin : float, optional
         Minimum value for cplor normalization (passed to PowerNorm).
     vmax : float, optional
@@ -367,7 +379,8 @@ def heatmap(
         fig = ax.figure
     im = ax.imshow(table, cmap=cmap, norm=mcolors.PowerNorm(gamma=gamma, vmin=vmin, vmax=vmax), aspect="auto")
     if colorbar_ticks:
-        fig.colorbar(im, ax=ax, ticks=colorbar_ticks)
+        fig.colorbar(im, ax=ax, ticks=colorbar_ticks, location=colorbar_location, pad=colorbar_pad, 
+                     aspect=colorbar_aspect, label=colorbar_label)
 
     # Axes
     ax.set_xticks(np.arange(len(table.columns)))
@@ -880,6 +893,7 @@ def pie(
     featurelist: Optional[List[str]] = None,
     method: Literal["max", "mean"] = "max",
     sorting: Literal["abundance", "alphabetical"] = "abundance",
+    priority_labels: Optional[Union[str, List[str]]] = None,
     use_values_in_tab: bool = False,
 
     nrows: int = 1,
@@ -891,7 +905,7 @@ def pie(
     legend_columns: int = 1,
     show_legend: bool = True,
     savename: Optional[str] = None,
-) -> Tuple["plt.figure.Figure", "pd.DataFrame"]:
+) -> Tuple["plt.figure.Figure", List["plt.axes.Axes"], "pd.DataFrame"]:
     """
     Plot pie charts of taxonomic composition for samples or merged groups.
 
@@ -924,7 +938,9 @@ def pie(
         Specific features to plot.
     method : {'max', 'min'}, default = 'max'
     sorting : {'abundance', 'alphabetical'}, default = 'abundance'
-
+    priority_labels : list of str, optional.
+        Taxonomic labels that should be put first, irrespective of sorting behavior.
+    use_values_in_tab : bool, default = False
 
     nrows : int, default=1
         Number of rows in the subplot grid.
@@ -943,9 +959,12 @@ def pie(
     Returns
     -------
     fig : matplotlib.figure.Figure
+        The generated figure.
+    axes : list of matplotlib.axes.Axes
+        List of pie chart axes. Does not include the legend axis.
     table : pandas.DataFrame
-        DataFrame of relative abundances for plotted taxa and samples.
-        Returns None if required keys are missing.
+        Relative-abundance table used for plotting, including the 'Other' category.
+
 
     Notes
     -----
@@ -955,7 +974,7 @@ def pie(
 
     Examples
     --------
-    >>> df = pie(obj, group_by='Treatment', level='Genus', n=8, savename='pie_chart')
+    >>> fig, axes, df = pie(obj, group_by='Treatment', levels=['Genus'], n=8, savename='pie_chart')
     >>> print(df.head())
     """
 
@@ -981,11 +1000,25 @@ def pie(
 
     # Add 'Other'
     table = table.iloc[::-1]
-    table.loc["Other"] = 100 - table.sum()
+    if min(table.sum()) < 99.9999:
+        table.loc["Other"] = 100 - table.sum()
+    elif max(table.sum()) > 100.1:
+        raise ValueError("Relative abundance table sum to values larger than 100%.")
     if min(table.min()) < 0 and min(table.min()) > -0.1:
         table[table < 0] = 0 #Ensure small negative numbers are changed to 0
     elif min(table.min()) < 0: #If large negative number, raise error
         raise ValueError("Negative values encountered in relative abundance table.")
+
+    if priority_labels is not None:
+        if isinstance(priority_labels, str):
+            priority_labels = [priority_labels]
+        elif isinstance(priority_labels, list):
+            priority_labels = priority_labels[::-1]
+        else:
+            raise ValueError("priority_labels is in unknown format. Should be str or list.")
+        first = [lbl for lbl in priority_labels if lbl in table.index]
+        rest = [lbl for lbl in table.index if lbl not in first]
+        table = table.loc[first + rest]
 
     # Colors
     if colorlist is None:
@@ -993,6 +1026,7 @@ def pie(
     colorlist = colorlist[:n] + [other_color]
 
     # --- Plot ---
+    axes = []
     plt.rcParams.update({"font.size": fontsize})
     fig = plt.figure(figsize=figsize, constrained_layout=True)
     if ncols * nrows < len(table.columns) + 1:
@@ -1011,6 +1045,7 @@ def pie(
             counterclock=False,
         )
         ax.set_title(c, ha="center", va="center", fontsize=fontsize)
+        axes.append(ax)
 
     # Legend panel
     if show_legend:
@@ -1021,7 +1056,7 @@ def pie(
         ax.legend(
             handles=legend_patches,
             fontsize=fontsize,
-            loc="center left",
+            loc="center",
             frameon=False,
             ncol=legend_columns,
         )
@@ -1036,4 +1071,4 @@ def pie(
             pass
         table.to_csv(f"{savename}.csv")
 
-    return fig, table
+    return fig, axes, table
