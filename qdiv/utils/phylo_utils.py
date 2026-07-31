@@ -1073,53 +1073,128 @@ def compute_Tmean(
     T = (L * A).sum(axis=0)
     return pd.Series(T, index=abund.columns, name="Tmean")
 
+
+def _is_missing_id(x):
+    if x is None:
+        return True
+    if pd.isna(x):
+        return True
+    if isinstance(x, str):
+        return x.strip().lower() in {"", "nan", "none", "null", "na", "<na>"}
+    return False
+
+def _normalize_node_id(x):
+    if _is_missing_id(x):
+        return None
+    if isinstance(x, str):
+        return x.strip()
+    if isinstance(x, float) and x.is_integer():
+        return str(int(x))
+    if isinstance(x, np.floating) and float(x).is_integer():
+        return str(int(x))
+    return str(x)
+
+def _normalize_tree_df(T):
+    T = T.copy()
+
+    # Normalize node and parent identifiers consistently
+    T["nodes"] = T["nodes"].apply(_normalize_node_id)
+    T["parent"] = T["parent"].apply(_normalize_node_id)
+
+    # Ensure leaves are sets
+    def _to_set(x):
+        if isinstance(x, set):
+            return x
+
+        if x is None or (isinstance(x, float) and np.isnan(x)):
+            return set()
+
+        if isinstance(x, str):
+            stripped = x.strip()
+
+            if stripped.startswith("{") and stripped.endswith("}"):
+                items = [
+                    t.strip().strip("'").strip('"')
+                    for t in stripped[1:-1].split(",")
+                    if t.strip()
+                ]
+                return set(items)
+
+            return {stripped}
+
+        if isinstance(x, (list, tuple)):
+            return set(x)
+
+        return set()
+
+    T["leaves"] = T["leaves"].apply(_to_set)
+
+    T["branchL"] = pd.to_numeric(T["branchL"], errors="coerce").fillna(0.0)
+    T["dist_to_root"] = pd.to_numeric(T["dist_to_root"], errors="coerce").fillna(0.0)
+
+    T = T.reset_index(drop=True)
+    return T
+
 def ladderize_tree_df(df, *, right=True):
     """
-    Ladderize a DataFrame-based tree (as produced by tree_to_dataframe).
+    Ladderize a DataFrame-based tree.
 
-    right=True  → larger clade lower in plotting (right-heavy)
-    right=False → smaller clade lower
+    right=True  -> larger clades visited first
+    right=False -> smaller clades visited first
     """
 
     df = df.copy()
+    df = _normalize_tree_df(df)
 
-    # Ensure leaves are sets
-    if not all(isinstance(x, set) for x in df["leaves"]):
-        df["leaves"] = df["leaves"].apply(lambda x: set(x) if not isinstance(x, set) else x)
+    if not df["nodes"].is_unique:
+        raise ValueError("Node names must be unique")
 
     # Build children map
     children = {}
     for n, p in zip(df["nodes"], df["parent"]):
-        if p is not None:
-            children.setdefault(p, []).append(n)
+        if p is None:
+            continue
+        children.setdefault(p, []).append(n)
 
     # Subtree size directly from leaves
     size = dict(zip(df["nodes"], df["leaves"].apply(len)))
 
-    # DFS rebuild in ladderized order
+    # Find root
     roots = df.loc[df["parent"].isna(), "nodes"].tolist()
     if len(roots) != 1:
-        raise ValueError("Tree must have exactly one root")
+        raise ValueError(f"Tree must have exactly one root, found: {roots}")
+
     root = roots[0]
 
     ordered = []
 
     def dfs(n):
         ordered.append(n)
+
         kids = children.get(n, [])
         if kids:
-            # sort by size
             kids_sorted = sorted(
                 kids,
                 key=lambda c: size[c],
-                reverse=right,  # right=True → large clade last → right-heavy
+                reverse=right,
             )
+
             for c in kids_sorted:
                 dfs(c)
 
     dfs(root)
 
-    # Reorder the DataFrame rows in the ladderized DFS order
-    df["__order"] = pd.Categorical(df["nodes"], ordered, ordered=True)
+    # Check that all nodes were reached
+    missing = set(df["nodes"]) - set(ordered)
+    if missing:
+        raise RuntimeError(
+            "Ladderization did not visit all nodes. "
+            f"Missing nodes: {sorted(missing)}"
+        )
+
+    df["__order"] = pd.Categorical(df["nodes"], categories=ordered, ordered=True)
     df = df.sort_values("__order").drop(columns="__order").reset_index(drop=True)
+
     return df
+
+

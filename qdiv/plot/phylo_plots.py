@@ -3,40 +3,7 @@ import numpy as np
 import pandas as pd
 from typing import Optional, Tuple
 from ..utils import get_df, ladderize_tree_df
-
-def _normalize_tree_df(T):
-    T = T.copy()
-
-    # 1) Ensure root parent is None (not NaN)
-    T["parent"] = T["parent"].where(T["parent"].notna(), None)
-
-    # 2) Ensure 'leaves' is a set for every row (root/internal can be empty set)
-    def _to_set(x):
-        if isinstance(x, set):
-            return x
-        if x is None or (isinstance(x, float) and np.isnan(x)):
-            return set()
-        if isinstance(x, str):
-            # try to parse "{OTU1,OTU2}" or "OTU1"
-            stripped = x.strip()
-            if stripped.startswith("{") and stripped.endswith("}"):
-                items = [t.strip() for t in stripped[1:-1].split(",") if t.strip()]
-                return set(items)
-            return {stripped}
-        if isinstance(x, (list, tuple)):
-            return set(x)
-        return set()
-
-    T["leaves"] = T["leaves"].apply(_to_set)
-
-    # 3) Force numeric types for branch length & distance
-    T["branchL"] = pd.to_numeric(T["branchL"], errors="coerce").fillna(0.0)
-    T["dist_to_root"] = pd.to_numeric(T["dist_to_root"], errors="coerce").fillna(0.0)
-
-    # 4) De-duplicate and stabilize ordering
-    T = T.reset_index(drop=True)
-    return T
-
+from ..utils.phylo_utils import _normalize_tree_df, _is_missing_id
 
 def phylo_tree(
     tree,
@@ -44,13 +11,14 @@ def phylo_tree(
     ax: Optional[plt.Axes] = None,
     label_tips: bool = True, 
     label_internals: bool = False,
-    tip_order: str = "as_is",            # "as_is" -> planar DFS; "alpha" -> alphabetical
+    tip_order: str = "as_is",
     leaf_prefix: str = "in",
     linewidth: float = 1.5, 
     color: str = 'k',
     figsize: Tuple[float, float] | None = None,
     fontsize: int = 10,
     ladderize: bool = True,
+    invert: bool = False,
     scale_bar: float | None = None,
     savename: str | None = None,
 ) -> plt.Axes:
@@ -94,6 +62,8 @@ def phylo_tree(
     ladderize : bool, default True
         If True, reorder child subtrees to produce a ladderized tree layout
         before plotting.
+    invert : bool, default False
+        If True, invert y-axis of tree.
     scale_bar : float, optional
         Length of the scale bar to draw (in branch-length units). If None,
         a scale bar corresponding to 10% of the tree width is drawn.
@@ -122,35 +92,36 @@ def phylo_tree(
     """
     
     # -- Normalize input to DataFrame -----------------------------------------
-    T = get_df(tree, "tree")   # your helper
+    T = get_df(tree, "tree")
     if T is None:
         raise ValueError("Tree DataFrame missing.")
-    T = _normalize_tree_df(T)  # your normalizer (ensures parent None, leaves sets, floats)
+    T_plot = _normalize_tree_df(T)  # your normalizer (ensures parent None, leaves sets, floats)
     if ladderize:
-        T = ladderize_tree_df(T)
+        T_plot = ladderize_tree_df(T_plot)
 
     # Expect columns: nodes, parent, branchL, leaves, dist_to_root
     required = {"nodes", "parent", "branchL", "leaves", "dist_to_root"}
-    missing = required - set(T.columns)
+    missing = required - set(T_plot.columns)
     if missing:
         raise ValueError(f"Tree DataFrame missing columns: {sorted(missing)}")
 
     # -- Build children map (preserve order as it appears in T) ----------------
     children_map: dict[str, list[str]] = {}
-    for n, p in zip(T['nodes'].astype(str).values, T['parent'].values):
-        if p is not None:
-            p = str(p)
-            children_map.setdefault(p, []).append(n)
+    for n, p in zip(T_plot["nodes"].values, T_plot["parent"].values):
+        if _is_missing_id(p):
+            continue
+        children_map.setdefault(p, []).append(n)
+
 
     # -- Find the (single) root ------------------------------------------------
-    roots = T.loc[T['parent'].isna(), 'nodes'].astype(str).tolist()
+    roots = T_plot.loc[T_plot['parent'].isna(), 'nodes'].tolist()
     if len(roots) != 1:
         raise ValueError(f"Tree must have exactly one root, found: {roots}")
     root = roots[0]
 
     # -- Identify tips vs internals -------------------------------------------
-    node_names = T['nodes'].astype(str)
-    is_tip_series = ~node_names.isin(children_map.keys())  # tips: nodes with no children
+    node_names = T_plot['nodes']
+    is_tip_series = ~node_names.isin(children_map.keys())
 
     # -- Determine a good tip order (planar DFS from the root) -----------------
     def _tips_in_planar_order(r: str) -> list[str]:
@@ -170,7 +141,7 @@ def phylo_tree(
         tip_nodes = sorted(node_names[is_tip_series].tolist())
     else:
         tip_nodes = _tips_in_planar_order(root)
-
+    print(tip_nodes)
     # -- Assign y positions ----------------------------------------------------
     y_pos: dict[str, float] = {n: float(i) for i, n in enumerate(tip_nodes)}
 
@@ -190,19 +161,21 @@ def phylo_tree(
         raise RuntimeError("Could not resolve y-positions; graph may be malformed.")
 
     # -- x positions from dist_to_root ----------------------------------------
-    x_pos = dict(zip(T['nodes'].astype(str), T['dist_to_root'].astype(float)))
+    x_pos = dict(zip(T_plot['nodes'], T_plot['dist_to_root'].astype(float)))
 
     # -- Prepare axes ----------------------------------------------------------
     if ax is None:
         if figsize is None:
             figsize = (8, max(3, 0.4 * max(1, len(tip_nodes))))
         fig, ax = plt.subplots(figsize=figsize)
+    else:
+        fig = ax.figure
     ax.set_axis_off()
 
     # -- Draw branches ---------------------------------------------------------
     # 1) Horizontal segments: parent.x -> node.x at y=node.y
-    for n, p in zip(T['nodes'].astype(str), T['parent']):
-        if p is None:
+    for n, p in zip(T_plot['nodes'], T_plot['parent']):
+        if _is_missing_id(p):
             continue
         p = str(p)
         x0 = x_pos[p]; x1 = x_pos[n]; y = y_pos[n]
@@ -235,18 +208,41 @@ def phylo_tree(
     ax.set_xlim(xmin - 0.02 * span, xmax + 0.10 * span)
     ax.set_ylim(-0.5, len(tip_nodes) - 0.5)
 
+    if invert: #Invert y-axis
+        ax.invert_yaxis()
+
     # Simple scale bar (10% of span)
     if span > 0:
         if scale_bar is None:
             bar = 0.1 * span
         else:
             bar = scale_bar
-        y0  = -0.3
-        ax.plot([xmin, xmin + bar], [y0, y0], color=color, lw=linewidth)
-        ax.text(xmin + bar / 2.0, y0+0.1, f"{bar:.3g}", ha='center', va='bottom', color=color)
+        # Convert branch-length units to fraction of axis width
+        bar_frac = min(bar / span, 0.5)
+        x0 = 0.02
+        x1 = x0 + bar_frac
+        ax.plot(
+            [x0, x1],
+            [-0.05, -0.05],
+            transform=ax.transAxes,
+            clip_on=False,
+            color=color,
+            lw=linewidth
+        )
+        ax.text(
+            (x0 + x1) / 2,
+            -0.03,
+            f"{bar:.3g}",
+            transform=ax.transAxes,
+            clip_on=False,
+            ha="center",
+            va="bottom",
+            color=color
+        )
 
     # -- Save if requested -----------------------------------------------------
     if savename:
-        ax.figure.savefig(savename, dpi=240, bbox_inches="tight")
+        fig.savefig(savename, dpi=300, bbox_inches="tight")
+        fig.savefig(savename + '.pdf', format="pdf")
 
-    return ax
+    return fig, ax, T_plot
