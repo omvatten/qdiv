@@ -21,7 +21,7 @@ def phylo_tree(
     invert: bool = False,
     scale_bar: float | None = None,
     savename: str | None = None,
-) -> plt.Axes:
+) -> Tuple["plt.Figure", "plt.Axes", "pd.DataFrame"]:
 
     """
     Plot a rooted phylogenetic tree as a rectangular phylogram.
@@ -73,8 +73,12 @@ def phylo_tree(
 
     Returns
     -------
-    matplotlib.axes.Axes
-        The Matplotlib Axes containing the plotted phylogenetic tree.
+    fig : matplotlib.figure.Figure
+        The created figure with the phylogenetic tree.
+    ax : matplotlib.axes.Axes
+        The matplotlib Axes object for the figure.
+    T_plot : pandas.DataFrame
+        The dataframe used to generate the plot.
 
     Raises
     ------
