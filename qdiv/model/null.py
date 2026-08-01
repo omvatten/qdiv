@@ -727,7 +727,8 @@ def inriq(
     random_state: Optional[Union[int, np.random.Generator]] = None,
 ) -> pd.DataFrame:
     """
-    Interpolated Net Relatedness Index (iNRIq) using a distance soft-min kernel.
+    Computes interpolated MPDq and its null-standardized effect size, iNRIq,
+    using a distance soft-min kernel.
     This metric interpolates continuously between MPDq (broad phylogenetic
     relatedness) and MNTDq (nearest-taxon relatedness). Distances are weighted
     using an exponential soft-min kernel controlled by the locality parameter.
@@ -742,31 +743,39 @@ def inriq(
     to all other taxa. Community-level iMPDq is then obtained as the q-weighted
     mean of these interpolated distances across taxa.
     In addition to iMPDq, two diagnostics describing kernel locality are returned:
-    
+
     ENN
         Effective Number of Neighbours.
-        Computed as the Hill number of order 2 of the kernel weight
-        distribution:
-    
-            ENN_i = 1 / Σ(p_ij²)
-    
-        Low values indicate that the interpolated distance is determined
-        primarily by one or a few nearest neighbours (NTI-like behaviour).
-        High values indicate that many neighbours contribute appreciably
-        to the distance calculation (MPD-like behaviour).
-    
+        Computed as the Shannon effective number, equivalent to the Hill
+        number of order 1, of the neighbour probability distribution:
+
+        ENN_i = exp(-Σ p_ij log(p_ij))
+
+        ENN_i can be interpreted as the number of equally weighted neighbours
+        that would contribute the same amount to the interpolated distance
+        calculation.
+
     NTF
         Nearest Taxon Focus.
-        A normalized measure of locality:
+        A normalized diagnostic describing where the realised ENN lies between
+        its broadest and sharpest attainable values for the focal taxon:
     
-            NTF_i = 1 - (ENN_i - 1) / (k_max,i - 1)
+            NTF_i = (ENNmax_i - ENN_i) / (ENNmax_i - ENNmin_i)
     
-        where k_max,i is the number of possible neighbours for taxon i.
-        NTF ranges from 0 to 1:
-            NTF = 1
-                Strong nearest-neighbour focus (MNTD-like).
+        where ENNmax_i is the Shannon effective number of neighbours at
+        locality = 0, and ENNmin_i is the Shannon effective number of the
+        nearest-neighbour set as locality approaches infinity, allowing for
+        ties among nearest neighbours.
+    
+        NTF ranges from 0 to 1 when the focal taxon has a non-zero attainable
+        locality range:
             NTF = 0
-                Broad averaging across all available neighbours (MPD-like).
+                Broad-neighbour endpoint, equivalent to locality = 0.
+            NTF = 1
+                Sharpest attainable nearest-neighbour endpoint for the given
+                distance matrix and abundance weights.
+        Rows for which ENNmax_i equals ENNmin_i have no attainable locality
+        range and are excluded from the sample-level NTF average.    
     
     Parameters
     ----------
@@ -809,12 +818,26 @@ def inriq(
 
     Notes
     -----
-    - For r = 0, the kernel is uniform; the nearest taxon focus index is therefore defined to be 0.
-    - For r → ∞ the method converges to classical MNTD_q.
-    - A p value close to zero means that the observed MPNTD is lower than the null expectation
-    - A p value close to one means that the observed MNTD is higher than the null expectation
-    - A positive ses means that the observed MNTD is lower than the null expectation
-    - A negative ses means that the observed MNTD is higher than the null expectation
+    - For locality = 0, r = 0 and the kernel reduces to broad q-weighted
+      averaging over all non-self neighbours, giving an MPD-like endpoint.
+    - As locality increases, the kernel becomes increasingly concentrated
+      on the nearest-neighbour set. If several neighbours are tied at the
+      minimum distance, they remain jointly represented in the limiting
+      nearest-neighbour endpoint.
+    - ENN reports the realised effective number of neighbours contributing
+      to the soft-min kernel. ENN may remain greater than 1 at high locality
+      when the focal taxon has multiple equally close nearest neighbours.
+    - NTF reports the position of ENN between its broadest and sharpest
+      attainable values for each focal taxon. It is therefore normalized
+      relative to the distance structure and q-weighted neighbour set.
+    - A p value close to zero means that the observed iMPDq is lower than
+      expected under the null model.
+    - A p value close to one means that the observed iMPDq is higher than
+      expected under the null model.
+    - A positive ses means that the observed iMPDq is lower than the null
+      expectation.
+    - A negative ses means that the observed iMPDq is higher than the null
+      expectation.
     """
 
     # ---- Extract abundance table ----
@@ -824,9 +847,16 @@ def inriq(
     smplist = tab.columns
 
     # Align distances
-    if not set(tab.index).issubset(distmat.index):
-        miss = sorted(list(set(tab.index) - set(distmat.index)))
-        raise ValueError(f"distmat missing {len(miss)} taxa: {miss[:5]}")
+    missing_index = sorted(set(tab.index) - set(distmat.index))
+    missing_columns = sorted(set(tab.index) - set(distmat.columns))
+    if missing_index or missing_columns:
+        raise ValueError(
+            "distmat must contain all taxa from tab.index in both rows and columns. "
+            f"Missing from index: {len(missing_index)} "
+            f"(e.g., {missing_index[:5]}). "
+            f"Missing from columns: {len(missing_columns)} "
+            f"(e.g., {missing_columns[:5]})."
+        )
 
     D = distmat.loc[tab.index, tab.index].to_numpy(copy=True)   # (N x N)
     R = (tab / tab.sum(axis=0)).fillna(0).to_numpy(float)       # (N x S)
@@ -849,7 +879,7 @@ def inriq(
         r = 0
     else:
         dist_scale = np.median(dpos)  # global scale of phylogenetic distances
-        r = (np.exp(locality) - 1) / dist_scale   # final distance sensitivity
+        r = np.expm1(locality) / dist_scale
 
     # ---- row-wise soft-min operator as function ----
     def softmin_row(Drow: np.ndarray, w_target: np.ndarray) -> float:
@@ -918,7 +948,6 @@ def inriq(
         else:
             obs[s] = np.nan
 
-
         # ------------------------------------------------------------
         # ---- Effective number of neighbours and normalized NTF ----
         Dloc = Dt[np.ix_(rows, rows)]          # (k x k), diagonal already inf
@@ -937,7 +966,7 @@ def inriq(
             d = Dloc[kk, valid]
             w = w_local[valid]
         
-            # Stabilized weighted soft-min probabilities
+            # Current ENN at chosen locality    
             X = -r * d
             m = np.max(X)
             a = np.exp(X - m)
@@ -947,23 +976,34 @@ def inriq(
                 continue
         
             p = (a * w) / denom
-        
-            # Effective number of neighbours actually used by the kernel
             p_safe = p[p > 0]
             ENN_i = np.exp(-np.sum(p_safe * np.log(p_safe)))
             enn_rows[kk] = ENN_i
-            
-            # Richness-normalized nearest taxon focus
-            m_i = np.sum(valid)
-            
-            if m_i > 1:
-                ntf_i = 1.0 - ((ENN_i - 1.0) / (m_i - 1.0))
+
+            # ENNmax_i: broad endpoint, locality = 0
+            p0 = w / np.sum(w)
+            p0_safe = p0[p0 > 0]
+            ENNmax_i = np.exp(-np.sum(p0_safe * np.log(p0_safe)))
+
+            # ENNmin_i: sharp endpoint, locality -> infinity
+            dmin = np.min(d)
+            nearest = np.isclose(d, dmin, rtol=1e-10, atol=1e-12)
+            w_near = w[nearest]
+            pmin = w_near / np.sum(w_near)
+            pmin_safe = pmin[pmin > 0]
+            ENNmin_i = np.exp(-np.sum(pmin_safe * np.log(pmin_safe)))
+
+            # Attainable-range normalized NTF
+            denom_range = ENNmax_i - ENNmin_i
+            if denom_range > 1e-12:
+                ntf_i = (ENNmax_i - ENN_i) / denom_range
                 ntf_rows[kk] = np.clip(ntf_i, 0.0, 1.0)
             else:
                 ntf_rows[kk] = np.nan
 
         # Sample-level summaries, using the same outer q-weights as iMPDq
         outer_w = w_s[rows]
+        
         valid_enn = np.isfinite(enn_rows) & (outer_w > 0)
         valid_ntf = np.isfinite(ntf_rows) & (outer_w > 0)
         
@@ -982,7 +1022,6 @@ def inriq(
             )
         else:
             ntf[s] = np.nan
-        
         
     # ---- null distribution ----
     if iterations < 1:
