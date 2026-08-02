@@ -338,6 +338,27 @@ def rcq(
     }
     return out
 
+# -- Helper function for q-weighting
+def _q_weight(R: np.ndarray, q: float) -> np.ndarray:
+    """
+    Convert relative abundances to normalized q-weighted abundances.
+    """
+    if q == 1.0:
+        return R.copy()
+
+    Rq = np.zeros_like(R, dtype=float)
+    pos = R > 0
+    Rq[pos] = np.power(R[pos], q)
+
+    denom = Rq.sum(axis=0, keepdims=True)
+
+    return np.divide(
+        Rq,
+        denom,
+        out=np.zeros_like(Rq),
+        where=denom > 0,
+    )
+
 # ---------------------------------------------------------------------------
 # MPDq and NRIq
 # ---------------------------------------------------------------------------
@@ -416,13 +437,9 @@ def nriq(
 
     smplist = tab.columns
     D = distmat.loc[tab.index, tab.index].to_numpy()
-    R = (tab / tab.sum(axis=0)).to_numpy()          
-    if q == 1.0:
-        Rq = R
-    else:
-        mask = R > 0
-        Rq = R.copy()
-        Rq[mask] = np.power(Rq[mask], q)
+    R = (tab / tab.sum(axis=0)).fillna(0).to_numpy(float)
+    Rq = _q_weight(R, q)
+    N, S = Rq.shape
 
     def _alpha_mpdq(_D, _Rq):
         # sum_i w_i
@@ -443,17 +460,16 @@ def nriq(
         out[valid] = num_full[valid] / den[valid]
         return out
     
-
     present_counts = (R > 0).sum(axis=0)  # shape (S,)
     obs = _alpha_mpdq(D, Rq)
     obs[present_counts < 2] = np.nan
 
     # streaming stats init
-    n = Rq.shape[1]
-    mu = np.zeros(n, dtype=np.float64)
-    M2 = np.zeros(n, dtype=np.float64)
-    count_lt = np.zeros(n, dtype=np.int64)
-    count_eq = np.zeros(n, dtype=np.int64)
+    mu = np.zeros(S, dtype=float)
+    M2 = np.zeros(S, dtype=float)
+    n_valid = np.zeros(S, dtype=int)
+    count_lt = np.zeros(S, dtype=int)
+    count_eq = np.zeros(S, dtype=int)
 
     rng = random_state if isinstance(random_state, np.random.Generator) else np.random.default_rng(random_state)
     tqdm = _get_tqdm(use_tqdm)
@@ -477,30 +493,50 @@ def nriq(
     ):
         if randomization == "features":
             # permute features once and apply to all samples (permute rows of Rq)
-            perm = rng.permutation(Rq.shape[0])
-            Rq_perm = Rq[perm, :]
+            perm = rng.permutation(N)
+            R_perm = R[perm, :]
+            Rq_perm = _q_weight(R_perm, q)
             x = _alpha_mpdq(D, Rq_perm)
         elif randomization == "abundances":
-            # shuffle abundances within each sample (permute rows per column)
-            # permute a view of Rq columnwise
-            Rq_perm = np.empty_like(Rq)
-            for j in range(n):
-                Rq_perm[:, j] = Rq[rng.permutation(Rq.shape[0]), j]
+            R_perm = np.empty_like(R)
+            for j in range(S):
+                R_perm[:, j] = R[rng.permutation(N), j]
+            Rq_perm = _q_weight(R_perm, q)
             x = _alpha_mpdq(D, Rq_perm)
     
-        # Welford updates
-        delta = x - mu
-        mu += delta / t
-        M2 += delta * (x - mu)
+        # --- Welford updates (vectorized) ---
+        valid_x = np.isfinite(x) & np.isfinite(obs)
+        n_valid[valid_x] += 1
+        delta = x[valid_x] - mu[valid_x]
+        mu[valid_x] += delta / n_valid[valid_x]
+        M2[valid_x] += delta * (x[valid_x] - mu[valid_x])
+        count_lt[valid_x] += x[valid_x] < obs[valid_x]
+        count_eq[valid_x] += x[valid_x] == obs[valid_x]
+
+    # Finalize stats
+    null_mean = np.full(S, np.nan)
+    null_std = np.full(S, np.nan)
+    p = np.full(S, np.nan)
     
-        # p-index counts vs observed
-        count_lt += (x < obs)
-        count_eq += (x == obs)
+    has_mean = n_valid > 0
+    null_mean[has_mean] = mu[has_mean]
     
-    null_mean = mu
-    null_std = np.sqrt(np.maximum(M2 / max(1, (iterations - 1)), 0.0))
-    p = (count_lt + 0.5 * count_eq) / iterations
-    ses = np.where(null_std > 0, (null_mean - obs) / null_std, np.nan)
+    has_var = n_valid > 1
+    null_std[has_var] = np.sqrt(
+        M2[has_var] / (n_valid[has_var] - 1)
+    )
+    
+    p[has_mean] = (
+        count_lt[has_mean]
+        + 0.5 * count_eq[has_mean]
+    ) / n_valid[has_mean]
+
+    with np.errstate(invalid="ignore", divide="ignore"):
+        ses = np.where(
+            null_std > 0,
+            (null_mean - obs) / null_std,
+            np.nan
+        )
 
     output = pd.DataFrame(
         {
@@ -564,7 +600,7 @@ def ntiq(
 
     Notes
     -----
-    - A p value close to zero means that the observed MPNTD is lower than the null expectation
+    - A p value close to zero means that the observed MNTD is lower than the null expectation
     - A p value close to one means that the observed MNTD is higher than the null expectation
     - A positive ses means that the observed MNTD is lower than the null expectation
     - A negative ses means that the observed MNTD is higher than the null expectation
@@ -588,17 +624,8 @@ def ntiq(
 
     smplist = tab.columns
     D = distmat.loc[tab.index, tab.index].to_numpy()  # (N x N)
-    # Relative abundances
-    R = (tab / tab.sum(axis=0)).to_numpy(dtype=float)  # (N x S)
-
-    # q-weighting (only for positive entries)
-    if q == 1.0:
-        Rq = R
-    else:
-        Rq = R.copy()
-        mask_pos = Rq > 0
-        Rq[mask_pos] = np.power(Rq[mask_pos], q)
-
+    R = (tab / tab.sum(axis=0)).fillna(0).to_numpy(float)
+    Rq = _q_weight(R, q)
     N, S = Rq.shape
 
     # --- Helper: compute vector of MNTD_q for all samples in one go ---
@@ -633,10 +660,11 @@ def ntiq(
     obs = _mntdq_all(D, R, Rq)
 
     # --- Streaming (Welford) statistics over null iterations ---
-    mu = np.zeros(S, dtype=np.float64)       # null_mean (per sample)
-    M2 = np.zeros(S, dtype=np.float64)       # for variance
-    count_lt = np.zeros(S, dtype=np.int64)   # for p-index
-    count_eq = np.zeros(S, dtype=np.int64)
+    mu = np.zeros(S, dtype=float)
+    M2 = np.zeros(S, dtype=float)
+    n_valid = np.zeros(S, dtype=int)
+    count_lt = np.zeros(S, dtype=int)
+    count_eq = np.zeros(S, dtype=int)
 
     rng = random_state if isinstance(random_state, np.random.Generator) else np.random.default_rng(random_state)
     tqdm = _get_tqdm(use_tqdm)
@@ -663,41 +691,48 @@ def ntiq(
             # Permute feature identities once per iteration (relabels rows of Rq)
             perm = rng.permutation(N)
             R_perm = R[perm, :]
-            if q == 1.0:
-                Rq_perm = R_perm
-            else:
-                Rq_perm = R_perm.copy()
-                posp = Rq_perm > 0.0
-                Rq_perm[posp] = np.power(Rq_perm[posp], q)
+            Rq_perm = _q_weight(R_perm, q)
             x = _mntdq_all(D, R_perm, Rq_perm)
-        else:  # "abundances"
+        elif randomization == "abundances":
             R_perm = np.empty_like(R)
-            for j in range(R.shape[1]):
-                R_perm[:, j] = R[rng.permutation(R.shape[0]), j]
-            if q == 1.0:
-                Rq_perm = R_perm
-            else:
-                Rq_perm = R_perm.copy()
-                posp = Rq_perm > 0.0
-                Rq_perm[posp] = np.power(Rq_perm[posp], q)
+            for j in range(S):
+                R_perm[:, j] = R[rng.permutation(N), j]
+            Rq_perm = _q_weight(R_perm, q)
             x = _mntdq_all(D, R_perm, Rq_perm)
 
         # --- Welford updates (vectorized) ---
-        delta = x - mu
-        mu += delta / t
-        M2 += delta * (x - mu)
-
-        # --- p-index bookkeeping against observed ---
-        # count how often null < obs, with 0.5 for ties
-        count_lt += (x < obs)
-        count_eq += (x == obs)
+        valid_x = np.isfinite(x) & np.isfinite(obs)
+        n_valid[valid_x] += 1
+        delta = x[valid_x] - mu[valid_x]
+        mu[valid_x] += delta / n_valid[valid_x]
+        M2[valid_x] += delta * (x[valid_x] - mu[valid_x])
+        count_lt[valid_x] += x[valid_x] < obs[valid_x]
+        count_eq[valid_x] += x[valid_x] == obs[valid_x]
 
     # Finalize stats
-    null_mean = mu
-    # population std estimate across iterations: sqrt(M2 / max(1, iterations-1))
-    null_std = np.sqrt(np.maximum(M2 / max(1, (iterations - 1)), 0.0))
-    p = (count_lt + 0.5 * count_eq) / iterations
-    ses = np.where(null_std > 0, (null_mean - obs) / null_std, np.nan)
+    null_mean = np.full(S, np.nan)
+    null_std = np.full(S, np.nan)
+    p = np.full(S, np.nan)
+    
+    has_mean = n_valid > 0
+    null_mean[has_mean] = mu[has_mean]
+    
+    has_var = n_valid > 1
+    null_std[has_var] = np.sqrt(
+        M2[has_var] / (n_valid[has_var] - 1)
+    )
+    
+    p[has_mean] = (
+        count_lt[has_mean]
+        + 0.5 * count_eq[has_mean]
+    ) / n_valid[has_mean]
+
+    with np.errstate(invalid="ignore", divide="ignore"):
+        ses = np.where(
+            null_std > 0,
+            (null_mean - obs) / null_std,
+            np.nan
+        )
 
     # Pack results
     output = pd.DataFrame(
@@ -721,115 +756,90 @@ def inriq(
     *,
     q: float = 1.0,
     locality: float = 1,
+    dist_scale: float | str = "auto",
     iterations: int = 999,
     randomization: Literal["features", "abundances"] = "features",
     use_tqdm: bool = True,
     random_state: Optional[Union[int, np.random.Generator]] = None,
+    **kwargs,
 ) -> pd.DataFrame:
     """
-    Computes interpolated MPDq and its null-standardized effect size, iNRIq,
-    using a distance soft-min kernel.
-    This metric interpolates continuously between MPDq (broad phylogenetic
-    relatedness) and MNTDq (nearest-taxon relatedness). Distances are weighted
-    using an exponential soft-min kernel controlled by the locality parameter.
-    For each taxon i, neighbour weights are computed as
-    
-        p_ij ∝ exp(-r d_ij) w_j
-    
-    where d_ij is the pairwise phylogenetic distance, w_j is the q-weighted
-    relative abundance of neighbour j, and r is a distance-sensitivity parameter
-    derived from locality and the median positive distance in the distance matrix.
-    The interpolated distance for taxon i is the kernel-weighted mean distance
-    to all other taxa. Community-level iMPDq is then obtained as the q-weighted
-    mean of these interpolated distances across taxa.
-    In addition to iMPDq, two diagnostics describing kernel locality are returned:
+    Calculate interpolated MPDq and an NRI-style null standardized effect size.
+    The metric uses an exponential soft-min kernel to interpolate continuously
+    between a broad MPD-like endpoint and a local MNTD-like endpoint. For each
+    focal taxon i, neighbour probabilities are
 
-    ENN
-        Effective Number of Neighbours.
-        Computed as the Shannon effective number, equivalent to the Hill
-        number of order 1, of the neighbour probability distribution:
+        p_ij ∝ exp(-r*d_ij)*w_j
 
-        ENN_i = exp(-Σ p_ij log(p_ij))
+    where d_ij is the pairwise distance, w_j is the q-weighted relative
+    abundance of neighbour j, and
 
-        ENN_i can be interpreted as the number of equally weighted neighbours
-        that would contribute the same amount to the interpolated distance
-        calculation.
+        r = (exp(locality)-1) / dist_scale.
 
-    NTF
-        Nearest Taxon Focus.
-        A normalized diagnostic describing where the realised ENN lies between
-        its broadest and sharpest attainable values for the focal taxon:
-    
-            NTF_i = (ENNmax_i - ENN_i) / (ENNmax_i - ENNmin_i)
-    
-        where ENNmax_i is the Shannon effective number of neighbours at
-        locality = 0, and ENNmin_i is the Shannon effective number of the
-        nearest-neighbour set as locality approaches infinity, allowing for
-        ties among nearest neighbours.
-    
-        NTF ranges from 0 to 1 when the focal taxon has a non-zero attainable
-        locality range:
-            NTF = 0
-                Broad-neighbour endpoint, equivalent to locality = 0.
-            NTF = 1
-                Sharpest attainable nearest-neighbour endpoint for the given
-                distance matrix and abundance weights.
-        Rows for which ENNmax_i equals ENNmin_i have no attainable locality
-        range and are excluded from the sample-level NTF average.    
-    
+    With locality = 0, all non-self neighbours contribute according to their
+    q-weighted abundances. As locality increases, weight is progressively
+    concentrated on nearby neighbours.
+
     Parameters
     ----------
-    obj : dict or MicrobiomeData
-        Object containing a feature abundance table under key 'tab'.    
+    obj : dict or object
+        Object containing a feature abundance table accessible as ``"tab"``.
+        Rows are taxa/features and columns are samples.
     distmat : pandas.DataFrame
-        Symmetric pairwise phylogenetic or functional distance matrix.    
-    q : float, default=1
-        Hill-number order used for abundance weighting.    
+        Square pairwise distance matrix with taxa matching ``tab.index``.
+    q : float, default=1.0
+        Diversity order used for abundance weighting.
     locality : float, default=1
-        Controls the spatial scale of the soft-min kernel.
-        locality = 0 produces broad MPD-like weighting.
-        Increasing locality progressively concentrates kernel weight onto
-        nearby neighbours, approaching MNTD-like behaviour.
+        Non-negative kernel locality parameter. Larger values give stronger
+        nearest-neighbour focus.
+    dist_scale : {"auto"} or float, default="auto"
+        Distance scale used to convert locality into kernel sharpness. If
+        ``"auto"``, the median positive distance in ``distmat`` is used.
+        Supplying a numeric value gives reproducible kernel sharpness across
+        runs or datasets.
     iterations : int, default=999
-        Number of null randomizations.    
+        Number of null randomizations. If less than 1, only observed values are
+        returned.
     randomization : {"features", "abundances"}, default="features"
-        Null-model randomization strategy.
-    
+        Null model. ``"features"`` permutes feature labels across the distance
+        matrix. ``"abundances"`` permutes abundances independently within each
+        sample.
+    use_tqdm : bool, default=True
+        Show a progress bar for null iterations.
+    random_state : int or numpy.random.Generator, optional
+        Random seed or generator.
+
     Returns
     -------
     pandas.DataFrame
-    
-        Columns include:
-    
+        Results indexed by sample. Columns include:
+
         iMPDq
-            Interpolated mean phylogenetic distance.
+            Observed interpolated mean pairwise distance.
         ENN
-            Effective Number of Neighbours.
+            Effective Number of Neighbours, calculated as the Shannon effective
+            number of the neighbour probability distribution.
         NTF
-            Nearest Taxon Focus.
+            Nearest Taxon Focus. Normalized position of ENN between its broad
+            and nearest-neighbour attainable endpoints.
         null_mean
-            Mean null expectation.
+            Mean null expectation of iMPDq.
         null_std
-            Standard deviation of null expectations.
+            Standard deviation of null iMPDq values.
         p
-            One-sided null-model probability.
+            Mid-p left-tail probability, calculated as
+            (Pr[null < observed] + 0.5 Pr[null = observed]).        
         ses
-            Standardized effect size.
+            NRI-style standardized effect size, calculated as
+            ``(null_mean - observed) / null_std``. Positive values indicate
+            lower iMPDq than expected under the null model.
 
     Notes
     -----
-    - For locality = 0, r = 0 and the kernel reduces to broad q-weighted
-      averaging over all non-self neighbours, giving an MPD-like endpoint.
-    - As locality increases, the kernel becomes increasingly concentrated
-      on the nearest-neighbour set. If several neighbours are tied at the
-      minimum distance, they remain jointly represented in the limiting
-      nearest-neighbour endpoint.
-    - ENN reports the realised effective number of neighbours contributing
-      to the soft-min kernel. ENN may remain greater than 1 at high locality
-      when the focal taxon has multiple equally close nearest neighbours.
-    - NTF reports the position of ENN between its broadest and sharpest
-      attainable values for each focal taxon. It is therefore normalized
-      relative to the distance structure and q-weighted neighbour set.
+    - ENN and NTF are diagnostics of the realized kernel. They are not fixed by
+      ``locality`` and may differ among samples because each sample has a distinct
+      distance and abundance structure. ENN may remain greater than one at high
+      locality when several neighbours are tied or nearly tied as nearest taxa.
     - A p value close to zero means that the observed iMPDq is lower than
       expected under the null model.
     - A p value close to one means that the observed iMPDq is higher than
@@ -839,6 +849,12 @@ def inriq(
     - A negative ses means that the observed iMPDq is higher than the null
       expectation.
     """
+    if "seed" in kwargs:
+        if random_state is not None:
+            raise TypeError("Specify only one of 'random_state' or 'seed'.")
+        random_state = kwargs.pop("seed")
+    if kwargs:
+        raise TypeError(f"Unexpected keyword arguments: {list(kwargs)}")
 
     # ---- Extract abundance table ----
     tab = get_df(obj, "tab")
@@ -858,54 +874,211 @@ def inriq(
             f"(e.g., {missing_columns[:5]})."
         )
 
-    D = distmat.loc[tab.index, tab.index].to_numpy(copy=True)   # (N x N)
+    # Fix D and R
+    D = distmat.loc[tab.index, tab.index].to_numpy(dtype=float, copy=True) # (N x N)
     R = (tab / tab.sum(axis=0)).fillna(0).to_numpy(float)       # (N x S)
     N, S = R.shape
 
-    # q-weighting
-    if q == 1.0:
-        Rq = R
-    else:
-        Rq = R.copy()
-        pos = Rq > 0
-        Rq[pos] = np.power(Rq[pos], q)
+    if D.shape[0] != D.shape[1]:
+        raise ValueError("distmat must be square.")
+    if np.any(~np.isfinite(np.diag(D))):
+        raise ValueError("distmat diagonal must be finite.")
+    if np.any(D[np.isfinite(D)] < 0):
+        raise ValueError("distmat must not contain negative distances.")
 
-    #Calculate distance sensitivity parameter
+    # q-weighting
+    Rq = _q_weight(R, q)
+
+    #Calculate distance sensitivity parameter, r
     if locality < 0:
         raise ValueError("locality must be non-negative.")
-
     dpos = D[np.isfinite(D) & (D > 0)]
     if dpos.size == 0:
-        r = 0
+        dist_scale_used = np.nan
+        r = 0.0
     else:
-        dist_scale = np.median(dpos)  # global scale of phylogenetic distances
-        r = np.expm1(locality) / dist_scale
+        if dist_scale == "auto":
+            dist_scale_used = float(np.median(dpos))
+        
+            if not np.isfinite(dist_scale_used) or dist_scale_used <= 0:
+                raise ValueError(
+                    "Unable to determine a valid automatic distance scale."
+                )
+        else:
+            try:
+                dist_scale_used = float(dist_scale)
+            except (TypeError, ValueError):
+                raise ValueError("dist_scale must be 'auto' or a positive finite number.")
+            if not np.isfinite(dist_scale_used) or dist_scale_used <= 0:
+                raise ValueError("dist_scale must be 'auto' or a positive finite number.")
+        r = np.expm1(locality) / dist_scale_used
+        if not np.isfinite(r):
+            raise ValueError(
+                "Kernel sharpness is not finite. "
+                "Try a smaller locality or a larger dist_scale."
+            )
 
-    # ---- row-wise soft-min operator as function ----
-    def softmin_row(Drow: np.ndarray, w_target: np.ndarray) -> float:
+    def _impdq_sample(
+        Dloc: np.ndarray,
+        w_loc: np.ndarray,
+        r: float,
+        diagnostics: bool = False,
+    ):
         """
-        Compute the kernel-weighted soft-min distance for one row i -> a target sample.
-        Only finite distances to neighbours with positive q-weight are used.
+        Calculate iMPDq for a single sample.
         """
-        valid = np.isfinite(Drow) & (w_target > 0)
-        if not np.any(valid):
-            return np.nan
+        k_taxa = len(w_loc)
+        finite = np.isfinite(Dloc)
+        target = finite & (w_loc[None, :] > 0)
     
-        Df = Drow[valid]
-        wf = w_target[valid]
-    
-        X = -r * Df
-        m = np.max(X)
-        a = np.exp(X - m)
-    
-        denom = np.dot(a, wf)
-        if denom <= 0:
-            return np.nan
-    
-        numer = np.dot(a * Df, wf)
-        return float(numer / denom)
+        # Kernel probabilities
+        X = np.where(target, -r * Dloc, -np.inf)
+        row_max = np.max(X, axis=1, keepdims=True)
+        A = np.exp(X - row_max)
+        A[~np.isfinite(A)] = 0.0
+        Aw = A * w_loc[None, :]
+        denom = Aw.sum(axis=1)
 
-    # ---- observed values ----
+        # Soft-min distances
+        numer = (A * np.where(finite, Dloc, 0.0)) @ w_loc
+        dvals = np.divide(
+            numer,
+            denom,
+            out=np.full(k_taxa, np.nan),
+            where=denom > 0,
+        )
+        valid_d = np.isfinite(dvals) & (w_loc > 0)
+        if np.any(valid_d):
+            impdq = float(
+                np.sum(w_loc[valid_d] * dvals[valid_d])
+                / np.sum(w_loc[valid_d])
+            )
+        else:
+            impdq = np.nan
+    
+        if not diagnostics:
+            return impdq
+    
+        # ENN
+        P = np.divide(
+            Aw,
+            denom[:, None],
+            out=np.zeros_like(Aw),
+            where=denom[:, None] > 0,
+        )
+        plogp = np.zeros_like(P)
+        pos = P > 0
+        plogp[pos] = P[pos] * np.log(P[pos])
+        enn_rows = np.full(k_taxa, np.nan, dtype=float)
+        valid_kernel = denom > 0
+        enn_rows[valid_kernel] = np.exp(
+            -np.sum(plogp[valid_kernel], axis=1)
+        )
+
+    
+        # ENNmax
+        W0 = np.where(target, w_loc[None, :], 0.0)
+        denom0 = W0.sum(axis=1)
+        P0 = np.divide(
+            W0,
+            denom0[:, None],
+            out=np.zeros_like(W0),
+            where=denom0[:, None] > 0,
+        )
+        p0logp0 = np.zeros_like(P0)
+        pos0 = P0 > 0
+        p0logp0[pos0] = P0[pos0] * np.log(P0[pos0])
+        ennmax_rows = np.full(k_taxa, np.nan, dtype=float)
+        valid0 = denom0 > 0
+        ennmax_rows[valid0] = np.exp(
+            -np.sum(p0logp0[valid0], axis=1)
+        )
+    
+        # ENNmin
+        Dvalid = np.where(target, Dloc, np.inf)
+        dmin = np.min(Dvalid, axis=1, keepdims=True)
+        nearest = (
+            target
+            & np.isclose(
+                Dvalid,
+                dmin,
+                rtol=1e-10,
+                atol=1e-12
+            )
+        )
+        Wmin = np.where(
+            nearest,
+            w_loc[None, :],
+            0.0
+        )
+        denom_min = Wmin.sum(axis=1)
+        Pmin = np.divide(
+            Wmin,
+            denom_min[:, None],
+            out=np.zeros_like(Wmin),
+            where=denom_min[:, None] > 0,
+        )
+        pminlogpmin = np.zeros_like(Pmin)
+        posmin = Pmin > 0
+        pminlogpmin[posmin] = (
+            Pmin[posmin] * np.log(Pmin[posmin])
+        )
+        ennmin_rows = np.full(k_taxa, np.nan, dtype=float)
+        valid_min = denom_min > 0
+        ennmin_rows[valid_min] = np.exp(
+            -np.sum(pminlogpmin[valid_min], axis=1)
+        )
+    
+        # NTF
+        ntf_rows = np.full(
+            k_taxa,
+            np.nan,
+            dtype=float
+        )
+        denom_range = (
+            ennmax_rows - ennmin_rows
+        )
+        valid_ntf = (
+            np.isfinite(enn_rows)
+            & np.isfinite(ennmax_rows)
+            & np.isfinite(ennmin_rows)
+            & (denom_range > 1e-12)
+        )
+
+        ntf_rows[valid_ntf] = np.clip(
+            (
+                ennmax_rows[valid_ntf]
+                - enn_rows[valid_ntf]
+            )
+            / denom_range[valid_ntf],
+            0.0,
+            1.0,
+        )
+        valid_enn = np.isfinite(enn_rows) & (w_loc > 0)
+        valid_ntf = np.isfinite(ntf_rows) & (w_loc > 0)
+        enn = np.nan
+        ntf = np.nan
+        if np.any(valid_enn):
+            enn = float(
+                np.sum(
+                    w_loc[valid_enn]
+                    * enn_rows[valid_enn]
+                )
+                / np.sum(w_loc[valid_enn])
+            )
+        if np.any(valid_ntf):
+            ntf = float(
+                np.sum(
+                    w_loc[valid_ntf]
+                    * ntf_rows[valid_ntf]
+                )
+                / np.sum(w_loc[valid_ntf])
+            )
+        return impdq, enn, ntf
+
+    #----------------------------------------------------------
+    # ---- Run a loop and calculate observed values per sample
+    #----------------------------------------------------------
     obs = np.zeros(S, float)
     enn = np.zeros(S, float)
     ntf = np.zeros(S, float)
@@ -922,108 +1095,21 @@ def inriq(
             continue
         
         # Normal case:
-        # Build directed distances for each taxon i in sample s
-        dvals = np.zeros(present_s.sum(), float)
-
-        # Build D with conspecific rule for sample t = s
-        # (We treat per-sample inriq as a special case of 1-sample-target)
-        Dt = D.copy()
         rows = np.where(present_s)[0]
-        Dt[rows, rows] = np.inf
+        Dloc = D[np.ix_(rows, rows)].copy()
+        np.fill_diagonal(Dloc, np.inf)
+        w_loc = w_s[rows].copy()
 
-        # Compute kernel-softmin row values for each present i
-        w_target = w_s.copy()   # target weights = own sample (self-NRI; same as MPD_q definition)
-        for k, i in enumerate(rows):
-            dvals[k] = softmin_row(Dt[i, :], w_target)
-
-        # MPD/MNTD interpolation (outer weights) = weighted mean of row-level soft-min
-        outer_w = w_s[rows]
-        valid_d = np.isfinite(dvals) & (outer_w > 0)
+        obs[s], enn[s], ntf[s] = _impdq_sample(
+            Dloc=Dloc,
+            w_loc=w_loc,
+            r=r,
+            diagnostics=True,
+        )
         
-        if np.any(valid_d):
-            obs[s] = float(
-                np.sum(outer_w[valid_d] * dvals[valid_d]) /
-                np.sum(outer_w[valid_d])
-            )
-        else:
-            obs[s] = np.nan
-
-        # ------------------------------------------------------------
-        # ---- Effective number of neighbours and normalized NTF ----
-        Dloc = Dt[np.ix_(rows, rows)]          # (k x k), diagonal already inf
-        finite = np.isfinite(Dloc)
-        
-        w_local = w_s[rows]                    # q-weighted target abundances
-        enn_rows = np.full(len(rows), np.nan, dtype=float)
-        ntf_rows = np.full(len(rows), np.nan, dtype=float)
-        
-        for kk in range(len(rows)):
-            valid = finite[kk] & (w_local > 0)
-        
-            if not np.any(valid):
-                continue
-        
-            d = Dloc[kk, valid]
-            w = w_local[valid]
-        
-            # Current ENN at chosen locality    
-            X = -r * d
-            m = np.max(X)
-            a = np.exp(X - m)
-        
-            denom = np.sum(a * w)
-            if denom <= 0:
-                continue
-        
-            p = (a * w) / denom
-            p_safe = p[p > 0]
-            ENN_i = np.exp(-np.sum(p_safe * np.log(p_safe)))
-            enn_rows[kk] = ENN_i
-
-            # ENNmax_i: broad endpoint, locality = 0
-            p0 = w / np.sum(w)
-            p0_safe = p0[p0 > 0]
-            ENNmax_i = np.exp(-np.sum(p0_safe * np.log(p0_safe)))
-
-            # ENNmin_i: sharp endpoint, locality -> infinity
-            dmin = np.min(d)
-            nearest = np.isclose(d, dmin, rtol=1e-10, atol=1e-12)
-            w_near = w[nearest]
-            pmin = w_near / np.sum(w_near)
-            pmin_safe = pmin[pmin > 0]
-            ENNmin_i = np.exp(-np.sum(pmin_safe * np.log(pmin_safe)))
-
-            # Attainable-range normalized NTF
-            denom_range = ENNmax_i - ENNmin_i
-            if denom_range > 1e-12:
-                ntf_i = (ENNmax_i - ENN_i) / denom_range
-                ntf_rows[kk] = np.clip(ntf_i, 0.0, 1.0)
-            else:
-                ntf_rows[kk] = np.nan
-
-        # Sample-level summaries, using the same outer q-weights as iMPDq
-        outer_w = w_s[rows]
-        
-        valid_enn = np.isfinite(enn_rows) & (outer_w > 0)
-        valid_ntf = np.isfinite(ntf_rows) & (outer_w > 0)
-        
-        if np.any(valid_enn):
-            enn[s] = float(
-                np.sum(outer_w[valid_enn] * enn_rows[valid_enn]) /
-                np.sum(outer_w[valid_enn])
-            )
-        else:
-            enn[s] = np.nan
-        
-        if np.any(valid_ntf):
-            ntf[s] = float(
-                np.sum(outer_w[valid_ntf] * ntf_rows[valid_ntf]) /
-                np.sum(outer_w[valid_ntf])
-            )
-        else:
-            ntf[s] = np.nan
-        
+    #----------------------------------------------------------
     # ---- null distribution ----
+    #----------------------------------------------------------
     if iterations < 1:
         return pd.DataFrame(
             {
@@ -1047,32 +1133,21 @@ def inriq(
     count_lt = np.zeros(S, dtype=int)
     count_eq = np.zeros(S, dtype=int)
 
-
     for t in tqdm(range(1, iterations + 1), desc="iterations", unit="iter",
                   leave=False, ncols=80, ascii=True, mininterval=0.5):
         # randomization
         if randomization == "features":
             perm = rng.permutation(N)
             R_perm = R[perm, :]
-            if q == 1.0:
-                Rq_perm = R_perm
-            else:
-                Rq_perm = R_perm.copy()
-                posp = Rq_perm > 0
-                Rq_perm[posp] = np.power(Rq_perm[posp], q)
+            Rq_perm = _q_weight(R_perm, q)
         else:
             R_perm = np.empty_like(R)
             for j in range(S):
                 R_perm[:, j] = R[rng.permutation(N), j]
-            if q == 1.0:
-                Rq_perm = R_perm
-            else:
-                Rq_perm = R_perm.copy()
-                posp = Rq_perm > 0
-                Rq_perm[posp] = np.power(Rq_perm[posp], q)
+            Rq_perm = _q_weight(R_perm, q)
 
         # compute null soft-min iMPDq
-        x = np.zeros(S, float)
+        x = np.full(S, np.nan, dtype=float)
         for s in range(S):
             w_s = Rq_perm[:, s]
             present_s = w_s > 0
@@ -1080,26 +1155,17 @@ def inriq(
                 x[s] = np.nan
                 continue
 
-            # conspecific rule
-            Dt = D.copy()
-            idx = np.where(present_s)[0]
-            Dt[idx, idx] = np.inf
-
             rows = np.where(present_s)[0]
-            dvals = np.zeros(len(rows), float)
-            for k, i in enumerate(rows):
-                dvals[k] = softmin_row(Dt[i, :], w_s)
+            Dloc = D[np.ix_(rows, rows)].copy()
+            np.fill_diagonal(Dloc, np.inf)
+            w_loc = w_s[rows].copy()
 
-            outer_w = w_s[rows]
-            valid_d = np.isfinite(dvals) & (outer_w > 0)
-            
-            if np.any(valid_d):
-                x[s] = float(
-                    np.sum(outer_w[valid_d] * dvals[valid_d]) /
-                    np.sum(outer_w[valid_d])
-                )
-            else:
-                x[s] = np.nan
+            x[s] = _impdq_sample(
+                Dloc=Dloc,
+                w_loc=w_loc,
+                r=r,
+                diagnostics=False,
+            )
 
         # Welford
         valid_x = np.isfinite(x) & np.isfinite(obs)
@@ -1109,7 +1175,6 @@ def inriq(
         M2[valid_x] += delta * (x[valid_x] - mu[valid_x])
         count_lt[valid_x] += x[valid_x] < obs[valid_x]
         count_eq[valid_x] += x[valid_x] == obs[valid_x]
-
 
     null_mean = np.full(S, np.nan)
     null_std = np.full(S, np.nan)
