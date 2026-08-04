@@ -402,6 +402,7 @@ def impdq(
     *,
     q: float = 1.0,
     locality: float = 1,
+    dist_scale: float | str = "auto",
 ) -> pd.DataFrame:
     """
     Interpolated mean phylogenetic distance (iMPD) using q-weighting of 
@@ -444,5 +445,5 @@ def impdq(
                                    1 = MNTD-like (nearest-neighbor kernel)
     """
     from ..model import inriq
-    return inriq(obj, distmat, q=q, locality=locality, iterations=0)
+    return inriq(obj, distmat, q=q, locality=locality, dist_scale=dist_scale, iterations=0)
 

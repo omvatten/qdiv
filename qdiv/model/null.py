@@ -932,7 +932,9 @@ def inriq(
         target = finite & (w_loc[None, :] > 0)
     
         # Kernel probabilities
-        X = np.where(target, -r * Dloc, -np.inf)
+        X = np.full_like(Dloc, -np.inf, dtype=float)
+        X[target] = -r * Dloc[target]
+
         row_max = np.max(X, axis=1, keepdims=True)
         A = np.exp(X - row_max)
         A[~np.isfinite(A)] = 0.0
@@ -1116,6 +1118,7 @@ def inriq(
                 "iMPDq": obs,
                 "ENN": enn,
                 "NTF": ntf,
+                "dist_scale": [dist_scale_used] * len(obs)
             },
             index=smplist,
         )
@@ -1196,6 +1199,7 @@ def inriq(
             "null_std": null_std,
             "p": p,
             "ses": ses,
+            "dist_scale": [dist_scale_used] * len(obs)
         },
         index=smplist,
     )
