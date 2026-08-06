@@ -1577,4 +1577,4 @@ def beta_impdq(
     """
     from ..model import beta_inriq
     out = beta_inriq(obj, distmat, q=q, locality=locality, iterations=0, include_conspecifics=include_conspecifics)
-    return out['beta_iMPDq'], out['NTF']
+    return out

@@ -20,6 +20,7 @@ def phylo_tree(
     ladderize: bool = True,
     invert: bool = False,
     scale_bar: float | None = None,
+    scale_bar_y_offset: float = 0.0,
     savename: str | None = None,
 ) -> Tuple["plt.Figure", "plt.Axes", "pd.DataFrame"]:
 
@@ -67,6 +68,8 @@ def phylo_tree(
     scale_bar : float, optional
         Length of the scale bar to draw (in branch-length units). If None,
         a scale bar corresponding to 10% of the tree width is drawn.
+    scale_bar_y_offset : float, optional
+        Move the scale bar up or down along the y-axis.
     savename : str, optional
         If provided, save the figure to this file path using
         ``bbox_inches="tight"``.
@@ -227,7 +230,7 @@ def phylo_tree(
         x1 = x0 + bar_frac
         ax.plot(
             [x0, x1],
-            [-0.05, -0.05],
+            [-0.05+scale_bar_y_offset, -0.05+scale_bar_y_offset],
             transform=ax.transAxes,
             clip_on=False,
             color=color,
@@ -235,7 +238,7 @@ def phylo_tree(
         )
         ax.text(
             (x0 + x1) / 2,
-            -0.03,
+            -0.03+scale_bar_y_offset,
             f"{bar:.3g}",
             transform=ax.transAxes,
             clip_on=False,

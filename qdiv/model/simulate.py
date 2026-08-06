@@ -420,6 +420,8 @@ def make_beta_splitting_tree_df(
     root_name: str = "Root",
     leaf_prefix: str = "OTU",
     internal_prefix: str = "in",
+    tip_noise: float = 0.0,
+    noise_dict: Optional[dict] = None,
     random_state: Optional[int] = None,
 ) -> pd.DataFrame:
     """
@@ -615,6 +617,29 @@ def make_beta_splitting_tree_df(
 
             for c in children.get(n, []):
                 queue.append((c, n, lvl + 1, dist_now))
+
+    # ----- Optional noise on branches -------------------------------
+    if abs(tip_noise) > 1e-12:
+        leaf_nr = 0
+        for i, node in enumerate(nodes_df):
+            if len(children.get(node, [])) == 0:
+                leaf_nr += 1
+                noise_len = tip_noise * leaf_nr
+                branchL_df[i] += noise_len
+                dist_df[i] += noise_len
+
+    if isinstance(noise_dict, dict):
+        node_to_idx = {n: i for i, n in enumerate(nodes_df)}
+
+        def propagate(node, noise):
+            dist_df[node_to_idx[node]] += noise
+            for child in children.get(node, []):
+                propagate(child, noise)
+
+        for node, noise in noise_dict.items():
+            branchL_df[node_to_idx[node]] += noise
+            propagate(node, noise)
+
 
     # ----- Assemble DataFrame -------------------------------------------------
     df = pd.DataFrame({
