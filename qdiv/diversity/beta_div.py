@@ -43,7 +43,8 @@ def naive_beta(
     q: float = 1,
     dis: bool = True,
     viewpoint: str = "regional",
-    use_values_in_tab: bool = False
+    use_values_in_tab: bool = False,
+    use_numba: bool = False,
 ) -> pd.DataFrame:
     """
     Compute naive (taxonomic) pairwise beta diversity of order *q*.
@@ -77,6 +78,8 @@ def naive_beta(
     use_values_in_tab : bool, default=False
         If False, convert abundances to relative abundances.
         If True, assume `tab` already contains relative abundances.
+    use_numba : bool, optional
+        If True, uses Numba path; otherwise uses pure Python implementation.
 
     Returns
     -------
@@ -121,50 +124,65 @@ def naive_beta(
     # Output matrix
     out = pd.DataFrame(0.0, index=smplist, columns=smplist)
 
+    # Acceleration
+    if use_numba:
+        try:
+            from .accelerate_div import naive_beta_numba
+        except Exception:
+            print('Numba failed, falling back to Python.')
+            naive_beta_numba = None
+    else:
+        naive_beta_numba = None
+
     # Pairwise beta diversity
-    for i in range(len(smplist) - 1):
-        s1 = smplist[i]
-        p1 = ra[s1]
+    if naive_beta_numba is not None:
+        out = naive_beta_numba(ra.to_numpy(), q)
+        out = pd.DataFrame(out, index=smplist, columns=smplist)
 
-        for j in range(i + 1, len(smplist)):
-            s2 = smplist[j]
-            p2 = ra[s2]
-
-            # q = 1 (Shannon case)
-            if q == 1:
-                # α-diversity
-                mask1 = p1 > 0
-                H1 = (p1[mask1] * np.log(p1[mask1])).sum()
-
-                mask2 = p2 > 0
-                H2 = (p2[mask2] * np.log(p2[mask2])).sum()
-
-                alpha = math.exp(-0.5 * H1 - 0.5 * H2)
-
-                # γ-diversity
-                m = (p1 + p2) / 2
-                maskg = m > 0
-                Hg = (m[maskg] * np.log(m[maskg])).sum()
-                gamma = math.exp(-Hg)
-
-                beta = gamma / alpha
-
-            # q ≠ 1 (General Hill case)
-            else:
-                # α-diversity
-                p1q = p1[p1 > 0].pow(q).sum()
-                p2q = p2[p2 > 0].pow(q).sum()
-                alpha = (0.5 * p1q + 0.5 * p2q) ** (1.0 / (1.0 - q))
-
-                # γ-diversity
-                m = (p1 + p2) / 2
-                mq = m[m > 0].pow(q).sum()
-                gamma = mq ** (1.0 / (1.0 - q))
-
-                beta = gamma / alpha
-
-            out.loc[s1, s2] = beta
-            out.loc[s2, s1] = beta
+    else:
+        for i in range(len(smplist) - 1):
+            s1 = smplist[i]
+            p1 = ra[s1]
+    
+            for j in range(i + 1, len(smplist)):
+                s2 = smplist[j]
+                p2 = ra[s2]
+    
+                # q = 1 (Shannon case)
+                if q == 1:
+                    # α-diversity
+                    mask1 = p1 > 0
+                    H1 = (p1[mask1] * np.log(p1[mask1])).sum()
+    
+                    mask2 = p2 > 0
+                    H2 = (p2[mask2] * np.log(p2[mask2])).sum()
+    
+                    alpha = math.exp(-0.5 * H1 - 0.5 * H2)
+    
+                    # γ-diversity
+                    m = (p1 + p2) / 2
+                    maskg = m > 0
+                    Hg = (m[maskg] * np.log(m[maskg])).sum()
+                    gamma = math.exp(-Hg)
+    
+                    beta = gamma / alpha
+    
+                # q ≠ 1 (General Hill case)
+                else:
+                    # α-diversity
+                    p1q = p1[p1 > 0].pow(q).sum()
+                    p2q = p2[p2 > 0].pow(q).sum()
+                    alpha = (0.5 * p1q + 0.5 * p2q) ** (1.0 / (1.0 - q))
+    
+                    # γ-diversity
+                    m = (p1 + p2) / 2
+                    mq = m[m > 0].pow(q).sum()
+                    gamma = mq ** (1.0 / (1.0 - q))
+    
+                    beta = gamma / alpha
+    
+                out.loc[s1, s2] = beta
+                out.loc[s2, s1] = beta
 
     # Convert β to dissimilarity if requested
     if dis:

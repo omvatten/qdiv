@@ -65,6 +65,7 @@ def naive_beta_numba(ra, q):
 
     return out
 
+
 # Accelerate phyl_beta
 @njit(cache=True, parallel=True)
 def phyl_beta_numba(A, L, q):
