@@ -180,7 +180,8 @@ def phyl_beta(
     q: float = 1,
     dis: bool = True,
     viewpoint: str = "regional",
-    use_values_in_tab: bool = False
+    use_values_in_tab: bool = False,
+    use_numba: bool = False,
 ) -> pd.DataFrame:
     """
     Compute phylogenetic pairwise beta diversity of order *q*.
@@ -214,6 +215,8 @@ def phyl_beta(
     use_values_in_tab : bool, default=False
         If False, convert abundances to relative abundances.
         If True, assume `tab` already contains relative abundances.
+    use_numba : bool, optional
+        If True, uses Numba path; otherwise uses pure Python implementation.
 
     Returns
     -------
@@ -261,67 +264,93 @@ def phyl_beta(
         missing = branchL.index[branchL.isna()].tolist()
         raise ValueError(f"'branchL' missing for branches: {missing}")
 
+    # Acceleration
+    if use_numba:
+        try:
+            from .accelerate_div import phyl_beta_numba
+        except Exception:
+            print('Numba failed, falling back to Python.')
+            phyl_beta_numba = None
+    else:
+        phyl_beta_numba = None
+
     # --- Pairwise phylogenetic beta diversity --------------------------------
     smplist = ra.columns.tolist()
-    out = pd.DataFrame(0.0, index=smplist, columns=smplist)
 
-    for i in range(len(smplist) - 1):
-        s1 = smplist[i]
-        for j in range(i + 1, len(smplist)):
-            s2 = smplist[j]
+    if phyl_beta_numba is not None:
+        A = tree2.to_numpy(dtype=np.float64)
+        L = branchL.to_numpy(dtype=np.float64)
+        if not np.all(np.isfinite(A)):
+            raise ValueError("Branch abundance matrix contains non-finite values.")
+        if not np.all(np.isfinite(L)):
+            raise ValueError("Branch lengths contain non-finite values.")
+        out_arr = phyl_beta_numba(A, L, float(q))
+        out = pd.DataFrame(out_arr, index=smplist, columns=smplist)
 
-            # Subtree abundances per branch
-            sub = tree2[[s1, s2]].copy()
-            pooled = str(s1)+str(s2)
-            sub[pooled] = sub.mean(axis=1)
-            Tmean = compute_Tmean(tree, sub)
-            Tgamma = Tmean[pooled]
+    else:
+        out = pd.DataFrame(0.0, index=smplist, columns=smplist)
+    
+        for i in range(len(smplist) - 1):
+            s1 = smplist[i]
+            for j in range(i + 1, len(smplist)):
+                s2 = smplist[j]
+    
+                # Subtree abundances per branch
+                sub = tree2[[s1, s2]].copy()
+                pooled = str(s1)+str(s2)
+                sub[pooled] = sub.mean(axis=1)
+                Tmean = compute_Tmean(tree, sub)
+                Tgamma = Tmean[pooled]
+    
+                # --- γ-diversity ---------------------------------------------------
+                g = sub[pooled]
+                if abs(q - 1.0) < 1e-6:
+                    mask = g > 0
+                    term = g.where(mask, 0.0) * np.log(g.where(mask, 1.0))
+                    term = (term * (branchL / Tgamma)).sum()
+                    gamma_div = math.exp(-term)
+                elif q == 0:
+                    occupied_gamma = (g > 0).astype(float)
+                    gamma_div = (occupied_gamma.mul(branchL)).sum() / Tgamma
+                else:
+                    term = (branchL * g.clip(lower=0).pow(q)).sum() / Tgamma
+                    gamma_div = term ** (1.0 / (1.0 - q))
+    
+                # --- α-diversity ---------------------------------------------------
+                a1 = sub[s1]
+                a2 = sub[s2]
+                
+                if q == 1.0:
+                    # Shannon limit
+                    term1 = np.zeros_like(a1)
+                    mask = a1 > 0
+                    term1[mask] = a1[mask] * np.log(a1[mask])
 
-            # --- γ-diversity ---------------------------------------------------
-            g = sub[pooled]
-            if abs(q - 1.0) < 1e-6:
-                mask = g > 0
-                term = g.where(mask, 0.0) * np.log(g.where(mask, 1.0))
-                term = (term * (branchL / Tgamma)).sum()
-                gamma_div = math.exp(-term)
-            elif q == 0:
-                occupied_gamma = (g > 0).astype(float)
-                gamma_div = (occupied_gamma.mul(branchL)).sum() / Tgamma
-            else:
-                term = (branchL * g.clip(lower=0).pow(q)).sum() / Tgamma
-                gamma_div = term ** (1.0 / (1.0 - q))
-
-            # --- α-diversity ---------------------------------------------------
-            a1 = sub[s1]
-            a2 = sub[s2]
-            
-            if abs(q - 1.0) < 1e-6:
-                # Shannon limit
-                mask1 = a1 > 0
-                mask2 = a2 > 0
-            
-                H = -(
-                    (a1[mask1] * np.log(a1[mask1]) + a2[mask2] * np.log(a2[mask2]))
-                    .mul(branchL, axis=0)
-                    .sum()
-                    / (2.0 * Tgamma)
-                )
-                alpha_div = math.exp(H)
-            elif q == 0:
-                pos_counts = ((a1 > 0).astype(float) + (a2 > 0).astype(float))
-                alpha_div = (branchL * pos_counts).sum() / (2.0 * Tgamma)
-            else:
-                term = (
-                    branchL *
-                    ((a1.clip(lower=0).pow(q) + a2.clip(lower=0).pow(q)) / 2.0)
-                ).sum() / Tgamma
-            
-                alpha_div = term ** (1.0 / (1.0 - q))
-
-            # β-diversity
-            beta_val = gamma_div / alpha_div
-            out.loc[s1, s2] = beta_val
-            out.loc[s2, s1] = beta_val
+                    term2 = np.zeros_like(a2)
+                    mask = a2 > 0
+                    term2[mask] = a2[mask] * np.log(a2[mask])
+                    
+                    H = -(
+                        (branchL * (term1 + term2)).sum()
+                        / (2.0 * Tgamma)
+                    )
+                
+                    alpha_div = math.exp(H)
+                elif q == 0:
+                    pos_counts = ((a1 > 0).astype(float) + (a2 > 0).astype(float))
+                    alpha_div = (branchL * pos_counts).sum() / (2.0 * Tgamma)
+                else:
+                    term = (
+                        branchL *
+                        ((a1.clip(lower=0).pow(q) + a2.clip(lower=0).pow(q)) / 2.0)
+                    ).sum() / Tgamma
+                
+                    alpha_div = term ** (1.0 / (1.0 - q))
+    
+                # β-diversity
+                beta_val = gamma_div / alpha_div
+                out.loc[s1, s2] = beta_val
+                out.loc[s2, s1] = beta_val
 
     # --- Convert β to dissimilarity if requested ------------------------------
     if dis:

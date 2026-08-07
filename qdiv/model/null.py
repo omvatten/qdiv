@@ -46,6 +46,7 @@ def rcq(
     q: float = 1.0,
     use_tqdm: bool = True,
     random_state: Optional[Union[int, np.random.Generator]] = None,
+    use_numba: bool = True,
     **kwargs,
 ) -> Dict[str, pd.DataFrame]:
     """
@@ -84,6 +85,8 @@ def rcq(
         Use `tqdm` for progress bars.
     random_state : int | numpy.random.Generator, optional
         Random seed or Generator for reproducibility.
+    use_numba : bool, optional
+        If True, uses Numba path; otherwise uses pure Python implementation.
 
     Returns
     -------
@@ -168,9 +171,9 @@ def rcq(
         if div_type.lower() == "jaccard":
             return jaccard(t)
         if div_type == "naive":
-            return naive_beta(t, q=q)
+            return naive_beta(t, q=q, use_numba=use_numba)
         if div_type == "phyl":
-            return phyl_beta({"tab": t, "tree": tree}, q=q)
+            return phyl_beta({"tab": t, "tree": tree}, q=q, use_numba=use_numba)
         if div_type == "func":
             return func_beta(t, distmat, q=q)
         raise ValueError("Unsupported div_type. Choose among {'Jaccard','Bray','naive','phyl','func'}.")
