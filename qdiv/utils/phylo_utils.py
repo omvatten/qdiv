@@ -11,6 +11,7 @@ Functions for phylogenetic trees:
     - rename_leaves : rename leaves in dataframe
     - ra_to_branches : get dataframe with each branch and the ra for each sample
     - compute_Tmean : get Tmean for a tree dataframe and featurelist
+    - ladderize_tree_df : ladderize tree for plotting
 """
 import pandas as pd
 import numpy as np
@@ -27,7 +28,8 @@ __all__ = [
     "parse_leaves",
     "rename_leaves",
     "ra_to_branches",
-    "compute_Tmean"
+    "compute_Tmean",
+    "ladderize_tree_df",
 ]
 
 AUTO_INTERNAL_PREFIX = "in"
