@@ -322,7 +322,7 @@ def phyl_beta(
     
                 # --- γ-diversity ---------------------------------------------------
                 g = sub[pooled]
-                if abs(q - 1.0) < 1e-6:
+                if q == 1.0:
                     mask = g > 0
                     term = g.where(mask, 0.0) * np.log(g.where(mask, 1.0))
                     term = (term * (branchL / Tgamma)).sum()
@@ -339,7 +339,6 @@ def phyl_beta(
                 a2 = sub[s2]
                 
                 if q == 1.0:
-                    # Shannon limit
                     term1 = np.zeros_like(a1)
                     mask = a1 > 0
                     term1[mask] = a1[mask] * np.log(a1[mask])
@@ -348,11 +347,7 @@ def phyl_beta(
                     mask = a2 > 0
                     term2[mask] = a2[mask] * np.log(a2[mask])
                     
-                    H = -(
-                        (branchL * (term1 + term2)).sum()
-                        / (2.0 * Tgamma)
-                    )
-                
+                    H = -((branchL * (term1 + term2)).sum() / (2.0 * Tgamma))
                     alpha_div = math.exp(H)
                 elif q == 0:
                     pos_counts = ((a1 > 0).astype(float) + (a2 > 0).astype(float))
@@ -388,6 +383,7 @@ def func_beta(
     viewpoint: str = "regional",
     use_values_in_tab: bool = False,
     use_tqdm: bool = True,
+    use_numba: bool = False,
 ) -> pd.DataFrame:
     """
     Compute functional pairwise beta diversity of order *q*.
@@ -424,6 +420,8 @@ def func_beta(
         If True, assume `tab` already contains relative abundances.
     use_tqdm : bool, default=True
         Use `tqdm` for progress bars.
+    use_numba : bool, optional
+        If True, uses Numba path; otherwise uses pure Python implementation.
 
     Returns
     -------
@@ -465,104 +463,121 @@ def func_beta(
     # Align distance matrix to features
     asvs = ra.index.tolist()
     distmat = distmat.loc[asvs, asvs]
-
     smplist = list(ra.columns)
-    outD = pd.DataFrame(0.0, index=smplist, columns=smplist)
 
-    # Pairwise functional beta diversity
-    tqdm = _get_tqdm(use_tqdm)
+    # Check accelerator
+    if use_numba:
+        try:
+            from .accelerate_div import func_beta_numba
+        except ImportError:
+            print("Numba not available, falling back to Python.")
+            func_beta_numba = None
+    else:
+        func_beta_numba = None
 
-    for i in tqdm(range(len(smplist) - 1), desc="func_beta", unit="sample"):
-        for j in range(i + 1, len(smplist)):
-            s1 = smplist[i]
-            s2 = smplist[j]
+    if func_beta_numba is not None:
+        D = np.ascontiguousarray(distmat.to_numpy(dtype=np.float64, copy=True))
+        R = np.ascontiguousarray(ra.to_numpy(dtype=np.float64, copy=True))
+        out_arr = func_beta_numba(D, R, float(q))
+        outD = pd.DataFrame(out_arr, index=smplist, columns=smplist)
 
-            # Subset abundances for the two samples
-            ra12 = ra[[s1, s2]].copy()
-            ra12["mean"] = ra12.mean(axis=1)
-
-            # Rao's Q for each column and for the mean
-            Qvals = rao(ra12, distmat)
-            Q_pooled = Qvals["mean"]
-            dqmat = distmat * (1.0 / Q_pooled)
-
-            # -------------------------
-            # Gamma component (Dg)
-            # -------------------------
-            mask_g = ra12["mean"] > 0
-            p_mean = ra12.loc[mask_g, "mean"].to_numpy()
-            outer_mean = np.outer(p_mean, p_mean)
-
-            if q == 1:
-                # Shannon-type functional gamma
-                log_outer = np.log(outer_mean)
-                term = outer_mean * log_outer
-                # dqmat restricted to nonzero rows/cols
-                d_sub = dqmat.loc[mask_g, mask_g].to_numpy()
-                Dg = math.exp(-0.5 * np.sum(term * d_sub))
-            else:
-                outer_q = outer_mean ** q
-                d_sub = dqmat.loc[mask_g, mask_g].to_numpy()
-                val = np.sum(outer_q * d_sub)
-                Dg = val ** (1.0 / (2.0 * (1.0 - q)))
-
-            # -------------------------
-            # Alpha component (Da)
-            # -------------------------
-            # A: p1 × p1
-            mask1 = ra12[s1] > 0
-            p1 = ra12.loc[mask1, s1].to_numpy()
-            outer11 = np.outer(p1, p1) / 4.0
-            d11 = dqmat.loc[mask1, mask1].to_numpy()
-
-            # B: p2 × p2
-            mask2 = ra12[s2] > 0
-            p2 = ra12.loc[mask2, s2].to_numpy()
-            outer22 = np.outer(p2, p2) / 4.0
-            d22 = dqmat.loc[mask2, mask2].to_numpy()
-
-            # C: p1 × p2
-            # note: indices differ; use full submatrix
-            outer12 = np.outer(p1, p2) / 4.0
-            d12 = dqmat.loc[mask1, mask2].to_numpy()
-
-            if q == 1:
-                # Shannon-type functional alpha
-                # A
-                log11 = np.log(outer11)
-                term11 = outer11 * log11 * d11
-                asum1 = term11.sum()
-
-                # B
-                log22 = np.log(outer22)
-                term22 = outer22 * log22 * d22
-                asum2 = term22.sum()
-
-                # C
-                log12 = np.log(outer12)
-                term12 = outer12 * log12 * d12
-                asum12 = term12.sum()
-
-                Da = 0.5 * math.exp(-0.5 * (asum1 + asum2 + 2.0 * asum12))
-            else:
-                # General q alpha
-                a11_q = outer11 ** q
-                asum1 = np.sum(a11_q * d11)
-
-                a22_q = outer22 ** q
-                asum2 = np.sum(a22_q * d22)
-
-                a12_q = outer12 ** q
-                asum12 = np.sum(a12_q * d12)
-
-                Da = 0.5 * (asum1 + asum2 + 2.0 * asum12) ** (1.0 / (2.0 * (1.0 - q)))
-
-            # -------------------------
-            # Beta component
-            # -------------------------
-            beta_val = Dg / Da
-            outD.loc[s1, s2] = beta_val
-            outD.loc[s2, s1] = beta_val
+    else:
+        outD = pd.DataFrame(0.0, index=smplist, columns=smplist)
+    
+        # Pairwise functional beta diversity
+        tqdm = _get_tqdm(use_tqdm)
+    
+        for i in tqdm(range(len(smplist) - 1), desc="func_beta", unit="sample"):
+            for j in range(i + 1, len(smplist)):
+                s1 = smplist[i]
+                s2 = smplist[j]
+    
+                # Subset abundances for the two samples
+                ra12 = ra[[s1, s2]].copy()
+                ra12["mean"] = ra12.mean(axis=1)
+    
+                # Rao's Q for each column and for the mean
+                Qvals = rao(ra12, distmat)
+                Q_pooled = Qvals["mean"]
+                dqmat = distmat * (1.0 / Q_pooled)
+    
+                # -------------------------
+                # Gamma component (Dg)
+                # -------------------------
+                mask_g = ra12["mean"] > 0
+                p_mean = ra12.loc[mask_g, "mean"].to_numpy()
+                outer_mean = np.outer(p_mean, p_mean)
+    
+                if q == 1:
+                    # Shannon-type functional gamma
+                    log_outer = np.log(outer_mean)
+                    term = outer_mean * log_outer
+                    # dqmat restricted to nonzero rows/cols
+                    d_sub = dqmat.loc[mask_g, mask_g].to_numpy()
+                    Dg = math.exp(-0.5 * np.sum(term * d_sub))
+                else:
+                    outer_q = outer_mean ** q
+                    d_sub = dqmat.loc[mask_g, mask_g].to_numpy()
+                    val = np.sum(outer_q * d_sub)
+                    Dg = val ** (1.0 / (2.0 * (1.0 - q)))
+    
+                # -------------------------
+                # Alpha component (Da)
+                # -------------------------
+                # A: p1 × p1
+                mask1 = ra12[s1] > 0
+                p1 = ra12.loc[mask1, s1].to_numpy()
+                outer11 = np.outer(p1, p1) / 4.0
+                d11 = dqmat.loc[mask1, mask1].to_numpy()
+    
+                # B: p2 × p2
+                mask2 = ra12[s2] > 0
+                p2 = ra12.loc[mask2, s2].to_numpy()
+                outer22 = np.outer(p2, p2) / 4.0
+                d22 = dqmat.loc[mask2, mask2].to_numpy()
+    
+                # C: p1 × p2
+                # note: indices differ; use full submatrix
+                outer12 = np.outer(p1, p2) / 4.0
+                d12 = dqmat.loc[mask1, mask2].to_numpy()
+    
+                if q == 1:
+                    # Shannon-type functional alpha
+                    # A
+                    log11 = np.log(outer11)
+                    term11 = outer11 * log11 * d11
+                    asum1 = term11.sum()
+    
+                    # B
+                    log22 = np.log(outer22)
+                    term22 = outer22 * log22 * d22
+                    asum2 = term22.sum()
+    
+                    # C
+                    log12 = np.log(outer12)
+                    term12 = outer12 * log12 * d12
+                    asum12 = term12.sum()
+    
+                    Da = 0.5 * math.exp(-0.5 * (asum1 + asum2 + 2.0 * asum12))
+                else:
+                    # General q alpha
+                    a11_q = outer11 ** q
+                    asum1 = np.sum(a11_q * d11)
+    
+                    a22_q = outer22 ** q
+                    asum2 = np.sum(a22_q * d22)
+    
+                    a12_q = outer12 ** q
+                    asum12 = np.sum(a12_q * d12)
+    
+                    Da = 0.5 * (asum1 + asum2 + 2.0 * asum12) ** (1.0 / (2.0 * (1.0 - q)))
+    
+                # -------------------------
+                # Beta component
+                # -------------------------
+                beta_val = Dg / Da
+                outD.loc[s1, s2] = beta_val
+                outD.loc[s2, s1] = beta_val
 
     # Square β to get FD-like measure
     outFD = outD.pow(2)

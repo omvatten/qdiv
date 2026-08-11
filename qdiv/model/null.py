@@ -175,7 +175,7 @@ def rcq(
         if div_type == "phyl":
             return phyl_beta({"tab": t, "tree": tree}, q=q, use_numba=use_numba)
         if div_type == "func":
-            return func_beta(t, distmat, q=q)
+            return func_beta(t, distmat, q=q, use_numba=use_numba, use_tqdm=False)
         raise ValueError("Unsupported div_type. Choose among {'Jaccard','Bray','naive','phyl','func'}.")
 
     # --- Observed beta-diversity
