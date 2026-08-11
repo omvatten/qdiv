@@ -420,8 +420,7 @@ def make_beta_splitting_tree_df(
     root_name: str = "Root",
     leaf_prefix: str = "OTU",
     internal_prefix: str = "in",
-    tip_noise: float = 0.0,
-    noise_dict: Optional[dict] = None,
+    node_branch_offsets: Optional[dict] = None,
     random_state: Optional[int] = None,
 ) -> pd.DataFrame:
     """
@@ -442,6 +441,20 @@ def make_beta_splitting_tree_df(
         - float: fixed length for all edges.
         - sequence[len = max_level+1] indexed by *parent level* (0=root).
         - callable(level, parent_name, child_index)->float for full control.
+    root_name : str
+        Name of root node, default='root'
+    leaf_prefix : str
+        Names of leaves, default='OTU'
+    internal_prefix : str
+        Names of internal nodes, default='in'
+    node_branch_offsets : dict[str, float], optional
+        Deterministic branch-length offsets keyed by node name.
+        For each ``node: offset`` pair, ``offset`` is added to the incoming
+        branch length of that node. The same offset is also propagated to
+        ``dist_to_root`` for the node and all of its descendants, preserving
+        downstream root-to-tip distances.
+    random_state : int | numpy.random.Generator, optional
+        Random seed or Generator for reproducibility.
     """
 
     if n_leaves < 1:
@@ -618,27 +631,18 @@ def make_beta_splitting_tree_df(
             for c in children.get(n, []):
                 queue.append((c, n, lvl + 1, dist_now))
 
-    # ----- Optional noise on branches -------------------------------
-    if abs(tip_noise) > 1e-12:
-        leaf_nr = 0
-        for i, node in enumerate(nodes_df):
-            if len(children.get(node, [])) == 0:
-                leaf_nr += 1
-                noise_len = tip_noise * leaf_nr
-                branchL_df[i] += noise_len
-                dist_df[i] += noise_len
-
-    if isinstance(noise_dict, dict):
+    # ----- Manual offsets to branches -------------------------------
+    if isinstance(node_branch_offsets, dict):
         node_to_idx = {n: i for i, n in enumerate(nodes_df)}
 
-        def propagate(node, noise):
-            dist_df[node_to_idx[node]] += noise
+        def propagate(node, offset):
+            dist_df[node_to_idx[node]] += offset
             for child in children.get(node, []):
-                propagate(child, noise)
+                propagate(child, offset)
 
-        for node, noise in noise_dict.items():
-            branchL_df[node_to_idx[node]] += noise
-            propagate(node, noise)
+        for node, offset in node_branch_offsets.items():
+            branchL_df[node_to_idx[node]] += offset
+            propagate(node, offset)
 
 
     # ----- Assemble DataFrame -------------------------------------------------
