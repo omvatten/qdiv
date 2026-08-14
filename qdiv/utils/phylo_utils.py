@@ -139,6 +139,8 @@ def parse_newick(newick: str):
                 length, i = read_number(i)
                 i = skip_ws(i)
 
+            if not stack:
+                raise ValueError("Unbalanced parentheses")
             node = stack.pop()
             node["length"] = length
             if label is None:
@@ -187,9 +189,12 @@ def parse_newick(newick: str):
     # Ensure root exists
     if root is None:
         raise ValueError("Empty or invalid Newick string")
+    if stack:
+        raise ValueError("Unbalanced parentheses")
 
     # Root length should be None
     root["length"] = None
+
     return root
 
 def tree_to_dataframe(tree):
@@ -204,8 +209,12 @@ def tree_to_dataframe(tree):
     branch_lengths = []
     leaves = []
 
-    # --- Traversal to collect nodes ---
-    def collect(node, parent_name):
+    # Stack items: node, parent_name
+    stack = [(tree, None)]
+
+    while stack:
+        node, parent_name = stack.pop()
+
         name = node["name"]
         length = node["length"]
         children = node["children"]
@@ -214,15 +223,14 @@ def tree_to_dataframe(tree):
         parents.append(parent_name)
         branch_lengths.append(0.0 if parent_name is None else (length or 0.0))
 
-        if not children:  # leaf
+        if not children:
             leaves.append({name})
         else:
-            leaves.append(set())   # internal, will fill later
+            leaves.append(set())
 
-        for c in children:
-            collect(c, name)
-
-    collect(tree, parent_name=None)
+        # Reverse so original left-to-right Newick order is preserved
+        for c in reversed(children):
+            stack.append((c, name))
 
     df = pd.DataFrame({
         "nodes": nodes,
@@ -231,50 +239,51 @@ def tree_to_dataframe(tree):
         "leaves": leaves,
     })
 
-    # --- Compute leaf sets bottom-up ---
+    # --- Compute child maps ---
     children_map = {}
-    for node, parent in zip(df["nodes"], df["parent"]):
+    for node, parent in zip(nodes, parents):
         if parent is not None:
             children_map.setdefault(parent, []).append(node)
 
-    # Postorder: process children before parent
-    order = list(reversed(df.index.tolist()))
-    leaf_map = {n: set(df.loc[df["nodes"] == n, "leaves"].values[0]) for n in df["nodes"]}
+    # --- Compute leaf sets bottom-up ---
+    leaf_map = dict(zip(nodes, leaves))
 
-    for idx in order:
-        n = df.at[idx, "nodes"]
+    for n in reversed(nodes):
         if n in children_map:
             merged = set()
             for c in children_map[n]:
-                merged |= leaf_map[c]
+                merged.update(leaf_map[c])
             leaf_map[n] = merged
 
     df["leaves"] = df["nodes"].map(leaf_map)
 
     # --- Distance to root ---
-    name_to_idx = {n: i for i, n in enumerate(df["nodes"])}
-    parent_idx = np.full(len(df), -1, dtype=int)
+    name_to_idx = {n: i for i, n in enumerate(nodes)}
+    parent_idx = np.full(len(nodes), -1, dtype=int)
 
-    for i, (n, p) in enumerate(zip(df["nodes"], df["parent"])):
-        if p in name_to_idx:
+    for i, p in enumerate(parents):
+        if p is not None:
             parent_idx[i] = name_to_idx[p]
 
-    branch_len = df["branchL"].to_numpy(float)
-    dist = np.zeros(len(df))
+    branch_len = np.asarray(branch_lengths, dtype=float)
+    dist = np.zeros(len(nodes), dtype=float)
+
+    children_idx = [[] for _ in range(len(nodes))]
+    for child_i, parent_i in enumerate(parent_idx):
+        if parent_i != -1:
+            children_idx[parent_i].append(child_i)
 
     roots = np.where(parent_idx == -1)[0]
     stack = list(roots)
 
     while stack:
         p = stack.pop()
-        children = np.where(parent_idx == p)[0]
-        for c in children:
+        for c in children_idx[p]:
             dist[c] = dist[p] + branch_len[c]
             stack.append(c)
 
     df["dist_to_root"] = dist
     return df
-
 
 def dataframe_to_tree(df):
     """
