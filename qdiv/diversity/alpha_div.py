@@ -153,8 +153,20 @@ def phyl_alpha(
     # Get input
     tab = get_df(obj, "tab")
     tree = get_df(obj, "tree")
-    if "leaves" not in tree.columns or "branchL" not in tree.columns:
-        raise ValueError("`tree` must contain columns 'leaves' and 'branchL'.")
+    if tree is None:
+        raise ValueError('tree is missing.')
+    leaf_order = get_df(obj, "leaf_order")
+    
+    # Confirm input is ok
+    required_tree_cols = {"branchL", "leaf_start", "leaf_end"}
+    missing = required_tree_cols - set(tree.columns)
+    if missing:
+        raise ValueError(
+            f"`tree` must contain columns {sorted(required_tree_cols)}. "
+            f"Missing: {sorted(missing)}."
+        )
+    if leaf_order is None:
+        raise ValueError("`leaf_order` is required for trees.")
 
     # Ensure numeric
     try:
@@ -174,11 +186,8 @@ def phyl_alpha(
             raise ValueError(f"One or more samples have zero total abundance: {bad}")
         ra = tab.div(col_sums, axis=1)
 
-    #Subset tree to features in tab
-    tree = subset_tree_df(tree, ra.index.tolist()) #Function from utils
-
     # Build branch × sample abundance matrix
-    tree2 = ra_to_branches(ra, tree) #Function from utils
+    tree2 = ra_to_branches(ra, tree, leaf_order)
 
     # Get Tmean
     Tmean = compute_Tmean(tree, tree2) #Function from utils

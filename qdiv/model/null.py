@@ -137,6 +137,7 @@ def rcq(
             meta = None
     if div_type == "phyl":
         tree = get_df(obj, "tree")
+        leaf_order = obj.leaf_order.copy()
 
     if div_type == "func":
         if not isinstance(distmat, pd.DataFrame):
@@ -173,7 +174,7 @@ def rcq(
         if div_type == "naive":
             return naive_beta(t, q=q, use_numba=use_numba)
         if div_type == "phyl":
-            return phyl_beta({"tab": t, "tree": tree}, q=q, use_numba=use_numba)
+            return phyl_beta({"tab": t, "tree": tree, "leaf_order": leaf_order}, q=q, use_numba=use_numba)
         if div_type == "func":
             return func_beta(t, distmat, q=q, use_numba=use_numba, use_tqdm=False)
         raise ValueError("Unsupported div_type. Choose among {'Jaccard','Bray','naive','phyl','func'}.")

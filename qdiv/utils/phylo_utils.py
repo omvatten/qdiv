@@ -197,17 +197,106 @@ def parse_newick(newick: str):
 
     return root
 
+# def tree_to_dataframe(tree):
+#     """
+#     Convert the dictionary tree structure produced by parse_newick()
+#     into a DataFrame with columns:
+#         nodes, leaves, branchL, parent, dist_to_root
+#     """
+
+#     nodes = []
+#     parents = []
+#     branch_lengths = []
+#     leaves = []
+
+#     # Stack items: node, parent_name
+#     stack = [(tree, None)]
+
+#     while stack:
+#         node, parent_name = stack.pop()
+
+#         name = node["name"]
+#         length = node["length"]
+#         children = node["children"]
+
+#         nodes.append(name)
+#         parents.append(parent_name)
+#         branch_lengths.append(0.0 if parent_name is None else (length or 0.0))
+
+#         if not children:
+#             leaves.append({name})
+#         else:
+#             leaves.append(set())
+
+#         # Reverse so original left-to-right Newick order is preserved
+#         for c in reversed(children):
+#             stack.append((c, name))
+
+#     df = pd.DataFrame({
+#         "nodes": nodes,
+#         "parent": parents,
+#         "branchL": branch_lengths,
+#         "leaves": leaves,
+#     })
+
+#     # --- Compute child maps ---
+#     children_map = {}
+#     for node, parent in zip(nodes, parents):
+#         if parent is not None:
+#             children_map.setdefault(parent, []).append(node)
+
+#     # --- Compute leaf sets bottom-up ---
+#     leaf_map = dict(zip(nodes, leaves))
+
+#     for n in reversed(nodes):
+#         if n in children_map:
+#             merged = set()
+#             for c in children_map[n]:
+#                 merged.update(leaf_map[c])
+#             leaf_map[n] = merged
+
+#     df["leaves"] = df["nodes"].map(leaf_map)
+
+#     # --- Distance to root ---
+#     name_to_idx = {n: i for i, n in enumerate(nodes)}
+#     parent_idx = np.full(len(nodes), -1, dtype=int)
+
+#     for i, p in enumerate(parents):
+#         if p is not None:
+#             parent_idx[i] = name_to_idx[p]
+
+#     branch_len = np.asarray(branch_lengths, dtype=float)
+#     dist = np.zeros(len(nodes), dtype=float)
+
+#     children_idx = [[] for _ in range(len(nodes))]
+#     for child_i, parent_i in enumerate(parent_idx):
+#         if parent_i != -1:
+#             children_idx[parent_i].append(child_i)
+
+#     roots = np.where(parent_idx == -1)[0]
+#     stack = list(roots)
+
+#     while stack:
+#         p = stack.pop()
+#         for c in children_idx[p]:
+#             dist[c] = dist[p] + branch_len[c]
+#             stack.append(c)
+
+#     df["dist_to_root"] = dist
+#     return df
+
 def tree_to_dataframe(tree):
     """
     Convert the dictionary tree structure produced by parse_newick()
-    into a DataFrame with columns:
-        nodes, leaves, branchL, parent, dist_to_root
-    """
+    into a DataFrame.
 
+    Returns:
+        - df with columns: nodes, branchL, parent, dist_to_root, leaf_start, leaf_end
+        - leaf_order list
+    """
     nodes = []
     parents = []
     branch_lengths = []
-    leaves = []
 
     # Stack items: node, parent_name
     stack = [(tree, None)]
@@ -221,69 +310,77 @@ def tree_to_dataframe(tree):
 
         nodes.append(name)
         parents.append(parent_name)
-        branch_lengths.append(0.0 if parent_name is None else (length or 0.0))
+        branch_lengths.append(
+            0.0 if parent_name is None else (length or 0.0)
+        )
 
-        if not children:
-            leaves.append({name})
-        else:
-            leaves.append(set())
-
-        # Reverse so original left-to-right Newick order is preserved
+        # Reverse so original left-to-right order is preserved
         for c in reversed(children):
             stack.append((c, name))
 
-    df = pd.DataFrame({
-        "nodes": nodes,
-        "parent": parents,
-        "branchL": branch_lengths,
-        "leaves": leaves,
-    })
-
-    # --- Compute child maps ---
-    children_map = {}
-    for node, parent in zip(nodes, parents):
-        if parent is not None:
-            children_map.setdefault(parent, []).append(node)
-
-    # --- Compute leaf sets bottom-up ---
-    leaf_map = dict(zip(nodes, leaves))
-
-    for n in reversed(nodes):
-        if n in children_map:
-            merged = set()
-            for c in children_map[n]:
-                merged.update(leaf_map[c])
-            leaf_map[n] = merged
-
-    df["leaves"] = df["nodes"].map(leaf_map)
-
-    # --- Distance to root ---
+    # --- Build parent/child lookup ---
     name_to_idx = {n: i for i, n in enumerate(nodes)}
-    parent_idx = np.full(len(nodes), -1, dtype=int)
+
+    parent_idx = np.full(len(nodes), -1, dtype=np.int32)
+    children_idx = [[] for _ in range(len(nodes))]
 
     for i, p in enumerate(parents):
         if p is not None:
-            parent_idx[i] = name_to_idx[p]
+            pi = name_to_idx[p]
+            parent_idx[i] = pi
+            children_idx[pi].append(i)
 
+    # Assign leaf numbers in traversal order
+    leaf_start = np.full(len(nodes), -1, dtype=np.int32)
+    leaf_end = np.full(len(nodes), -1, dtype=np.int32)
+
+    leaf_counter = 0
+    leaf_order = []
+
+    for i in range(len(nodes)):
+        if len(children_idx[i]) == 0:  # leaf
+            leaf_start[i] = leaf_counter
+            leaf_end[i] = leaf_counter + 1
+            leaf_order.append(nodes[i])
+            leaf_counter += 1
+
+    # Bottom-up propagation
+    for i in range(len(nodes) - 1, -1, -1):
+        if children_idx[i]:
+            starts = [leaf_start[c] for c in children_idx[i]]
+            ends = [leaf_end[c] for c in children_idx[i]]
+            leaf_start[i] = min(starts)
+            leaf_end[i] = max(ends)
+
+    # ------------------------------------------------------------------
+    # Distance to root
+    # ------------------------------------------------------------------
     branch_len = np.asarray(branch_lengths, dtype=float)
     dist = np.zeros(len(nodes), dtype=float)
-
-    children_idx = [[] for _ in range(len(nodes))]
-    for child_i, parent_i in enumerate(parent_idx):
-        if parent_i != -1:
-            children_idx[parent_i].append(child_i)
 
     roots = np.where(parent_idx == -1)[0]
     stack = list(roots)
 
     while stack:
         p = stack.pop()
+
         for c in children_idx[p]:
             dist[c] = dist[p] + branch_len[c]
             stack.append(c)
 
-    df["dist_to_root"] = dist
-    return df
+    # ------------------------------------------------------------------
+    # Build dataframe
+    # ------------------------------------------------------------------
+    data = {
+        "nodes": nodes,
+        "parent": parents,
+        "branchL": branch_lengths,
+        "dist_to_root": dist,
+        "leaf_start": leaf_start,
+        "leaf_end": leaf_end,
+    }
+    return pd.DataFrame(data), leaf_order
+
 
 def dataframe_to_tree(df):
     """
@@ -889,136 +986,215 @@ def parse_leaves(leaves):
 # Rename leaves work on dataframe
 def rename_leaves(
     df: pd.DataFrame,
+    leaf_order: list,
     leaf_dict: dict,
     *,
     allow_partial: bool = True,
     inplace: bool = False,
-) -> pd.DataFrame:
+):
     """
-    Fast renamer for leaf labels in a DataFrame-based tree created by tree_to_dataframe().
-    Preserves your original semantics:
-      • Only *tips* are renamed in 'nodes'
-      • 'parent' values are also remapped if they happen to be leaf names (rare)
-      • Each row's 'leaves' set is renamed accordingly
-      • Validates collisions and (optionally) missing mapping keys
+    Rename tip labels in an inte*val-based tree.
 
-    Expected columns: 'nodes' (object), 'parent' (object), 'branchL' (float), 'leaves' (set of str)
-
-    Parameters
-    ----------
-    df : pd.DataFrame
-    leaf_dict : dict {old_leaf_name -> new_leaf_name}
-    allow_partial : bool
-        If False, raise if some mapping keys are not present among leaves.
-    inplace : bool
-        If True mutate df, else return a copy.
-
-    Returns
-    -------
-    pd.DataFrame
+    Returns:
+        (tree_df, leaf_order)
     """
+
     if not isinstance(df, pd.DataFrame):
         raise TypeError("df must be a pandas DataFrame")
     if not isinstance(leaf_dict, dict):
-        raise TypeError("leaf_dict must be a dict {old->new}")
+        raise TypeError("leaf_dict must be a dict")
 
-    required_cols = {"nodes", "parent", "branchL", "leaves"}
-    missing = required_cols - set(df.columns)
-    if missing:
-        raise ValueError(f"Tree DataFrame missing columns: {sorted(missing)}")
+    T = df if inplace else df.copy()
 
-    T = df if inplace else df.copy(deep=True)
+    # ------------------------------------------------------------------
+    #*Validation
+    # ------------------------------------------------------------------
 
-    # --- 1) Ensure 'leaves' column contains sets (fast-path if already true) ---
-    # tree_to_dataframe() populates sets, so this is typically a no-op.
-    # Only repair rows whose value isn't a set to avoid O(n) conversions.
-    if not all(isinstance(x, set) for x in T["leaves"].values):
-        T["leaves"] = T["leaves"].apply(
-            lambda x: x if isinstance(x, set)
-            else (set(x) if isinstance(x, (list, tuple)) else ({x} if isinstance(x, str) else set()))
-        )
+    leaf_set = set(leaf_order)
 
-    # --- 2) Gather *all leaves* (union of sets) in one pass for validation ---
-    # Use an iterative union to avoid building a giant intermediate list
-    all_leaves = set()
-    for s in T["leaves"].values:
-        all_leaves |= s
-
-    # --- 3) Validation: presence & collisions ---
+    # Validate that all requested rename keys are present
     if not allow_partial:
-        missing_keys = set(leaf_dict.keys()) - all_leaves
-        if missing_keys:
-            raise ValueError(f"Some mapping keys are not present among leaves: {sorted(missing_keys)}")
+        missing = set(leaf_dict.keys()) - leaf_set
+    
+        if missing:
+            raise ValueError(
+                f"Some mapping keys are not present among leaves: "
+                f"{sorted(missing)}"
+            )
 
     # Prevent mapping two different old leaves to the same new name
     reverse = {}
     for old, new in leaf_dict.items():
         if new in reverse and reverse[new] != old:
-            raise ValueError(f"Mapping would collide: '{old}' and '{reverse[new]}' -> '{new}'")
+            raise ValueError(
+                f"Mapping would collide: "
+                f"'{old}' and '{reverse[new]}' -> '{new}'"
+            )
+    
         reverse[new] = old
 
-    # Determine which node names are *tips*: they are leaves that are not a parent anywhere
-    parents = set(p for p in T["parent"].dropna().values)
-    # Tip test: in all_leaves and not a parent
-    # Build a mask for tips in 'nodes'
-    # We avoid astype(str): 'nodes' are strings already in data produced by tree_to_dataframe()
-    nodes_vals = T["nodes"].values
-    is_tip_mask = [(n in all_leaves) and (n not in parents) for n in nodes_vals]
+    # ------------------------------------------------------------------
+    # Determine tip nodes
+    # ------------------------------------------------------------------
+    parents = set(T["parent"].dropna())
+    tip_mask = ~T["nodes"].isin(parents)
 
-    # Check for post-rename duplicates among tip names (projected)
-    projected = set()
-    for n, is_tip in zip(nodes_vals, is_tip_mask):
-        if not is_tip:
-            continue
-        new_name = leaf_dict.get(n, n)
-        if new_name in projected:
-            raise ValueError(f"Renaming would create duplicate tip name '{new_name}'")
-        projected.add(new_name)
+    # ------------------------------------------------------------------
+    # Rename tip node names
+    # ------------------------------------------------------------------
+    T_nodes = T["nodes"].copy()
+    for idx in T.index[tip_mask]:
+        old = T_nodes.loc[idx]
+        T_nodes.loc[idx] = leaf_dict.get(old, old)
 
-    # --- 4) Apply renaming ---
-    # 4a) 'nodes' for tips only
-    # Build a Series for minimal assignment
-    if any(is_tip_mask):
-        idx = [i for i, m in enumerate(is_tip_mask) if m]
-        # Map only where needed to avoid touching internal nodes
-        T_nodes = T["nodes"].values.copy()
-        for i in idx:
-            old = T_nodes[i]
-            T_nodes[i] = leaf_dict.get(old, old)
-        T["nodes"] = T_nodes
+    T["nodes"] = T_nodes
 
-    # 4b) 'parent' column: if a parent name equals a leaf being renamed, remap it
-    # (rare in rooted trees but harmless)
-    if not T["parent"].isna().all():
-        T_parent = T["parent"].values.copy()
-        for i, p in enumerate(T_parent):
-            if p is not None and p in leaf_dict:
-                T_parent[i] = leaf_dict[p]
-        T["parent"] = T_parent
+    # ------------------------------------------------------------------
+    # Rename leaf_order
+    # ------------------------------------------------------------------
+    new_leaf_order = [leaf_dict.get(x, x) for x in leaf_order]
 
-    # 4c) Rename items inside each row's 'leaves' set
-    # Apply in-place to avoid creating new set objects if possible
-    def _rename_set(s: set) -> set:
-        if not s:
-            return s
-        # Fast path: detect if any element is in mapping; if not, return original set
-        if not (s & set(leaf_dict)):
-            return s
-        # Else, rebuild a new set with mapped names
-        return {leaf_dict.get(x, x) for x in s}
+    # Check duplicates after rename
+    if len(set(new_leaf_order)) != len(new_leaf_order):
+        raise ValueError(
+            "Renaming would create duplicate leaf names."
+        )
 
-    # Since 'leaves' holds sets, we replace only rows that change to keep data movement minimal
-    new_leaves = []
-    changed_any = False
-    for s in T["leaves"].values:
-        new_s = _rename_set(s)
-        new_leaves.append(new_s)
-        changed_any |= (new_s is not s)  # bool OR
+    return T, new_leaf_order
 
-    if changed_any:
-        T["leaves"] = new_leaves
 
-    return T
+# def rename_leaves(
+#     df: pd.DataFrame,
+#     leaf_dict: dict,
+#     *,
+#     allow_partial: bool = True,
+#     inplace: bool = False,
+# ) -> pd.DataFrame:
+#     """
+#     Fast renamer for leaf labels in a DataFrame-based tree created by tree_to_dataframe().
+#     Preserves your original semantics:
+#       • Only *tips* are renamed in 'nodes'
+#       • 'parent' values are also remapped if they happen to be leaf names (rare)
+#       • Each row's 'leaves' set is renamed accordingly
+#       • Validates collisions and (optionally) missing mapping keys
+
+#     Expected columns: 'nodes' (object), 'parent' (object), 'branchL' (float), 'leaves' (set of str)
+
+#     Parameters
+#     ----------
+#     df : pd.DataFrame
+#     leaf_dict : dict {old_leaf_name -> new_leaf_name}
+#     allow_partial : bool
+#         If False, raise if some mapping keys are not present among leaves.
+#     inplace : bool
+#         If True mutate df, else return a copy.
+
+#     Returns
+#     -------
+#     pd.DataFrame
+#     """
+#     if not isinstance(df, pd.DataFrame):
+#         raise TypeError("df must be a pandas DataFrame")
+#     if not isinstance(leaf_dict, dict):
+#         raise TypeError("leaf_dict must be a dict {old->new}")
+
+#     required_cols = {"nodes", "parent", "branchL", "leaves"}
+#     missing = required_cols - set(df.columns)
+#     if missing:
+#         raise ValueError(f"Tree DataFrame missing columns: {sorted(missing)}")
+
+#     T = df if inplace else df.copy(deep=True)
+
+#     # --- 1) Ensure 'leaves' column contains sets (fast-path if already true) ---
+#     # tree_to_dataframe() populates sets, so this is typically a no-op.
+#     # Only repair rows whose value isn't a set to avoid O(n) conversions.
+#     if not all(isinstance(x, set) for x in T["leaves"].values):
+#         T["leaves"] = T["leaves"].apply(
+#             lambda x: x if isinstance(x, set)
+#             else (set(x) if isinstance(x, (list, tuple)) else ({x} if isinstance(x, str) else set()))
+#         )
+
+#     # --- 2) Gather *all leaves* (union of sets) in one pass for validation ---
+#     # Use an iterative union to avoid building a giant intermediate list
+#     all_leaves = set()
+#     for s in T["leaves"].values:
+#         all_leaves |= s
+
+#     # --- 3) Validation: presence & collisions ---
+#     if not allow_partial:
+#         missing_keys = set(leaf_dict.keys()) - all_leaves
+#         if missing_keys:
+#             raise ValueError(f"Some mapping keys are not present among leaves: {sorted(missing_keys)}")
+
+#     # Prevent mapping two different old leaves to the same new name
+#     reverse = {}
+#     for old, new in leaf_dict.items():
+#         if new in reverse and reverse[new] != old:
+#             raise ValueError(f"Mapping would collide: '{old}' and '{reverse[new]}' -> '{new}'")
+#         reverse[new] = old
+
+#     # Determine which node names are *tips*: they are leaves that are not a parent anywhere
+#     parents = set(p for p in T["parent"].dropna().values)
+#     # Tip test: in all_leaves and not a parent
+#     # Build a mask for tips in 'nodes'
+#     # We avoid astype(str): 'nodes' are strings already in data produced by tree_to_dataframe()
+#     nodes_vals = T["nodes"].values
+#     is_tip_mask = [(n in all_leaves) and (n not in parents) for n in nodes_vals]
+
+#     # Check for post-rename duplicates among tip names (projected)
+#     projected = set()
+#     for n, is_tip in zip(nodes_vals, is_tip_mask):
+#         if not is_tip:
+#             continue
+#         new_name = leaf_dict.get(n, n)
+#         if new_name in projected:
+#             raise ValueError(f"Renaming would create duplicate tip name '{new_name}'")
+#         projected.add(new_name)
+
+#     # --- 4) Apply renaming ---
+#     # 4a) 'nodes' for tips only
+#     # Build a Series for minimal assignment
+#     if any(is_tip_mask):
+#         idx = [i for i, m in enumerate(is_tip_mask) if m]
+#         # Map only where needed to avoid touching internal nodes
+#         T_nodes = T["nodes"].values.copy()
+#         for i in idx:
+#             old = T_nodes[i]
+#             T_nodes[i] = leaf_dict.get(old, old)
+#         T["nodes"] = T_nodes
+
+#     # 4b) 'parent' column: if a parent name equals a leaf being renamed, remap it
+#     # (rare in rooted trees but harmless)
+#     if not T["parent"].isna().all():
+#         T_parent = T["parent"].values.copy()
+#         for i, p in enumerate(T_parent):
+#             if p is not None and p in leaf_dict:
+#                 T_parent[i] = leaf_dict[p]
+#         T["parent"] = T_parent
+
+#     # 4c) Rename items inside each row's 'leaves' set
+#     # Apply in-place to avoid creating new set objects if possible
+#     def _rename_set(s: set) -> set:
+#         if not s:
+#             return s
+#         # Fast path: detect if any element is in mapping; if not, return original set
+#         if not (s & set(leaf_dict)):
+#             return s
+#         # Else, rebuild a new set with mapped names
+#         return {leaf_dict.get(x, x) for x in s}
+
+#     # Since 'leaves' holds sets, we replace only rows that change to keep data movement minimal
+#     new_leaves = []
+#     changed_any = False
+#     for s in T["leaves"].values:
+#         new_s = _rename_set(s)
+#         new_leaves.append(new_s)
+#         changed_any |= (new_s is not s)  # bool OR
+
+#     if changed_any:
+#         T["leaves"] = new_leaves
+
+#     return T
 
 #Subset a tree dataframe for diversity functions
 def subset_tree_df(tree_df: pd.DataFrame, keep_leaves) -> pd.DataFrame:
@@ -1033,30 +1209,114 @@ def subset_tree_df(tree_df: pd.DataFrame, keep_leaves) -> pd.DataFrame:
     return T
 
 # Get ra for each sample and each branch
-def ra_to_branches(ra: pd.DataFrame, tree_df: pd.DataFrame) -> pd.DataFrame:
-    """Return tree2 = (branches × samples) relative-abundance table."""
-    n_branches, n_samples = tree_df.shape[0], ra.shape[1]
-    A = np.zeros((n_branches, n_samples), dtype=float)
-    # Pre-take numpy view of RA in same sample order
-    ra_vals = ra.to_numpy(dtype=float, copy=False)
-    # Map each LEAF (row in RA) to branch rows and add its vector
-    leaf_list = ra.index.to_list()
-    leaf_pos = {leaf: i for i, leaf in enumerate(leaf_list)}
+def ra_to_branches(
+    ra: pd.DataFrame,
+    tree_df: pd.DataFrame,
+    leaf_order: list,
+) -> pd.DataFrame:
+    """
+    Return a branches x samples abundance table.
 
-    idx_map = {}
-    for row_idx, s in enumerate(tree_df["leaves"].values):
-        for leaf in s:
-            idx_map.setdefault(leaf, []).append(row_idx)
-    # convert to arrays for vectorized adds
-    for k, v in idx_map.items():
-        idx_map[k] = np.asarray(v, dtype=np.int32)
+    Uses interval-based descendant information from tree_df:
+        leaf_start, leaf_end
 
-    for leaf, rows in idx_map.items():
-        pos = leaf_pos.get(leaf)
-        if pos is None:     # leaf not in abundance table
-            continue
-        A[rows, :] += ra_vals[pos, :]
-    return pd.DataFrame(A, index=tree_df.index, columns=ra.columns)
+    Parameters
+    ----------
+    ra : pd.DataFrame
+        Feature x sample abundance table. Rows are leaf names.
+    tree_df : pd.DataFrame
+        Tree dataframe with columns 'leaf_start' and 'leaf_end'.
+    leaf_order : list
+        Leaf names in the same order used to define leaf_start/leaf_end.
+
+    Returns
+    -------
+    pd.DataFrame
+        Branch x sample abundance table, indexed like tree_df.
+    """
+
+    required_cols = {"leaf_start", "leaf_end"}
+    missing = required_cols - set(tree_df.columns)
+
+    if missing:
+        raise ValueError(
+            f"tree_df is missing required columns: {sorted(missing)}"
+        )
+
+    if leaf_order is None:
+        raise ValueError("leaf_order is required for interval-based trees.")
+
+    if len(leaf_order) == 0:
+        raise ValueError("leaf_order is empty.")
+
+    if len(set(leaf_order)) != len(leaf_order):
+        raise ValueError("leaf_order contains duplicate names.")
+
+    # Reorder abundance table to match the tree leaf order.
+    # Leaves missing from ra are filled with 0.
+    ra_ordered = ra.reindex(leaf_order).fillna(0.0)
+
+    X = ra_ordered.to_numpy(dtype=float, copy=False)
+
+    # Prefix sum over leaves.
+    # prefix[k] is the sum of rows before k.
+    prefix = np.vstack([
+        np.zeros((1, X.shape[1]), dtype=float),
+        np.cumsum(X, axis=0),
+    ])
+
+    starts = tree_df["leaf_start"].to_numpy(dtype=np.int64, copy=False)
+    ends = tree_df["leaf_end"].to_numpy(dtype=np.int64, copy=False)
+
+    n_leaves = len(leaf_order)
+
+    bad = (
+        (starts < 0)
+        | (ends <= starts)
+        | (ends > n_leaves)
+    )
+
+    if np.any(bad):
+        bad_rows = tree_df.loc[bad, ["nodes", "leaf_start", "leaf_end"]].head(5)
+        raise ValueError(
+            "tree_df contains invalid leaf intervals. "
+            f"Examples: {bad_rows.to_dict('records')}"
+        )
+
+    # Sum descendant leaf abundances for each branch:
+    # abundance[start:end] = prefix[end] - prefix[start]
+    A = prefix[ends] - prefix[starts]
+
+    return pd.DataFrame(
+        A,
+        index=tree_df.index,
+        columns=ra.columns,
+    )
+
+# def ra_to_branches(ra: pd.DataFrame, tree_df: pd.DataFrame) -> pd.DataFrame:
+#     """Return tree2 = (branches × samples) relative-abundance table."""
+#     n_branches, n_samples = tree_df.shape[0], ra.shape[1]
+#     A = np.zeros((n_branches, n_samples), dtype=float)
+#     # Pre-take numpy view of RA in same sample order
+#     ra_vals = ra.to_numpy(dtype=float, copy=False)
+#     # Map each LEAF (row in RA) to branch rows and add its vector
+#     leaf_list = ra.index.to_list()
+#     leaf_pos = {leaf: i for i, leaf in enumerate(leaf_list)}
+
+#     idx_map = {}
+#     for row_idx, s in enumerate(tree_df["leaves"].values):
+#         for leaf in s:
+#             idx_map.setdefault(leaf, []).append(row_idx)
+#     # convert to arrays for vectorized adds
+#     for k, v in idx_map.items():
+#         idx_map[k] = np.asarray(v, dtype=np.int32)
+
+#     for leaf, rows in idx_map.items():
+#         pos = leaf_pos.get(leaf)
+#         if pos is None:     # leaf not in abundance table
+#             continue
+#         A[rows, :] += ra_vals[pos, :]
+#     return pd.DataFrame(A, index=tree_df.index, columns=ra.columns)
 
 def compute_Tmean(
     tree_df: pd.DataFrame,

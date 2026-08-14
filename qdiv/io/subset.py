@@ -71,13 +71,11 @@ def subset_samples(
         tax = obj.tax
         seq = obj.seq
         meta = obj.meta
-        tree = obj.tree
     else:
         tab = obj.get("tab")
         tax = obj.get("tax")
         seq = obj.get("seq")
         meta = obj.get("meta")
-        tree = obj.get("tree")
 
     # --- Normalize values to a list, when provided ---
     if values is None and by != "index":
@@ -170,7 +168,8 @@ def subset_samples(
                 tax=out_tax,
                 meta=out_meta,
                 seq=out_seq,
-                tree=tree,
+                tree=obj.tree,
+                leaf_order=obj.leaf_order,
             )
             return new_obj
     else:
@@ -179,7 +178,8 @@ def subset_samples(
         if out_tax is not None: out["tax"] = out_tax
         if out_seq is not None: out["seq"] = out_seq
         if out_meta is not None: out["meta"] = out_meta
-        if tree is not None: out["tree"] = tree
+        if obj.get("tree") is not None: out["tree"] = obj.get("tree")
+        if obj.get("leaf_order") is not None: out["leaf_order"] = obj.get("leaf_order")
         return out
 
 # -----------------------------------------------------------------------------
@@ -211,7 +211,7 @@ def subset_features(
     Returns
     -------
     MicrobiomeData or dict
-        Filtered object or dictionary with updated 'tab', 'tax', 'seq', 'tree', and 'meta'.
+        Filtered object or dictionary with updated 'tab', 'tax', 'seq', 'meta', 'tree', and 'leaf_order'.
     """
     # Detect if input is a MicrobiomeData object
     is_object = hasattr(obj, "tab")
@@ -221,13 +221,11 @@ def subset_features(
         tab = obj.tab
         tax = obj.tax
         seq = obj.seq
-        tree = obj.tree
         meta = obj.meta
     else:
         tab = obj.get("tab")
         tax = obj.get("tax")
         seq = obj.get("seq")
-        tree = obj.get("tree")
         meta = obj.get("meta")
 
     # Validate featurelist
@@ -278,7 +276,8 @@ def subset_features(
                 tax=out_tax,
                 seq=out_seq,
                 meta=meta,
-                tree=tree,
+                tree=obj.tree,
+                leaf_order=obj.leaf_order,
             )
             return new_obj
     else:
@@ -286,8 +285,9 @@ def subset_features(
         if out_tab is not None: out["tab"] = out_tab
         if out_tax is not None: out["tax"] = out_tax
         if out_seq is not None: out["seq"] = out_seq
-        if tree is not None: out["tree"] = tree
         if meta is not None: out["meta"] = meta
+        if obj.get("tree") is not None: out["tree"] = obj.get("tree")
+        if obj.get("leaf_order") is not None: out["leaf_order"] = obj.get("leaf_order")
         return out
 
 # -----------------------------------------------------------------------------
@@ -449,18 +449,21 @@ def subset_abundant(
                 tax=out_tax,
                 seq=out_seq,
                 meta=out_meta,
-                tree=out_tree,
+                tree=obj.tree,
+                leaf_order=obj.leaf_order,
             )
             return new_obj
     else:
         # return a NEW dict; do not mutate original dict
-        return {
+        out = {
             "tab": out_tab.copy(deep=False),
             "tax": out_tax.copy(deep=False) if isinstance(out_tax, pd.DataFrame) else out_tax,
             "seq": out_seq.copy(deep=False) if isinstance(out_seq, (pd.DataFrame, pd.Series)) else out_seq,
-            "tree": out_tree,
             "meta": out_meta,
         }
+        if obj.get("tree") is not None: out["tree"] = obj.get("tree")
+        if obj.get("leaf_order") is not None: out["leaf_order"] = obj.get("leaf_order")
+        return out
 
 # -------------------------------------------------------------------------
 # Subset object based on text patterns in taxonomic names
@@ -618,6 +621,7 @@ def subset_taxa(
                     seq=_take(obj.seq),
                     meta=obj.meta,
                     tree=obj.tree,
+                    leaf_order=obj.leaf_order,
                 )
                 if hasattr(new_obj, "_autocorrect"):
                     new_obj._autocorrect()
@@ -632,6 +636,7 @@ def subset_taxa(
                     "seq": _take(getattr(obj, "seq", None)),
                     "meta": getattr(obj, "meta", None),
                     "tree": getattr(obj, "tree", None),
+                    "leaf_order": getattr(obj, "leaf_order", None),
                 }
     else:
         # dict input
@@ -639,8 +644,9 @@ def subset_taxa(
         out["tab"] = _take(obj.get("tab"))
         out["tax"] = _take(obj.get("tax"))
         out["seq"] = _take(obj.get("seq"))
-        out["tree"] = obj.get("tree")
         out["meta"] = obj.get("meta")
+        out["tree"] = obj.get("tree")
+        out["leaf_order"] = obj.get("leaf_order")
         return out
 
 # -------------------------------------------------------------------------

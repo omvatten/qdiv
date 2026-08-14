@@ -249,9 +249,20 @@ def phyl_beta(
 
     tab = get_df(obj, "tab")
     tree = get_df(obj, "tree")
-
-    if "leaves" not in tree.columns or "branchL" not in tree.columns:
-        raise ValueError("`tree` must contain columns 'leaves' and 'branchL'.")
+    if tree is None:
+        raise ValueError('tree is missing.')
+    leaf_order = get_df(obj, "leaf_order")
+    
+    # Confirm input is ok
+    required_tree_cols = {"branchL", "leaf_start", "leaf_end"}
+    missing = required_tree_cols - set(tree.columns)
+    if missing:
+        raise ValueError(
+            f"`tree` must contain columns {sorted(required_tree_cols)}. "
+            f"Missing: {sorted(missing)}."
+        )
+    if leaf_order is None:
+        raise ValueError("`leaf_order` is required for trees.")
 
     # Ensure numeric
     try:
@@ -273,8 +284,7 @@ def phyl_beta(
         raise ValueError("`tab` must contain ≥ 2 samples (columns).")
 
     #Subset tree to features in tab
-    tree = subset_tree_df(tree, ra.index.tolist())
-    tree2 = ra_to_branches(ra, tree)
+    tree2 = ra_to_branches(ra, tree, leaf_order)
 
     # Align branch lengths to tree2 index
     branchL = tree["branchL"].reindex(tree2.index)

@@ -36,6 +36,16 @@ def get_df(
     """
     Convert various input types into a dataframe
     """
+    if attr == "leaf_order" and isinstance(tab_like, dict):
+        return tab_like.get("leaf_order")
+    elif attr == "leaf_order" and hasattr(tab_like, attr):
+        val = getattr(tab_like, attr)
+        return val.copy()
+    elif attr == "leaf_order" and isinstance(tab_like, list):
+        return tab_like
+    elif attr == "leaf_order":
+        return None
+    
     if isinstance(tab_like, pd.DataFrame):
         df = tab_like.copy(deep=False)
 
@@ -320,7 +330,8 @@ def rename_features(
     >>> renamed = rename_features({'tab': tab_df, 'tax': tax_df}, name_type='OTU')
     """
     # --- Detect input kind without importing MicrobiomeData at module import time ---
-    is_object = hasattr(obj, "tab") or hasattr(obj, "seq") or hasattr(obj, "tax") or hasattr(obj, "tree")
+    is_object = hasattr(obj, "tab") or hasattr(obj, "seq") or \
+        hasattr(obj, "tax") or hasattr(obj, "tree") or hasattr(obj, "leaf_order")
 
     # --- Extract components in a uniform way ---
     if is_object:
@@ -329,12 +340,15 @@ def rename_features(
         seq = get_df(obj, "seq")
         meta = get_df(obj, "meta")
         tree = get_df(obj, "tree")
+        if tree is not None:
+            leaf_order = obj.leaf_order.copy()
     elif isinstance(obj, dict):
         tab = obj.get("tab")
         tax = obj.get("tax")
         seq = obj.get("seq")
         meta = obj.get("meta")
         tree = obj.get("tree")
+        leaf_order = obj.get("leaf_order")
 
     if name_dict is None:
         old2new = {}
@@ -360,9 +374,10 @@ def rename_features(
     out_seq = seq.rename(index=old2new) if seq is not None else None
 
     if tree is not None and len(old2new) > 0:
-        out_tree = rename_leaves(tree, old2new)
+        out_tree, out_leaf_order = rename_leaves(tree, leaf_order, old2new)
     else:
         out_tree = None
+        out_leaf_order = None
 
     # --- Build the return value in the same type as input ---
     if is_object:
@@ -371,6 +386,7 @@ def rename_features(
             obj.seq = out_seq
             obj.tax = out_tax
             obj.tree = out_tree
+            obj.leaf_order = out_leaf_order
             # meta is passed through unchanged
             obj._autocorrect()
             obj._validate()
@@ -384,6 +400,7 @@ def rename_features(
                 meta=meta,
                 seq=out_seq,
                 tree=out_tree,
+                leaf_order=out_leaf_order,
             )
             return new_obj
     else:
@@ -393,6 +410,7 @@ def rename_features(
         if out_seq is not None: out["seq"] = out_seq
         if meta is not None: out["meta"] = meta
         if tree is not None: out["tree"] = out_tree
+        if leaf_order is not None: out["leaf_order"] = out_leaf_order
         return out
 
 def tax_prefix(

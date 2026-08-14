@@ -40,12 +40,14 @@ class MicrobiomeData:
         meta: Optional[pd.DataFrame] = None,
         seq: Optional[pd.DataFrame] = None,
         tree: Optional[pd.DataFrame] = None,
+        leaf_order: Optional[list] = None,
     ):
         self.tab = tab
         self.tax = tax
         self.meta = meta
         self.seq = seq
         self.tree = tree
+        self.leaf_order = leaf_order
         self._autocorrect()
         self._validate()
 
@@ -78,6 +80,7 @@ class MicrobiomeData:
             meta=data.get("meta"),
             seq=data.get("seq"),
             tree=data.get("tree"),
+            leaf_order=data.get("leaf_order"),
         )
 
     def add_tab(
@@ -261,6 +264,7 @@ class MicrobiomeData:
 
         # Assign results
         self.tree = out.get("tree")
+        self.leaf_order = out.get("leaf_order")
         self._autocorrect()
         self._validate()
         return self
@@ -992,14 +996,16 @@ class MicrobiomeData:
         tree = phylo_func.collapse_single_child_nodes(tree)
         if reroot:
             tree = phylo_func.reroot_midpoint(tree)
-        tree = phylo_func.tree_to_dataframe(tree)
+        tree, leaf_order = phylo_func.tree_to_dataframe(tree)
 
         if inplace:
             self.tree = tree
+            self.leaf_order = leaf_order
             return self
         else:
             new_obj = copy.deepcopy(self)
             new_obj.tree = tree
+            new_obj.leaf_order = leaf_order
             return new_obj
 
     def rename_features(
@@ -1209,6 +1215,7 @@ class MicrobiomeData:
             "meta": self.meta,
             "seq": self.seq,
             "tree": self.tree,
+            "leaf_order": self.leaf_order,
         }
 
     @classmethod
@@ -1225,6 +1232,7 @@ class MicrobiomeData:
             - 'meta' : pd.DataFrame, optional
             - 'seq' : pd.DataFrame, optional
             - 'tree' : pd.DataFrame, optional
+            - 'leaf_order' : list, optional
     
         Returns
         -------
@@ -1254,6 +1262,7 @@ class MicrobiomeData:
             meta=data.get("meta"),
             seq=data.get("seq"),
             tree=data.get("tree"),
+            leaf_order=data.get("leaf_order"),
         )
 
     def _autocorrect(self):
@@ -1396,6 +1405,12 @@ class MicrobiomeData:
                         f"Examples: {bad_rows[['nodes','parent']].to_dict('records')}. "
                         "Reload the tree or run prune_tree() to rebuild a valid induced subtree."
                     )
+            if self.leaf_order is not None:
+                if not tab_features.issubset(set(self.leaf_order)):
+                    raise ValueError("Not all tab features are found in leaf_order list.")
+
+
+
 
         if self.tax is not None:
             if len(self.tax) == 0:
@@ -1412,8 +1427,21 @@ class MicrobiomeData:
                 raise ValueError("Features missing in seq.")
 
         if self.tree is not None:
+            if self.leaf_order is None:
+                raise ValueError("leaf_order is missing for tree dataframe.")
             if len(self.tree) == 0:
                 raise ValueError("Features missing in tree.")
+            if not set(self.leaf_order).issubset(set(self.tree["nodes"])):
+                raise ValueError("Not all leafes found among tree nodes.")
+
+        if self.leaf_order is not None:
+            if self.tree is None:
+                raise ValueError("tree is missing although leaf_order is present.")
+            n_leaves = len(self.leaf_order)
+            if n_leaves == 0:
+                raise ValueError("leaf_order is empty.")
+            if len(set(self.leaf_order)) != n_leaves:
+                raise ValueError("leaf_order contains duplicate feature names.")
 
     def __repr__(self):
         n_features = self.tab.shape[0] if self.tab is not None else 0

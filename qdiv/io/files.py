@@ -369,8 +369,8 @@ def add_tree(
     if midpoint_root:
         tree = reroot_midpoint(tree)
 
-    branch_df = tree_to_dataframe(tree)
-    return {'tree': branch_df}
+    branch_df, leaf_order = tree_to_dataframe(tree)
+    return {'tree': branch_df, 'leaf_order': leaf_order}
 
 # -----------------------------------------------------------------------------
 #  Add meta
