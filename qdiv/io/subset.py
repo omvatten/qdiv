@@ -353,19 +353,19 @@ def subset_abundant(
       do so explicitly after calling this function.
     """
     # --- Detect object-vs-dict and extract components ------------------------
+    tab = get_df(obj, "tab")
+    if tab is None:
+        raise ValueError("tab is missing in obj.")
+
     is_object = hasattr(obj, "tab")
     if is_object:
         tab = obj.tab
         tax = getattr(obj, "tax", None)
         seq = getattr(obj, "seq", None)
-        tree = getattr(obj, "tree", None)
-        meta = getattr(obj, "meta", None)
     else:
         tab = obj.get("tab", None)
         tax = obj.get("tax", None)
         seq = obj.get("seq", None)
-        tree = obj.get("tree", None)
-        meta = obj.get("meta", None)
 
     # --- Validate inputs ------------------------------------------------------
     if not isinstance(tab, pd.DataFrame):
@@ -428,10 +428,6 @@ def subset_abundant(
     else:
         out_seq = seq
 
-    # tree and meta: pass through unchanged (see note)
-    out_tree = tree
-    out_meta = meta
-
     # --- Return in same type as input ----------------------------------------
     if is_object:
         if inplace:
@@ -448,8 +444,9 @@ def subset_abundant(
                 tab=out_tab,
                 tax=out_tax,
                 seq=out_seq,
-                meta=out_meta,
+                meta=obj.meta,
                 tree=obj.tree,
+                leaf_order=obj.leaf_order,
                 leaf_order=obj.leaf_order,
             )
             return new_obj
@@ -459,8 +456,8 @@ def subset_abundant(
             "tab": out_tab.copy(deep=False),
             "tax": out_tax.copy(deep=False) if isinstance(out_tax, pd.DataFrame) else out_tax,
             "seq": out_seq.copy(deep=False) if isinstance(out_seq, (pd.DataFrame, pd.Series)) else out_seq,
-            "meta": out_meta,
         }
+        if obj.get("meta") is not None: out["meta"] = obj.get("meta")
         if obj.get("tree") is not None: out["tree"] = obj.get("tree")
         if obj.get("leaf_order") is not None: out["leaf_order"] = obj.get("leaf_order")
         return out
@@ -810,7 +807,8 @@ def merge_samples(
                 tax=_take(obj.tax),
                 seq=_take(obj.seq),
                 meta=meta_grouped,
-                tree=obj.tree
+                tree=obj.tree,
+                leaf_order=obj.leaf_order
             )
     else:
         out: Dict[str, Any] = {
@@ -818,7 +816,8 @@ def merge_samples(
             "tax": _take(obj.get("tax")),
             "seq": _take(obj.get("seq")),
             "meta": meta_grouped,
-            "tree": obj.get("tree")
+            "tree": obj.get("tree"),
+            "leaf_order": obj.get("leaf_order")
         }
         return out
 
@@ -949,7 +948,8 @@ def rarefy(
                 tax=_take(obj.tax),
                 seq=_take(obj.seq),
                 meta=obj.meta.loc[keep_samples] if obj.meta is not None else None,
-                tree=obj.tree
+                tree=obj.tree,
+                leaf_order=obj.leaf_order
             )
     else:
         robj = obj.copy()

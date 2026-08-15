@@ -624,7 +624,6 @@ def _reroot_at_node(root, target_name: str):
 
     return path[0]
 
-
 def reroot_midpoint(root, *, name_hint="in_midroot", tol=1e-12):
     """
     Midpoint re-root a recursive tree.
@@ -1082,67 +1081,4 @@ def ladderize_tree_df(df, *, right=True):
     ladderize(tree)
 
     return tree_to_dataframe(tree)
-
-# def ladderize_tree_df(df, *, right=True):
-#     """
-#     Ladderize a DataFrame-based tree.
-
-#     right=True  -> larger clades visited first
-#     right=False -> smaller clades visited first
-#     """
-
-#     df = df.copy()
-#     df = _normalize_tree_df(df)
-
-#     if not df["nodes"].is_unique:
-#         raise ValueError("Node names must be unique")
-
-#     # Build children map
-#     children = {}
-#     for n, p in zip(df["nodes"], df["parent"]):
-#         if p is None:
-#             continue
-#         children.setdefault(p, []).append(n)
-
-#     # Subtree size directly from leaves
-#     size = dict(zip(df["nodes"], df["leaf_end"] - df["leaf_start"]))
-
-#     # Find root
-#     roots = df.loc[df["parent"].isna(), "nodes"].tolist()
-#     if len(roots) != 1:
-#         raise ValueError(f"Tree must have exactly one root, found: {roots}")
-
-#     root = roots[0]
-
-#     ordered = []
-
-#     def dfs(n):
-#         ordered.append(n)
-
-#         kids = children.get(n, [])
-#         if kids:
-#             kids_sorted = sorted(
-#                 kids,
-#                 key=lambda c: size[c],
-#                 reverse=right,
-#             )
-
-#             for c in kids_sorted:
-#                 dfs(c)
-
-#     dfs(root)
-
-#     # Check that all nodes were reached
-#     missing = set(df["nodes"]) - set(ordered)
-#     if missing:
-#         raise RuntimeError(
-#             "Ladderization did not visit all nodes. "
-#             f"Missing nodes: {sorted(missing)}"
-#         )
-
-#     df["__order"] = pd.Categorical(df["nodes"], categories=ordered, ordered=True)
-#     df = df.sort_values("__order").drop(columns="__order").reset_index(drop=True)
-
-#     return df
-
 

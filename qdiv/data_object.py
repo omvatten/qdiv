@@ -46,8 +46,9 @@ class MicrobiomeData:
         self.tax = tax
         self.meta = meta
         self.seq = seq
-        self.tree = tree
         self.leaf_order = leaf_order
+        self.tree = tree
+
         self._autocorrect()
         self._validate()
 
@@ -821,7 +822,7 @@ class MicrobiomeData:
         >>> obj.merge_samples(by="Treatment", method="sum", inplace=True)
         >>> merged = obj.merge_samples(by="Site", method="mean")
         """
-        return data_subset.merge_samples(
+        out = data_subset.merge_samples(
             self,
             by=by,
             values=values,
@@ -830,6 +831,7 @@ class MicrobiomeData:
             keep_absent=keep_absent,
             inplace=inplace
         )
+        return out
 
     def subset_taxa(
         self,
@@ -1001,6 +1003,7 @@ class MicrobiomeData:
         if inplace:
             self.tree = tree
             self.leaf_order = leaf_order
+            self.subset_features(featurelist=leaf_order, inplace=True)
             self._autocorrect()
             self._validate()
             return self
@@ -1008,6 +1011,7 @@ class MicrobiomeData:
             new_obj = copy.deepcopy(self)
             new_obj.tree = tree
             new_obj.leaf_order = leaf_order
+            new_obj.subset_features(featurelist=leaf_order, inplace=True)
             return new_obj
 
     def rename_features(
