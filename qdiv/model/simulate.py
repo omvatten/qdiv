@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 from typing import Optional, Union, Tuple, Callable, Sequence, List, Dict
+from ..utils import tree_to_dataframe, dataframe_to_tree
 
 # -----------------------------------------------------------------------------
 # Simulate community structure
@@ -283,20 +284,57 @@ def make_block_tree_df(
     root_name: str = "Root",
     leaf_prefix: str = "OTU",
     internal_prefix: str = "in",
-) -> pd.DataFrame:
+    node_branch_offsets: Optional[dict] = None,
+) -> Tuple[pd.DataFrame, List[str]]:
     """
     Generate a block tree where branching factor varies with depth.
-    Compatible with phylo_utils (nodes, parent, branchL, leaves, dist_to_root).
+    
+    Returns
+    -------
+    tuple
+        (tree_df, leaf_order)
 
     Parameters
     ----------
     k_per_level : sequence of int
-        k_per_level[level] = number of children created at this depth.
-        Length of k_per_level = total depth.
-    branch_length :
-        float                → same length everywhere
-        sequence[len=depth]  → branch_length[level]
-        callable(level, parent_name, child_index) → full control
+        Branching factor at each internal level of the tree.
+    
+        ``k_per_level[level]`` specifies the number of children generated
+        for every node at that level. The length of ``k_per_level``
+        determines the tree depth.
+    
+        For example:
+    
+        - ``[2]`` creates a root with two leaf children.
+        - ``[2, 3]`` creates a binary split at the root, followed by
+          three descendants per internal node at the next level.
+        - ``[2, 2, 2]`` creates a balanced binary tree of depth three.
+    
+    branch_length : float | sequence | callable, default 1.0
+        Strategy used to assign branch lengths.
+    
+        - float: use the same branch length for every edge.
+        - sequence: branch lengths indexed by parent level
+          (level 0 = root).
+        - callable(level, parent_name, child_index): user-defined
+          branch-length generator.
+    
+    root_name : str, default "Root"
+        Name assigned to the root node.
+    
+    leaf_prefix : str, default "OTU"
+        Prefix used when generating leaf node names.
+    
+    internal_prefix : str, default "in"
+        Prefix used when generating internal node names.
+    
+    node_branch_offsets : dict[str, float], optional
+        Deterministic branch-length offsets keyed by node name.
+    
+        For each ``node: offset`` pair, the offset is added to the
+        incoming branch length of that node. The same offset is
+        propagated to ``dist_to_root`` for the node and all of its
+        descendants, preserving downstream root-to-tip distances.
     """
     depth = len(k_per_level)
 
@@ -376,40 +414,43 @@ def make_block_tree_df(
         else:
             children_map[name] = []
 
-    # ---- Compute leaves sets bottom-up -------------------------------------
-    all_nodes = nodes.copy()
-    leaves_col = [set() for _ in all_nodes]
-    idx_of = {n: i for i, n in enumerate(all_nodes)}
+    # ----- Manual offsets to branches ------------------------------------------
+    if isinstance(node_branch_offsets, dict):
+    
+        node_to_idx = {n: i for i, n in enumerate(nodes)}
+    
+        def propagate(node, offset):
+            dist[node_to_idx[node]] += offset
+    
+            for child in children_map.get(node, []):
+                propagate(child, offset)
+    
+        for node, offset in node_branch_offsets.items():
+    
+            if node not in node_to_idx:
+                raise ValueError(
+                    f"Node '{node}' not found in tree."
+                )
+    
+            branchL[node_to_idx[node]] += offset
+            propagate(node, offset)
 
-    # initialize tips
-    for n in all_nodes:
-        if len(children_map[n]) == 0:
-            leaves_col[idx_of[n]] = {n}
 
-    changed = True
-    while changed:
-        changed = False
-        for n, kids in children_map.items():
-            if not kids:
-                continue
-            if all(leaves_col[idx_of[c]] for c in kids):
-                merged = set()
-                for c in kids:
-                    merged |= leaves_col[idx_of[c]]
-                if merged != leaves_col[idx_of[n]]:
-                    leaves_col[idx_of[n]] = merged
-                    changed = True
 
     # ---- DataFrame ----------------------------------------------------------
-    return pd.DataFrame(
+    
+    df = pd.DataFrame(
         {
             "nodes": nodes,
-            "leaves": leaves_col,
             "branchL": branchL,
             "parent": parents,
             "dist_to_root": dist,
         }
     ).reset_index(drop=True)
+    
+    tree = dataframe_to_tree(df)
+    
+    return tree_to_dataframe(tree)
 
 
 def make_beta_splitting_tree_df(
@@ -422,41 +463,51 @@ def make_beta_splitting_tree_df(
     internal_prefix: str = "in",
     node_branch_offsets: Optional[dict] = None,
     random_state: Optional[int] = None,
-) -> pd.DataFrame:
+) -> Tuple[pd.DataFrame, List[str]]:
     """
-    Aldous β-splitting binary tree, returned as a DataFrame compatible with your phylo utils.
-
-    Columns:
-        nodes (str), leaves (set[str]), branchL (float), parent (str|None), dist_to_root (float)
-
+    Generate an Aldous β-splitting binary tree.
+    The tree topology is generated according to the β-splitting model of
+    Aldous and returned in qdiv's interval-based tree representation.
+    
+    Returns
+    -------
+    tuple
+        (tree_df, leaf_order)
+    
     Parameters
     ----------
     n_leaves : int
-        Number of tips (>= 1).
+        Number of leaf nodes (>= 1).
     beta : float
-        β parameter; requires beta > -1 so Beta(β+1, β+1) is defined.
-        Larger β → more balanced; β -> -1+ → more comb-like.
-    branch_length :
-        "ultrametric" (default) or:
-        - float: fixed length for all edges.
-        - sequence[len = max_level+1] indexed by *parent level* (0=root).
-        - callable(level, parent_name, child_index)->float for full control.
-    root_name : str
-        Name of root node, default='root'
-    leaf_prefix : str
-        Names of leaves, default='OTU'
-    internal_prefix : str
-        Names of internal nodes, default='in'
+        β parameter controlling tree balance. Requires β > -1 so that
+        Beta(β + 1, β + 1) is defined.
+        Larger values produce more balanced trees, whereas values
+        approaching -1 produce increasingly comb-like trees.
+    branch_length : {"ultrametric"} | float | sequence | callable, optional
+        Strategy used to assign branch lengths.
+        - "ultrametric" (default): assign branch lengths so that all
+          root-to-tip distances equal 1.
+        - float: use the same branch length for every edge.
+        - sequence: branch lengths indexed by parent level
+          (level 0 = root).
+        - callable(level, parent_name, child_index): user-defined
+          branch-length generator.
+    root_name : str, default "Root"
+        Name assigned to the root node.
+    leaf_prefix : str, default "OTU"
+        Prefix used when generating leaf names.
+    internal_prefix : str, default "in"
+        Prefix used when generating internal node names.
     node_branch_offsets : dict[str, float], optional
         Deterministic branch-length offsets keyed by node name.
-        For each ``node: offset`` pair, ``offset`` is added to the incoming
-        branch length of that node. The same offset is also propagated to
-        ``dist_to_root`` for the node and all of its descendants, preserving
-        downstream root-to-tip distances.
+        For each ``node: offset`` pair, the offset is added to the
+        incoming branch length of that node. The same offset is
+        propagated to ``dist_to_root`` for all descendants,
+        preserving downstream distances.
     random_state : int | numpy.random.Generator, optional
-        Random seed or Generator for reproducibility.
+        Seed or random number generator used for reproducible
+        tree generation.
     """
-
     if n_leaves < 1:
         raise ValueError("n_leaves must be >= 1")
     if beta <= -1:
@@ -534,27 +585,6 @@ def make_beta_splitting_tree_df(
             children[root] = [first]
             parent[first] = root
             parent[root] = None
-
-    # ----- Compute leaves sets (post-order unions) ---------------------------
-    all_nodes = set(parent.keys()) | set(children.keys())
-    leaves_map: Dict[str, set] = {n: set() for n in all_nodes}
-    for n in list(all_nodes):
-        if len(children.get(n, [])) == 0:
-            leaves_map[n] = {n}
-
-    changed = True
-    while changed:
-        changed = False
-        for n, kids in list(children.items()):
-            if not kids:
-                continue
-            if all(leaves_map[k] for k in kids):
-                newset = set()
-                for k in kids:
-                    newset |= leaves_map[k]
-                if newset != leaves_map[n]:
-                    leaves_map[n] = newset
-                    changed = True
 
     # ----- Assign branch lengths & distances ---------------------------------
     nodes_df: List[str] = []
@@ -644,15 +674,15 @@ def make_beta_splitting_tree_df(
             branchL_df[node_to_idx[node]] += offset
             propagate(node, offset)
 
-
     # ----- Assemble DataFrame -------------------------------------------------
     df = pd.DataFrame({
         "nodes": nodes_df,
-        "leaves": [leaves_map[n] for n in nodes_df],
         "branchL": branchL_df,
-        "parent": parents_df,             # None for root
+        "parent": parents_df,
         "dist_to_root": dist_df,
     }).reset_index(drop=True)
 
-    return df
+    tree = dataframe_to_tree(df)
+    df, leaf_order = tree_to_dataframe(tree)
+    return df, leaf_order
 

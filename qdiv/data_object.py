@@ -566,8 +566,8 @@ class MicrobiomeData:
         else:
             print("Sequence table: None")
         # Tree
-        if self.tree is not None:
-            print(f"Tree: {len(self.tree)} nodes")
+        if self.tree is not None and self.leaf_order is not None:
+            print(f"Tree: {len(self.tree)} nodes; {len(self.leaf_order)} leaves.")
         else:
             print("Tree: None")
         # Metadata
@@ -1001,6 +1001,8 @@ class MicrobiomeData:
         if inplace:
             self.tree = tree
             self.leaf_order = leaf_order
+            self._autocorrect()
+            self._validate()
             return self
         else:
             new_obj = copy.deepcopy(self)
@@ -1435,8 +1437,15 @@ class MicrobiomeData:
                 raise ValueError("leaf_order is missing for tree dataframe.")
             if len(self.tree) == 0:
                 raise ValueError("Features missing in tree.")
-            if not set(self.leaf_order).issubset(set(self.tree["nodes"])):
-                raise ValueError("Not all leafes found among tree nodes.")
+
+            parents = set(self.tree["parent"].dropna())
+            tree_leaves = set(self.tree["nodes"]) - parents
+            if len(set(self.leaf_order)) != len(self.leaf_order):
+                raise ValueError("leaf_order contains duplicate names.")
+            if tree_leaves != set(self.leaf_order):
+                raise ValueError(
+                    "leaf_order does not match leaves present in tree."
+                )
 
         if self.leaf_order is not None:
             if self.tree is None:
@@ -1444,8 +1453,7 @@ class MicrobiomeData:
             n_leaves = len(self.leaf_order)
             if n_leaves == 0:
                 raise ValueError("leaf_order is empty.")
-            if len(set(self.leaf_order)) != n_leaves:
-                raise ValueError("leaf_order contains duplicate feature names.")
+
 
     def __repr__(self):
         n_features = self.tab.shape[0] if self.tab is not None else 0

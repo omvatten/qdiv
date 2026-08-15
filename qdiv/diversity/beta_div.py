@@ -1178,8 +1178,8 @@ def func_multi_beta(
         ra = tab.div(col_sums, axis=1)
 
     # Make sure tab and distmat have the same index
-    in_common = list(set(distmat.index).intersection(ra.index))
-    if len(in_common) < len(ra):
+    in_common = ra.index.intersection(distmat.index)
+    if len(in_common) < len(ra.index):
         raise ValueError("Features in tab are missing in distmat.")
     ra = ra.loc[in_common]
     distmat = distmat.loc[in_common, in_common].copy()
@@ -1215,10 +1215,10 @@ def func_multi_beta(
         N = subtab.shape[1]
         out.loc[cat, "NxN"] = N * N
 
-        smplist = ra.columns.tolist()
+        smplist = subtab.columns.tolist()
 
         # Compute pooled mean abundances
-        ra_mean = ra.mean(axis=1)
+        ra_mean = subtab.mean(axis=1)
 
         # Rao's Q for pooled community
         Q_pooled = rao(ra_mean, distmat)
@@ -1244,9 +1244,9 @@ def func_multi_beta(
         asum = 0.0
 
         for s1 in smplist:
-            p1 = ra[s1].to_numpy()
+            p1 = subtab[s1].to_numpy()
             for s2 in smplist:
-                p2 = ra[s2].to_numpy()
+                p2 = subtab[s2].to_numpy()
 
                 outer12 = np.outer(p1, p2) / (N * N)
 

@@ -2,7 +2,7 @@ import pandas as pd
 import numpy as np
 import math
 from typing import Union, Any, Dict
-from ..utils import rao, get_df, subset_tree_df, compute_Tmean
+from ..utils import rao, get_df, compute_Tmean
 from ..utils import ra_to_branches, rebuild_leaf_order
 
 # -----------------------------------------------------------------------------
