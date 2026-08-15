@@ -4,7 +4,7 @@ import math
 from typing import Optional, Dict, Any, Union, Tuple
 from ..io import subset_samples
 from ..utils import rao, beta2dist, get_df
-from ..utils import subset_tree_df, ra_to_branches, compute_Tmean
+from ..utils import subset_tree_df, ra_to_branches, compute_Tmean, rebuild_leaf_order
 from .alpha_div import naive_alpha, phyl_alpha, func_alpha
 
 def _get_tqdm(use_tqdm: bool):
@@ -252,6 +252,8 @@ def phyl_beta(
     if tree is None:
         raise ValueError('tree is missing.')
     leaf_order = get_df(obj, "leaf_order")
+    if leaf_order is None:
+        tree, leaf_order = rebuild_leaf_order(tree)
     
     # Confirm input is ok
     required_tree_cols = {"branchL", "leaf_start", "leaf_end"}
@@ -760,6 +762,7 @@ def naive_multi_beta(
     *,
     by: Optional[str] = None,
     q: float = 1,
+    use_values_in_tab: bool = False,
 ) -> pd.DataFrame:
     """
     Compute naive (taxonomic) multi‑sample beta diversity for groups of samples.
@@ -784,6 +787,10 @@ def naive_multi_beta(
         If None, all samples are treated as one group.
     q : float, default=1
         Diversity order.
+    use_values_in_tab : bool, default=False
+        If False, abundances are converted to relative abundances per sample.
+        If True, the abundance table is assumed to already contain relative
+        abundances.
 
     Returns
     -------
@@ -804,22 +811,39 @@ def naive_multi_beta(
     meta = get_df(obj, "meta")
     tab = get_df(obj, "tab")
 
+    # Confirm tab input is ok
     if tab.shape[1] < 2:
         raise ValueError("At least two samples are required.")
+    # Ensure numeric
+    try:
+        tab = tab.astype(float)
+    except Exception as e:
+        raise TypeError(
+            "Abundance table contains non-numeric values. Ensure counts/abundances are numeric."
+        ) from e
+
+    # --- Relative abundances --------------------------------------------------
+    if use_values_in_tab:
+        ra = tab
+    else:
+        col_sums = tab.sum(axis=0)
+        if (col_sums == 0).any():
+            bad = col_sums.index[col_sums == 0].tolist()
+            raise ValueError(f"One or more samples have zero total abundance: {bad}")
+        ra = tab.div(col_sums, axis=1)
 
     # Build dictionary of subtables by category
     if by is None:
         categories = ["all"]
-        tabdict = {"all": tab.copy()}
+        tabdict = {"all": ra.copy()}
     else:
         if by not in meta.columns:
             raise ValueError(f"Column '{by}' not found in metadata.")
-
+        tabdict = {}
         categories = meta[by].unique().tolist()
-        tabdict = {
-            cat: get_df(subset_samples(obj, by=by, values=[cat]), "tab")
-            for cat in categories
-        }
+        for cat in categories:
+            smplist = meta[meta[by]==cat].index
+            tabdict[cat] = ra[smplist]
 
     # Output container
     out = pd.DataFrame(
@@ -839,18 +863,12 @@ def naive_multi_beta(
         N = subtab.shape[1]
         out.loc[cat, "N"] = N
 
-        # Convert to relative abundances if needed
-        col_sums = subtab.sum()
-        if (col_sums == 0).any():
-            raise ValueError(f"Group '{cat}' contains a zero‑sum sample.")
-        ra = subtab.div(col_sums)
-
         # Build alpha/gamma table for naive_alpha()
         # gamma row = pooled abundances
-        gamma_row = ra.sum(axis=1).to_numpy()
+        gamma_row = subtab.sum(axis=1).to_numpy()
 
         # alpha rows = each sample's abundances
-        alpha_rows = ra.to_numpy().T.reshape(-1)
+        alpha_rows = subtab.to_numpy().T.reshape(-1)
 
         df_temp = pd.DataFrame({
             "gamma": np.concatenate([gamma_row, np.zeros_like(alpha_rows)]),
@@ -884,6 +902,7 @@ def phyl_multi_beta(
     *,
     by: Optional[str] = None,
     q: float = 1,
+    use_values_in_tab: bool = False,
 ) -> pd.DataFrame:
     """
     Compute phylogenetic multi‑sample beta diversity for groups of samples.
@@ -915,6 +934,10 @@ def phyl_multi_beta(
         If None, all samples are treated as one group.
     q : float, default=1
         Diversity order.
+    use_values_in_tab : bool, default=False
+        If False, abundances are converted to relative abundances per sample.
+        If True, the abundance table is assumed to already contain relative
+        abundances.
 
     Returns
     -------
@@ -935,29 +958,59 @@ def phyl_multi_beta(
     tab = get_df(obj, "tab")
     meta = get_df(obj, "meta")
     tree = get_df(obj, "tree")
+    if tree is None:
+        raise ValueError('tree is missing.')
+    leaf_order = get_df(obj, "leaf_order")
+    if leaf_order is None:
+        tree, leaf_order = rebuild_leaf_order(tree)
 
+    # Confirm tree input is ok
+    required_tree_cols = {"branchL", "leaf_start", "leaf_end"}
+    missing = required_tree_cols - set(tree.columns)
+    if missing:
+        raise ValueError(
+            f"`tree` must contain columns {sorted(required_tree_cols)}. "
+            f"Missing: {sorted(missing)}."
+        )
+    if leaf_order is None:
+        raise ValueError("`leaf_order` is required for trees.")
+
+    # Confirm tab input is ok
     if tab.shape[1] < 2:
         raise ValueError("At least two samples are required.")
+    # Ensure numeric
+    try:
+        tab = tab.astype(float)
+    except Exception as e:
+        raise TypeError(
+            "Abundance table contains non-numeric values. Ensure counts/abundances are numeric."
+        ) from e
 
-    if "leaves" not in tree.columns or "branchL" not in tree.columns:
-        raise ValueError("`tree` must contain columns 'leaves' and 'branchL'.")
+    # --- Relative abundances --------------------------------------------------
+    if use_values_in_tab:
+        ra = tab
+    else:
+        col_sums = tab.sum(axis=0)
+        if (col_sums == 0).any():
+            bad = col_sums.index[col_sums == 0].tolist()
+            raise ValueError(f"One or more samples have zero total abundance: {bad}")
+        ra = tab.div(col_sums, axis=1)
 
-    #Subset tree to features in tab
-    tree = subset_tree_df(tree, tab.index.tolist())
+    # Build branch × sample abundance matrix
+    tree2 = ra_to_branches(ra, tree, leaf_order)
 
-    # Build dictionary of subtables by category
+    # Build dictionary of tree2 tables by category
     if by is None:
         categories = ["all"]
-        tabdict = {"all": tab.copy()}
+        tabdict = {"all": tree2.copy()}
     else:
         if by not in meta.columns:
             raise ValueError(f"Column '{by}' not found in metadata.")
-
+        tabdict = {}
         categories = meta[by].unique().tolist()
-        tabdict = {
-            cat: get_df(subset_samples(obj, by=by, values=[cat]), "tab")
-            for cat in categories
-        }
+        for cat in categories:
+            smplist = meta[meta[by]==cat].index
+            tabdict[cat] = tree2[smplist]
 
     # Output container
     out = pd.DataFrame(
@@ -968,32 +1021,23 @@ def phyl_multi_beta(
 
     # Compute multi‑sample phylogenetic beta for each category
     for cat in categories:
-        subtab = tabdict[cat]
+        subtree2 = tabdict[cat]
 
         # Need at least 2 samples
-        if subtab.shape[1] < 2:
+        if subtree2.shape[1] < 2:
             continue
 
-        N = subtab.shape[1]
+        N = subtree2.shape[1]
         out.loc[cat, "N"] = N
-
-        # Relative abundances
-        col_sums = subtab.sum()
-        if (col_sums == 0).any():
-            raise ValueError(f"Group '{cat}' contains a zero‑sum sample.")
-        ra = subtab.div(col_sums)
-
-        # Build branch × sample abundance matrix
-        tree2 = ra_to_branches(ra, tree)
 
         # --- Compute Tavg = Σ_b L_b * mean(p_b) -------------------------------------
         # Align branch lengths to tree2 (branch × sample) and ensure numeric
-        branchL = pd.to_numeric(tree["branchL"], errors="raise").reindex(tree2.index)
+        branchL = pd.to_numeric(tree["branchL"], errors="raise")
         if branchL.isna().any():
             missing = branchL.index[branchL.isna()].tolist()
             raise ValueError(f"'branchL' missing for branches: {missing}")
         
-        mean_ra = tree2.mean(axis=1)                  # γ_b: mean of per-branch RA across N samples
+        mean_ra = subtree2.mean(axis=1)                  # γ_b: mean of per-branch RA across N samples
         Tavg = float(mean_ra.mul(branchL).sum())      # Σ L_b * γ_b
         
         # --- γ-diversity -------------------------------------------------------------
@@ -1011,12 +1055,12 @@ def phyl_multi_beta(
             gamma_div = term ** (1.0 / (1.0 - q))
         
         # --- α-diversity -------------------------------------------------------------
-        K = tree2.shape[1]
+        K = subtree2.shape[1]
         
-        if abs(q - 1.0) < 1e-6:
-            mask = tree2 > 0
+        if q == 1.0:
+            mask = subtree2 > 0
             term = (
-                (tree2[mask] * np.log(tree2[mask]))
+                (subtree2[mask] * np.log(subtree2[mask]))
                 .mul(branchL, axis=0)
                 .sum().sum()
                 / (K * Tavg)
@@ -1024,13 +1068,13 @@ def phyl_multi_beta(
             alpha_div = math.exp(-term)
         
         elif q == 0:
-            pos_counts = (tree2 > 0).sum(axis=1).astype(float)
+            pos_counts = (subtree2 > 0).sum(axis=1).astype(float)
             alpha_div = (branchL * pos_counts).sum() / (K * Tavg)
         
         else:
             term = (
                 branchL *
-                (tree2.clip(lower=0).pow(q).sum(axis=1) / K)
+                (subtree2.clip(lower=0).pow(q).sum(axis=1) / K)
             ).sum() / Tavg
             alpha_div = term ** (1.0 / (1.0 - q))
 
@@ -1056,6 +1100,7 @@ def func_multi_beta(
     *,
     by: Optional[str] = None,
     q: float = 1,
+    use_values_in_tab: bool = False,
 ) -> pd.DataFrame:
     """
     Compute functional multi‑sample beta diversity for groups of samples.
@@ -1087,6 +1132,10 @@ def func_multi_beta(
         If None, all samples are treated as one group.
     q : float, default=1
         Diversity order.
+    use_values_in_tab : bool, default=False
+        If False, abundances are converted to relative abundances per sample.
+        If True, the abundance table is assumed to already contain relative
+        abundances.
 
     Returns
     -------
@@ -1106,29 +1155,47 @@ def func_multi_beta(
     # Validate input
     tab = get_df(obj, "tab")
     meta = get_df(obj, "meta")
+
+    # Confirm tab input is ok
     if tab.shape[1] < 2:
         raise ValueError("At least two samples are required.")
+    # Ensure numeric
+    try:
+        tab = tab.astype(float)
+    except Exception as e:
+        raise TypeError(
+            "Abundance table contains non-numeric values. Ensure counts/abundances are numeric."
+        ) from e
+
+    # --- Relative abundances --------------------------------------------------
+    if use_values_in_tab:
+        ra = tab
+    else:
+        col_sums = tab.sum(axis=0)
+        if (col_sums == 0).any():
+            bad = col_sums.index[col_sums == 0].tolist()
+            raise ValueError(f"One or more samples have zero total abundance: {bad}")
+        ra = tab.div(col_sums, axis=1)
 
     # Make sure tab and distmat have the same index
-    in_common = list(set(distmat.index).intersection(tab.index))
-    if len(in_common) < len(tab):
+    in_common = list(set(distmat.index).intersection(ra.index))
+    if len(in_common) < len(ra):
         raise ValueError("Features in tab are missing in distmat.")
-    tab = tab.loc[in_common]
+    ra = ra.loc[in_common]
     distmat = distmat.loc[in_common, in_common].copy()
 
     # Build dictionary of subtables by category
     if by is None:
         categories = ["all"]
-        tabdict = {"all": tab.copy()}
+        tabdict = {"all": ra.copy()}
     else:
         if by not in meta.columns:
             raise ValueError(f"Column '{by}' not found in metadata.")
-
+        tabdict = {}
         categories = meta[by].unique().tolist()
-        tabdict = {
-            cat: get_df(subset_samples(obj, by=by, values=[cat], keep_absent=True), "tab")
-            for cat in categories
-        }
+        for cat in categories:
+            smplist = meta[meta[by]==cat].index
+            tabdict[cat] = ra[smplist]
 
     # Output container
     out = pd.DataFrame(
@@ -1147,12 +1214,6 @@ def func_multi_beta(
 
         N = subtab.shape[1]
         out.loc[cat, "NxN"] = N * N
-
-        # Relative abundances
-        col_sums = subtab.sum()
-        if (col_sums == 0).any():
-            raise ValueError(f"Group '{cat}' contains a zero‑sum sample.")
-        ra = subtab.div(col_sums)
 
         smplist = ra.columns.tolist()
 
@@ -1189,7 +1250,7 @@ def func_multi_beta(
 
                 outer12 = np.outer(p1, p2) / (N * N)
 
-                if q == 1:
+                if q == 1.0:
                     mask = outer12 > 0
                     log_outer = np.zeros_like(outer12)
                     log_outer[mask] = np.log(outer12[mask])

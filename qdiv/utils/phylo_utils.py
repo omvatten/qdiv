@@ -3,6 +3,7 @@ Functions for phylogenetic trees:
     - parse_newick : returns tree dict
     - tree_to_dataframe : converts tree dict to dataframe
     - dataframe_to_tree : converts dataframe to tree dict
+    - rebuild_leaf_order: rebuilds leaf_order list from existing dataframe
     - subset_tree : subsets tree dict to list of leaf nodes
     - subset_tree_df : subsets dataframe quickly, useful for diversity calculations
     - tree_to_newick : converts tree dict to newick
@@ -21,6 +22,7 @@ __all__ = [
     "parse_newick",
     "tree_to_dataframe",
     "dataframe_to_tree",
+    "rebuild_leaf_order",
     "subset_tree",
     "subset_tree_df",
     "tree_to_newick",
@@ -470,6 +472,14 @@ def dataframe_to_tree(df):
             rec_nodes[n]["parent"] = rec_nodes[p]
 
     return rec_nodes[roots[0]]
+
+# Rebuilds leaf_order list from pre-existing tree dataframe
+def rebuild_leaf_order(tree_df):
+    """
+    Rebuild leaf_start, leaf_end and leaf_order from a tree dataframe.
+    """
+    tree = dataframe_to_tree(tree_df)
+    return tree_to_dataframe(tree)
 
 # Subset tree works on dictionary
 def subset_tree(tree, keep_leaves):

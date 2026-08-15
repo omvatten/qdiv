@@ -1330,12 +1330,18 @@ class MicrobiomeData:
                 self.meta = self.meta.loc[common_samples]
             self.tab = self.tab[self.meta.index]
 
+        if self.tree is not None and self.leaf_order is None:
+            tree, leaf_order = phylo_func.rebuild_leaf_order(self.tree)
+            self.tree = tree
+            self.leaf_order = leaf_order
+            warnings.warn("Auto-correct: leaf_order was missing, rebuilt it from tree dataframe.", UserWarning)
 
     def _validate(self):
         """
         Internal validation to ensure index alignment, uniqueness, and data integrity.
         Raises ValueError if inconsistencies or duplicates are found.
         """
+        # Checks with tab present
         if self.tab is not None:
             # Check for empty tab
             if len(self.tab) == 0:
@@ -1409,9 +1415,7 @@ class MicrobiomeData:
                 if not tab_features.issubset(set(self.leaf_order)):
                     raise ValueError("Not all tab features are found in leaf_order list.")
 
-
-
-
+        # Other checks
         if self.tax is not None:
             if len(self.tax) == 0:
                 raise ValueError("Features missing in tax.")

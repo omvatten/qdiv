@@ -2,7 +2,8 @@ import pandas as pd
 import numpy as np
 import math
 from typing import Union, Any, Dict
-from ..utils import rao, get_df, subset_tree_df, compute_Tmean, ra_to_branches
+from ..utils import rao, get_df, subset_tree_df, compute_Tmean
+from ..utils import ra_to_branches, rebuild_leaf_order
 
 # -----------------------------------------------------------------------------
 # Naive alpha diversity
@@ -88,7 +89,7 @@ def phyl_alpha(
     *,
     q: float = 1,
     index: str = "D",
-    use_values_in_tab: bool = False
+    use_values_in_tab: bool = False,
 ) -> Union[pd.Series, float]:
     """
     Compute phylogenetic alpha diversity based on Hill numbers.
@@ -156,6 +157,8 @@ def phyl_alpha(
     if tree is None:
         raise ValueError('tree is missing.')
     leaf_order = get_df(obj, "leaf_order")
+    if leaf_order is None:
+        tree, leaf_order = rebuild_leaf_order(tree)
     
     # Confirm input is ok
     required_tree_cols = {"branchL", "leaf_start", "leaf_end"}
