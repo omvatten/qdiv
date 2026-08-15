@@ -164,8 +164,8 @@ def beta2dist(
     if viewpoint not in valid_viewpoints:
         raise ValueError(f"viewpoint must be one of {valid_viewpoints}, got '{viewpoint}'.")
 
-    if N <= 0:
-        raise ValueError("N must be positive.")
+    if N <= 1:
+        raise ValueError("N must be greater than 1.")
 
     # Convert input to a pandas object for unified handling
     is_scalar = np.isscalar(beta)
@@ -182,26 +182,14 @@ def beta2dist(
     dist = beta_arr.copy()
 
     # --- Core transformation logic ------------------------------------------
-    if q == 1:
-        # Shannon case
-        if div_type in ['naive', 'phyl']:
-            dist[mask] = (np.log(beta_arr[mask]) / math.log(N))
-        else:  # func
-            dist[mask] = (np.log(beta_arr[mask]) / (2 * math.log(N)))
+    if q == 1.0:
+        dist[mask] = (np.log(beta_arr[mask]) / math.log(N))
 
     else:
-        # q != 1
-        if div_type in ['naive', 'phyl'] and viewpoint == 'local':
+        if viewpoint == 'local':
             dist[mask] = 1 - (N**(1 - q) - beta_arr[mask]**(1 - q)) / (N**(1 - q) - 1)
-
-        elif div_type == 'func' and viewpoint == 'local':
-            dist[mask] = 1 - (N**(2 * (1 - q)) - beta_arr[mask]**(1 - q)) / (N**(2 * (1 - q)) - 1)
-
-        elif div_type in ['naive', 'phyl'] and viewpoint == 'regional':
+        else:
             dist[mask] = 1 - ((1 / beta_arr[mask])**(1 - q) - (1 / N)**(1 - q)) / (1 - (1 / N)**(1 - q))
-
-        elif div_type == 'func' and viewpoint == 'regional':
-            dist[mask] = 1 - ((1 / beta_arr[mask])**(1 - q) - (1 / N)**(2 * (1 - q))) / (1 - (1 / N)**(2 * (1 - q)))
 
     # --- Return in original format ------------------------------------------
     if is_scalar:

@@ -185,6 +185,10 @@ def naive_beta(
                 out.loc[s2, s1] = beta
 
     # Convert β to dissimilarity if requested
+    # Ensure beta diagonal is 1
+    for s in out.index:
+        out.loc[s, s] = 1.0
+
     if dis:
         return beta2dist(beta=out, q=q, N=2, div_type="naive", viewpoint=viewpoint)
     return out
@@ -378,6 +382,10 @@ def phyl_beta(
                 out.loc[s2, s1] = beta_val
 
     # --- Convert β to dissimilarity if requested ------------------------------
+    # Ensure beta diagonal is 1
+    for s in out.index:
+        out.loc[s, s] = 1.0
+
     if dis:
         return beta2dist(beta=out, q=q, N=2, div_type="phyl", viewpoint=viewpoint)
 
@@ -438,8 +446,9 @@ def func_beta(
     Returns
     -------
     pandas.DataFrame
-        Pairwise functional dissimilarity matrix (if `dis=True`) or
-        squared functional beta (β²) matrix (if `dis=False`).
+        Pairwise functional dissimilarity matrix if ``dis=True``.
+        If ``dis=False``, returns the pairwise functional beta diversity
+        matrix, with diagonal values equal to 1.
 
     Notes
     -----
@@ -473,8 +482,12 @@ def func_beta(
         raise ValueError("`tab` must contain ≥ 2 samples (columns).")
 
     # Align distance matrix to features
-    asvs = ra.index.tolist()
-    distmat = distmat.loc[asvs, asvs]
+    missing = set(ra.index) - set(distmat.index)
+    if missing:
+        raise ValueError(
+            f"Features in tab are missing from distmat. Examples: {list(missing)[:5]}"
+        )
+    distmat = distmat.loc[ra.index, ra.index]
     smplist = list(ra.columns)
 
     # Check accelerator
@@ -511,6 +524,10 @@ def func_beta(
                 # Rao's Q for each column and for the mean
                 Qvals = rao(ra12, distmat)
                 Q_pooled = Qvals["mean"]
+                if Q_pooled <= 0 or not np.isfinite(Q_pooled):
+                    raise ValueError(
+                        f"Functional Rao's Q is zero or invalid for pair '{s1}' and '{s2}'."
+                    )
                 dqmat = distmat * (1.0 / Q_pooled)
     
                 # -------------------------
@@ -591,14 +608,23 @@ def func_beta(
                 outD.loc[s1, s2] = beta_val
                 outD.loc[s2, s1] = beta_val
 
-    # Square β to get FD-like measure
-    outFD = outD.pow(2)
-
-    # Convert β to dissimilarity if requested
+    # Ensure beta diagonal is 1
+    for s in outD.index:
+        outD.loc[s, s] = 1.0
+    
+    # Convert beta to dissimilarity if requested
     if dis:
-        return beta2dist(beta=outFD, q=q, N=2, div_type="func", viewpoint=viewpoint)
+        return beta2dist(
+            beta=outD,
+            q=q,
+            N=2,
+            div_type="func",
+            viewpoint=viewpoint,
+        )
+    
+    return outD
 
-    return outFD
+
 
 # -----------------------------------------------------------------------------
 # Bray-Curtis
@@ -1201,7 +1227,7 @@ def func_multi_beta(
     out = pd.DataFrame(
         np.nan,
         index=categories,
-        columns=["NxN", "beta", "local_dis", "regional_dis"]
+        columns=["N", "beta", "local_dis", "regional_dis"]
     )
 
     # Compute multi‑sample functional beta for each category
@@ -1213,7 +1239,7 @@ def func_multi_beta(
             continue
 
         N = subtab.shape[1]
-        out.loc[cat, "NxN"] = N * N
+        out.loc[cat, "N"] = N
 
         smplist = subtab.columns.tolist()
 
@@ -1222,6 +1248,11 @@ def func_multi_beta(
 
         # Rao's Q for pooled community
         Q_pooled = rao(ra_mean, distmat)
+        if Q_pooled <= 0 or not np.isfinite(Q_pooled):
+            raise ValueError(
+                f"Functional Rao's Q is zero or invalid for group '{cat}'. "
+                "Functional beta diversity cannot be computed."
+            )
         dqmat = distmat * (1.0 / Q_pooled)
 
         # γ-diversity (pooled)
