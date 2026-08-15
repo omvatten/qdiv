@@ -447,7 +447,6 @@ def subset_abundant(
                 meta=obj.meta,
                 tree=obj.tree,
                 leaf_order=obj.leaf_order,
-                leaf_order=obj.leaf_order,
             )
             return new_obj
     else:

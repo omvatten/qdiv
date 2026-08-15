@@ -235,54 +235,96 @@ def func_alpha(
     distmat: pd.DataFrame,
     *,
     q: float = 1,
-    index: str = "FD",
+    index: str = "D",
     use_values_in_tab: bool = False
 ) -> Union[pd.Series, float]:
     """
-    Compute functional alpha diversity (Hill numbers) of order *q*.
-
-    Implements the framework of Chiu et al. (2014, PLoS ONE), where functional
-    diversity is derived from pairwise trait distances and species abundances.
-
-    For each sample, functional diversity is computed from:
-
-        Q = Σᵢ Σⱼ pᵢ pⱼ dᵢⱼ        (Rao's quadratic entropy)
-
-    and the functional Hill number of order q:
-
+    Compute functional alpha diversity of order *q* following
+    Chiu et al. (2014).
+    
+    Functional diversity is calculated from pairwise trait distances
+    between features and their relative abundances. The method extends
+    Hill numbers to the functional domain using Rao's quadratic entropy
+    (*Q*) as the measure of functional dispersion.
+    
+    For each sample:
+    
+        Q = Σᵢ Σⱼ pᵢ pⱼ dᵢⱼ
+    
+    where:
+    
+        pᵢ = relative abundance of feature i
+        dᵢⱼ = functional distance between features i and j
+    
+    The functional Hill number (*D*) is then computed as:
+    
         q = 1:
-            FD₁ = exp( -½ Σᵢ Σⱼ (pᵢ pⱼ ln(pᵢ pⱼ)) dᵢⱼ / Q )
-
+    
+            D = exp(
+                -½ · Σᵢ Σⱼ
+                (pᵢ pⱼ ln(pᵢ pⱼ)) dᵢⱼ / Q
+            )
+    
         q ≠ 1:
-            FD_q = ( Σᵢ Σⱼ (pᵢ pⱼ)ᵠ dᵢⱼ / Q )^( 1 / (2(1−q)) )
-
+    
+            D = (
+                Σᵢ Σⱼ
+                (pᵢ pⱼ)^q dᵢⱼ / Q
+            ) ^ (1 / (2(1-q)))
+    
+    Additional functional diversity measures are derived from D and Q:
+    
+        MD = D × Q
+    
+            Mean functional diversity.
+            Represents the average functional dispersion among the
+            effective functional groups.
+    
+        FD = D × MD = D² × Q
+    
+            Total functional diversity.
+            Incorporates both the effective number of functional groups
+            and their functional dispersion.
+    
     Parameters
     ----------
     tab : DataFrame | MicrobiomeData-like | dict
-        Abundance table (features x samples) or convertible structure.
+        Abundance table (features × samples) or convertible structure.
+    
     distmat : pandas.DataFrame
         Functional distance matrix (features × features).
+    
     q : float, default=1
         Diversity order.
-    index : {'FD', 'D', 'MD'}, default='FD'
-        Output type:
-        - 'D'  : functional Hill number
+    
+    index : {'D', 'MD', 'FD'}, default='D'
+        Quantity to return.
+    
+        - 'D'  : functional Hill number (effective number of
+                 functionally distinct features)
         - 'MD' : mean functional diversity (D × Q)
-        - 'FD' : functional diversity (D × MD)
+        - 'FD' : total functional diversity (D² × Q)
+    
     use_values_in_tab : bool, default=False
-        If False, convert abundances to relative abundances.
-        If True, assume `tab` already contains relative abundances.
-
+        If False, abundances are converted to relative abundances.
+        If True, values in `tab` are assumed to already be relative
+        abundances.
+    
     Returns
     -------
     pandas.Series
         Functional diversity values for each sample.
-
+    
     Notes
     -----
-    - Uses Rao's Q as implemented in your `rao()` function.
+    - The implementation follows Chiu et al. (2014, PLoS ONE).
+    - Rao's quadratic entropy is calculated using `rao()`.
+    - The default output ('D') corresponds to the functional Hill number
+      and is directly comparable to taxonomic and phylogenetic Hill
+      numbers.
     - Zero abundances are handled safely.
     """
+
 
     # Get input
     tab = get_df(tab, "tab")

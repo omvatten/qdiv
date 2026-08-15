@@ -4,7 +4,7 @@ import math
 from typing import Optional, Dict, Any, Union, Tuple
 from ..io import subset_samples
 from ..utils import rao, beta2dist, get_df
-from ..utils import subset_tree_df, ra_to_branches, compute_Tmean, rebuild_leaf_order
+from ..utils import subset_tree, ra_to_branches, compute_Tmean, rebuild_leaf_order, dataframe_to_tree, tree_to_dataframe
 from .alpha_div import naive_alpha, phyl_alpha, func_alpha
 
 def _get_tqdm(use_tqdm: bool):
@@ -623,8 +623,6 @@ def func_beta(
         )
     
     return outD
-
-
 
 # -----------------------------------------------------------------------------
 # Bray-Curtis
@@ -1424,21 +1422,22 @@ def evenness(
             tree = get_df(obj, "tree")
             if not isinstance(tree, pd.DataFrame):
                 raise ValueError("tree must be provided for divType='phyl'.")
+            leaf_order = get_df(obj, "leaf_order")
+            if not isinstance(leaf_order, list):
+                raise ValueError("leaf_order must be provided for divType='phyl'.")
 
             # Relative abundances
             ra = tab.div(tab.sum()) if not use_values_in_tab else tab.astype(float)
 
-            #Subset tree to features in tab
-            tree = subset_tree_df(tree, ra.index.tolist())
-
             # Build branch × sample matrix
-            tree2 = ra_to_branches(ra, tree)
+            tree2 = ra_to_branches(ra, tree, leaf_order)
 
             # Normalize across samples
             tree2 = tree2.T
             tree2 = tree2.div(tree2.sum()).fillna(0.0)
 
-            S_series = tree2.count().astype(float)
+            #S_series = tree2.count().astype(float)
+            S_series = (tree2 > 0).sum().astype(float)
             D_series = naive_alpha(tree2, q=q, use_values_in_tab=True)
 
         else:
@@ -1448,15 +1447,21 @@ def evenness(
     if index in ("CR1", "CR2", "regional", "local"):
         if q == 1:
             df = pd.DataFrame({"D": D_series, "S": S_series}).astype(float)
-            mask = (df["S"] > 0) & (df["D"] > 0)
-            logD = np.log(df.loc[mask, "D"])
-            logS = np.log(df.loc[mask, "S"])
-            measure = logD / logS
+            measure = pd.Series(np.nan, index=df.index, dtype=float)
+            mask = (df["S"] > 1) & (df["D"] > 0)
+            measure.loc[mask] = (
+                np.log(df.loc[mask, "D"])
+                / np.log(df.loc[mask, "S"])
+            )
+            measure.loc[df["S"] <= 1] = np.nan
         else:
             Dp = D_series.astype(float).pow(power)
             Sp = S_series.astype(float).pow(power)
             measure = (1 - Dp) / (1 - Sp)
-    
+            measure = measure.replace([np.inf, -np.inf], np.nan)
+            mask = S_series <= 1
+            measure.loc[mask] = np.nan
+
     elif index == "CR3":
         measure = (D_series - 1) / (S_series - 1)
     
@@ -1474,6 +1479,7 @@ def evenness(
     else:
         raise ValueError("index must be one of: CR1, CR2, CR3, CR4, CR5, local, regional, pielou.")
 
+    measure = measure.fillna(1.0)
     return measure
 
 # -----------------------------------------------------------------------------
@@ -1486,35 +1492,44 @@ def dissimilarity_by_feature(
     q: float = 1,
     div_type: str = "naive",
     index: str = "regional",
-    use_values_in_tab: bool = False
+    use_values_in_tab: bool = False,
 ) -> pd.DataFrame:
     """
-    Compute the contribution of individual taxa (or phylogenetic nodes)
+    Compute the contribution of individual taxa or phylogenetic branches
     to the overall dissimilarity between multiple samples, following
-    Chao & Ricotta (2019, Ecology 100:e02852).
+    Chao and Ricotta (2019).
 
     Supports:
-        - naive (taxonomic) dissimilarity
+        - naive taxonomic dissimilarity
         - phylogenetic dissimilarity
 
     Parameters
     ----------
     obj : DataFrame | MicrobiomeData-like | dict
         Must contain:
-            - 'tab' : abundance table (features × samples)
-            - 'meta' : metadata table (optional if by=None)
-            - 'tree' : phylogenetic tree (required if divType='phyl')
-    by : str or None, default=None
+            - 'tab' : abundance table, features x samples
+            - 'meta' : metadata table, required if by is not None
+            - 'tree' : phylogenetic tree, required if div_type='phyl'
+            - 'leaf_order' : required if div_type='phyl'
+
+    by : str or None, default None
         Metadata column defining sample groups.
         If None, all samples are treated as one group.
-    q : float, default=1
+
+    q : float, default 1
         Diversity order.
-    div_type : {'naive','phyl'}, default='naive'
+
+    div_type : {'naive', 'phyl'}, default 'naive'
         Type of dissimilarity measure.
-    index : {'local','regional','CR1','CR2'}, default='regional'
-        Evenness/dissimilarity index.
-    use_values_in_tab : bool, default=False
+
+    index : {'local', 'regional', 'CR1', 'CR2'}, default 'regional'
+        Dissimilarity index.
+        'regional' and 'CR1' are equivalent.
+        'local' and 'CR2' are equivalent.
+
+    use_values_in_tab : bool, default False
         If False, convert abundances to relative abundances.
+        If True, values in tab are assumed to already be relative abundances.
 
     Returns
     -------
@@ -1522,19 +1537,27 @@ def dissimilarity_by_feature(
         Rows:
             - 'dis' : total dissimilarity
             - 'N'   : number of samples in group
-            - one row per taxon (naive) or per node (phylogenetic)
+            - one row per taxon, for naive dissimilarity
+            - one row per branch or node, for phylogenetic dissimilarity
+
         Columns:
-            - one column per category in `by`
+            - one column per category in by
+            - for phylogenetic dissimilarity, an additional 'nodes' column
     """
 
+    # ---------------------------------------------------------------------
     # Validate input
+    # ---------------------------------------------------------------------
     tab = get_df(obj, "tab")
+
+    if tab is None:
+        raise ValueError("'tab' is missing.")
 
     if tab.shape[1] < 2:
         raise ValueError("At least two samples are required.")
 
     if div_type not in ("naive", "phyl"):
-        raise ValueError("divType must be 'naive' or 'phyl'.")
+        raise ValueError("div_type must be 'naive' or 'phyl'.")
 
     if index in ("CR1", "regional"):
         idx = "regional"
@@ -1543,34 +1566,87 @@ def dissimilarity_by_feature(
     else:
         raise ValueError("index must be 'local', 'regional', 'CR1', or 'CR2'.")
 
+    tab = tab.astype(float)
+
+    # ---------------------------------------------------------------------
+    # Helper: q-power that handles q = 0 correctly
+    # ---------------------------------------------------------------------
+    def positive_power(x, q):
+        """
+        Compute x^q for positive x, while keeping zeros as zero.
+
+        This avoids the pandas/numpy behavior where 0**0 becomes 1.
+        """
+        if isinstance(x, pd.DataFrame):
+            out = pd.DataFrame(0.0, index=x.index, columns=x.columns)
+            mask = x > 0
+            if q == 0:
+                out[mask] = 1.0
+            else:
+                out[mask] = x[mask].pow(q)
+            return out
+
+        if isinstance(x, pd.Series):
+            out = pd.Series(0.0, index=x.index)
+            mask = x > 0
+            if q == 0:
+                out.loc[mask] = 1.0
+            else:
+                out.loc[mask] = x.loc[mask].pow(q)
+            return out
+
+        raise TypeError("positive_power expects a pandas Series or DataFrame.")
+
+    # ---------------------------------------------------------------------
     # Build dictionary of subtables by category
+    # ---------------------------------------------------------------------
     if by is None:
         categories = ["all"]
         tabdict = {"all": tab.copy()}
     else:
         meta = get_df(obj, "meta")
+
+        if meta is None:
+            raise ValueError("'meta' is required when 'by' is provided.")
+
         if by not in meta.columns:
             raise ValueError(f"Column '{by}' not found in metadata.")
 
         categories = meta[by].unique().tolist()
+
         tabdict = {
-            cat: get_df(subset_samples(obj, by=by, values=[cat]), "tab")
+            cat: get_df(
+                subset_samples(obj, by=by, values=[cat]),
+                "tab",
+            )
             for cat in categories
         }
 
-    # Prepare output table
-    if div_type == "naive":
-        feature_index = ["dis", "N"] + tab.index.tolist()
-    else:
+    # ---------------------------------------------------------------------
+    # Prepare tree if needed
+    # ---------------------------------------------------------------------
+    if div_type == "phyl":
         tree = get_df(obj, "tree")
-        tree = subset_tree_df(tree, tab.index.tolist())
-        feature_index = ["dis", "N"] + tree.index.tolist()
+        leaf_order = get_df(obj, "leaf_order")
+
+        if tree is None:
+            raise ValueError("'tree' is required when div_type='phyl'.")
+
+        if leaf_order is None:
+            tree, leaf_order = rebuild_leaf_order(tree)
+
+        feature_index = ["dis", "N"] + tree["nodes"].tolist()
+
+    else:
+        feature_index = ["dis", "N"] + tab.index.tolist()
 
     out = pd.DataFrame(np.nan, index=feature_index, columns=categories)
 
+    # ---------------------------------------------------------------------
     # Main loop over categories
+    # ---------------------------------------------------------------------
     for cat in categories:
-        subtab = tabdict[cat]
+        subtab = tabdict[cat].astype(float)
         N = subtab.shape[1]
         out.loc["N", cat] = N
 
@@ -1579,28 +1655,31 @@ def dissimilarity_by_feature(
 
         # Relative abundances
         if use_values_in_tab:
-            ra = subtab.astype(float)
+            ra = subtab
         else:
-            col_sums = subtab.sum()
+            col_sums = subtab.sum(axis=0)
             if (col_sums == 0).any():
                 raise ValueError(f"Group '{cat}' contains a zero-sum sample.")
-            ra = subtab.div(col_sums)
+            ra = subtab.div(col_sums, axis=1)
 
-        # NAIVE VERSION
+        # -----------------------------------------------------------------
+        # Naive version
+        # -----------------------------------------------------------------
         if div_type == "naive":
-            # Compute weights w_i
-            if idx == "regional":  # CR1
-                w = subtab.sum(axis=1).pow(q)
-                w = w / w.sum()
-            else:  # local = CR2
-                tab_q = subtab.copy()
-                mask = tab_q > 0
-                tab_q[mask] = tab_q[mask].pow(q)
-                w = tab_q.sum(axis=1) / tab_q.sum().sum()
 
-            # Evenness per taxon
+            # Use relative abundances for weights, not raw counts.
+            # This avoids group-level sequencing-depth effects.
+            if idx == "regional":
+                z = ra.sum(axis=1)
+                zq = positive_power(z, q)
+                w = zq / zq.sum()
+
+            else:
+                ra_q = positive_power(ra, q)
+                w = ra_q.sum(axis=1) / ra_q.sum().sum()
+
             ev = evenness(
-                subtab,
+                ra if use_values_in_tab else subtab,
                 q=q,
                 div_type="naive",
                 index=idx,
@@ -1608,50 +1687,73 @@ def dissimilarity_by_feature(
                 use_values_in_tab=use_values_in_tab,
             )
 
-            # Contribution
             contrib = w * (1 - ev)
+            contrib = contrib.clip(lower=0)
 
-            out.loc["dis", cat] = contrib.sum()
-            out.loc[contrib.index, cat] = 100 * contrib / contrib.sum()
+            total = contrib.sum()
+            out.loc["dis", cat] = total
+
+            if total > 0:
+                out.loc[contrib.index, cat] = 100 * contrib / total
+            else:
+                out.loc[contrib.index, cat] = 0.0
+
             out[cat] = out[cat].fillna(0)
 
-        # PHYLOGENETIC VERSION
+        # -----------------------------------------------------------------
+        # Phylogenetic version
+        # -----------------------------------------------------------------
         elif div_type == "phyl":
-        
-            # Build branch × sample matrix
-            tree2 = ra_to_branches(ra, tree)
-        
-            # Evenness per node (correct)
+
+            tree2 = ra_to_branches(
+                ra=ra,
+                tree_df=tree,
+                leaf_order=leaf_order,
+            )
+
             ev = evenness(
-                {"tab": subtab, "tree": tree},
+                {
+                    "tab": subtab,
+                    "tree": tree,
+                    "leaf_order": leaf_order,
+                },
                 q=q,
                 div_type="phyl",
                 index=idx,
                 perspective="taxa",
-                use_values_in_tab=use_values_in_tab,
+                use_values_in_tab=use_values_in_tab
             )
-        
-            # Compute branch weights
-            if idx == "regional":  # CR1
+
+            branchL = tree["branchL"]
+
+            if idx == "regional":
                 zi = tree2.sum(axis=1)
-                zi_q = zi.clip(lower=0).pow(q)
-                w = (tree["branchL"] * zi_q)
+                zi_q = positive_power(zi, q)
+                w = branchL * zi_q
                 w = w / w.sum()
-        
-            else:  # local = CR2
-                tree2_q = tree2.clip(lower=0).pow(q)
+
+            else:
+                tree2_q = positive_power(tree2, q)
                 zv = tree2_q.sum(axis=1)
-                w = (tree["branchL"] * zv)
+                w = branchL * zv
                 w = w / w.sum()
-        
-            # Contribution
-            contrib = tree["branchL"] * w * (1 - ev)
-        
-            out.loc["dis", cat] = contrib.sum()
-            out.loc[contrib.index, cat] = 100 * contrib / contrib.sum()
-            out.loc[tree.index, 'nodes'] = tree['nodes']
-    
+
+            contrib = w * (1 - ev)
+            contrib = contrib.fillna(0)
+            contrib = contrib.clip(lower=0)
+
+            total = contrib.sum()
+            out.loc["dis", cat] = total
+
+            contrib.index = tree.loc[contrib.index, "nodes"]
+
+            if total > 0:
+                out.loc[contrib.index, cat] = 100 * contrib / total
+            else:
+                out.loc[contrib.index, cat] = 0.0
+
     return out
+
 
 # -----------------------------------------------------------------------------
 # beta MPDq and MNTDq

@@ -1029,11 +1029,8 @@ def ra_to_branches(
     # abundance[start:end] = prefix[end] - prefix[start]
     A = prefix[ends] - prefix[starts]
 
-    return pd.DataFrame(
-        A,
-        index=tree_df.index,
-        columns=ra.columns,
-    )
+    return pd.DataFrame(A, index=tree_df.index, columns=ra.columns)
+
 
 def compute_Tmean(
     tree_df: pd.DataFrame,

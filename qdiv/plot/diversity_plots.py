@@ -6,7 +6,7 @@ from matplotlib.gridspec import GridSpec
 from ..io import subset_samples
 from ..diversity import naive_alpha, phyl_alpha, func_alpha
 from ..diversity import dissimilarity_by_feature, naive_multi_beta, phyl_multi_beta, func_multi_beta
-from ..utils import get_df, parse_leaves, get_colors_markers
+from ..utils import get_df, get_colors_markers
 
 # -----------------------------------------------------------------------------
 # Plot dissimilarity contribution of features

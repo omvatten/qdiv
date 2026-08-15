@@ -485,8 +485,8 @@ def nriq(
         out[valid] = num_full[valid] / den[valid]
         return out
     
-    present_counts = (R > 0).sum(axis=0)  # shape (S,)
     obs = _alpha_mpdq(D, Rq)
+    present_counts = (R > 0).sum(axis=0)  # shape (S,)
     obs[present_counts < 2] = np.nan
 
     # streaming stats init

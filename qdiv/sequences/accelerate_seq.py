@@ -99,4 +99,49 @@ def compute_distance_matrix_numba(ids, seqs, band_width: int = 12):
     dmat, nmat = _compute_matrices_parallel(clean_seqs, int(band_width), lengths)
     return dmat, nmat
 
+# Accelerate tree_distance_matrix
+@njit(parallel=True, cache=True, fastmath=True)
+def compute_tree_distance_matrix_numba(
+    leaf_pos,
+    dist_to_root,
+    first_occ,
+    euler,
+    depth,
+    log,
+    st
+):
+    m = len(leaf_pos)
+    mat = np.zeros((m, m), dtype=np.float64)
 
+    for a in prange(m-1):
+        ua = leaf_pos[a]
+
+        for b in range(a + 1, m):
+            vb = leaf_pos[b]
+
+            # LCA lookup
+            iu = first_occ[ua]
+            iv = first_occ[vb]
+
+            if iu > iv:
+                iu, iv = iv, iu
+
+            j = log[iv - iu + 1]
+
+            left = st[j, iu]
+            right = st[j, iv - (1 << j) + 1]
+
+            rmq_idx = left if depth[left] < depth[right] else right
+
+            ancestor = euler[rmq_idx]
+
+            d = (
+                dist_to_root[ua]
+                + dist_to_root[vb]
+                - 2.0 * dist_to_root[ancestor]
+            )
+
+            mat[a, b] = d
+            mat[b, a] = d
+
+    return mat

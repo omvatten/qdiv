@@ -104,7 +104,7 @@ def sequence_distance_matrix(
     backend = "python"
     if use_numba:
         try:
-            from .accelerate import compute_distance_matrix_numba
+            from .accelerate_seq import compute_distance_matrix_numba
             dmat, nmat = compute_distance_matrix_numba(ids, seqs, band_width)
             backend = "numba"
         except Exception:
@@ -195,6 +195,7 @@ def tree_distance_matrix(
         save: bool = True,
         file_format: str = "csv",
         use_tqdm: bool = True,
+        use_numba: bool = True,
 ) -> pd.DataFrame:
     """
     Compute pairwise phylogenetic distances between leaf nodes in a tree.
@@ -216,6 +217,8 @@ def tree_distance_matrix(
         If 'compressed' or 'npz', saves a triangular matrix in a compressed npz.
     use_tqdm : bool, default=True
         Use `tqdm` for progress bars.
+    use_numba : bool, optional
+        If True, uses Numba path; otherwise uses pure Python implementation.
 
     Returns
     -------
@@ -257,13 +260,17 @@ def tree_distance_matrix(
 
     # Build parent index array using **positional row index**
     parent_idx = np.full(len(nodes), -1, dtype=int)
-    for i, row in df.iterrows():
-        p = row["parent"]
+    parents_col = df["parent"].to_numpy()
+    
+    for i, p in enumerate(parents_col):
         if pd.isna(p):
             continue
-        if p not in node_to_pos:
-            raise ValueError(f"Parent '{p}' of node '{row['nodes']}' is not present in 'nodes'.")
-        parent_idx[i] = node_to_pos[p]
+        try:
+            parent_idx[i] = node_to_pos[p]
+        except KeyError:
+            raise ValueError(
+                f"Parent '{p}' of node '{nodes[i]}' is not present in 'nodes'."
+            ) from None
 
     # Identify roots (nodes without parent)
     roots = np.where(parent_idx == -1)[0]
@@ -306,12 +313,12 @@ def tree_distance_matrix(
 
     # Sparse table for RMQ over 'depth' to support O(1) LCA queries
     n = len(depth)
-    log = np.zeros(n + 1, dtype=int)
+    log = np.zeros(n + 1, dtype=np.int32)
     for i in range(2, n + 1):
         log[i] = log[i // 2] + 1
 
     k = log[n]
-    st = np.zeros((k + 1, n), dtype=int)
+    st = np.zeros((k + 1, n), dtype=np.int32)
     st[0] = np.arange(n)
     for j in range(1, k + 1):
         span = 1 << j
@@ -336,28 +343,58 @@ def tree_distance_matrix(
     dist_to_root = df["dist_to_root"].to_numpy(dtype=float)
 
     # Identify leaves: nodes that never appear as a parent (ignore NaN)
-    parents = set(df["parent"].dropna().tolist())
-    leaves = [name for name in nodes if name not in parents]
-    leaf_pos = [node_to_pos[name] for name in leaves]
+    leaf_pos = [i for i, c in enumerate(children) if len(c) == 0]
+    leaves = [nodes[i] for i in leaf_pos]
 
     # Compute pairwise distances
-    m = len(leaves)
-    mat = np.zeros((m, m), dtype=float)
+    if use_numba:
+        try:
+            from .accelerate_seq import compute_tree_distance_matrix_numba
+        except Exception:
+            print('Numba failed, falling back to Python.')
+            compute_tree_distance_matrix_numba = None
+    else:
+        compute_tree_distance_matrix_numba = None
 
-    tqdm = _get_tqdm(use_tqdm)
-    if m > 1:
-        for a in tqdm(range(m - 1), desc="Leaves"):
-            ua = leaf_pos[a]
-            for b in range(a + 1, m):
-                vb = leaf_pos[b]
-                ancestor = lca(ua, vb)
-                d = dist_to_root[ua] + dist_to_root[vb] - 2.0 * dist_to_root[ancestor]
-                mat[a, b] = mat[b, a] = float(d)
+    if compute_tree_distance_matrix_numba is not None: #Fast with numba
+        first_occ_arr = np.full(len(nodes), -1, dtype=np.int32)
+        for node, pos in first_occ.items():
+            first_occ_arr[node] = pos
+        if np.any(first_occ_arr == -1):
+            raise ValueError("Some nodes missing from Euler tour")
+        euler = np.asarray(euler, dtype=np.int32)
+        depth = np.asarray(depth, dtype=np.int32)
+        leaf_pos = np.asarray(leaf_pos, dtype=np.int32)
+        log = np.asarray(log, dtype=np.int32)
+        st = np.asarray(st, dtype=np.int32)
+
+        mat = compute_tree_distance_matrix_numba(
+            leaf_pos,
+            dist_to_root,
+            first_occ_arr,
+            euler,
+            depth,
+            log,
+            st
+        )
+    else: #Slower with Python
+        m = len(leaves)
+        mat = np.zeros((m, m), dtype=float)
+    
+        tqdm = _get_tqdm(use_tqdm)
+        if m > 1:
+            for a in tqdm(range(m - 1), desc="Leaves"):
+                ua = leaf_pos[a]
+                for b in range(a + 1, m):
+                    vb = leaf_pos[b]
+                    ancestor = lca(ua, vb)
+                    d = dist_to_root[ua] + dist_to_root[vb] - 2.0 * dist_to_root[ancestor]
+                    mat[a, b] = mat[b, a] = float(d)
 
     M = pd.DataFrame(mat, index=leaves, columns=leaves)
 
     # Save
-    if save and isinstance(file_format, str):
+    if save and savename is not None and isinstance(file_format, str):
         fmt = file_format.lower()
         if fmt == "csv":
             file_path = Path(path) / f"{savename}.csv"
@@ -1068,7 +1105,6 @@ def merge_objects(
     )
 
     if want_mb:
-        from ..data_object import MicrobiomeData
         mb = MicrobiomeData(
             tab=out_dict.get("tab"),
             tax=out_dict.get("tax"),
