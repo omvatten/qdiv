@@ -34,6 +34,7 @@ from . import stats
 from . import diversity
 from . import plot
 from . import model
+MicrobiomeData.__module__ = "qdiv"
 
 __all__ = [
     "MicrobiomeData",

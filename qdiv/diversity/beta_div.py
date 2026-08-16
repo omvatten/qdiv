@@ -4,7 +4,7 @@ import math
 from typing import Optional, Dict, Any, Union
 from ..io import subset_samples
 from ..utils import rao, beta2dist, get_df
-from ..utils import subset_tree_df, ra_to_branches, compute_Tmean
+from ..utils import ra_to_branches, compute_Tmean, rebuild_leaf_order
 from .alpha_div import naive_alpha, phyl_alpha, func_alpha
 
 def _get_tqdm(use_tqdm: bool):
@@ -48,50 +48,38 @@ def naive_beta(
 ) -> pd.DataFrame:
     """
     Compute naive (taxonomic) pairwise beta diversity of order *q*.
-
     Implements the two‑community Hill‑number beta diversity framework
     described in Chao et al. (2014), using only species abundances
     (no phylogenetic or functional information).
 
-    For two samples A and B:
-
-        α_q = Hill number of the average of A and B
-        γ_q = Hill number of the pooled community
-        β_q = γ_q / α_q
-
-    Special case q = 1 uses the Shannon limit:
-
-        α₁ = exp( -½ Σ pᵢ ln pᵢ  - ½ Σ qᵢ ln qᵢ )
-        γ₁ = exp( -Σ mᵢ ln mᵢ )
-
     Parameters
     ----------
     tab : DataFrame | MicrobiomeData-like | dict
-        Abundance table (features x samples) or convertible structure.
+        Must contain abundance table (features x samples).
     q : float, default=1
-        Diversity order.
+        Diversity order. Determines emphasis on relative abundances.
     dis : bool, default=True
-        If True, convert β to a dissimilarity using `beta2dist`.
-        If False, return raw β values.
+        If True, converts beta diversity to a dissimilarity scaled from 0 to 1.
+        If False, returns raw beta values scaled from 1 to 2.
     viewpoint : {'local', 'regional'}, default='regional'
-        Viewpoint for converting β to dissimilarity.
+        Viewpoint for converting beta diversity to dissimilarity. 
     use_values_in_tab : bool, default=False
         If False, convert abundances to relative abundances.
         If True, assume `tab` already contains relative abundances.
+<<<<<<< HEAD
     use_numba : bool, optional
         If True, uses Numba path; otherwise uses pure Python implementation.
+=======
+    use_numba : bool, default=False
+        If True, accelerates calculation using Numba (which requires that Numba is installed).
+        Very useful for large datasets.
+>>>>>>> secret-feature
 
     Returns
     -------
     pandas.DataFrame
-        Pairwise β-diversity (or dissimilarity) matrix.
-
-    Notes
-    -----
-    - Requires `beta2dist()` to be defined elsewhere.
-    - Only works for ≥ 2 samples.
+        Pairwise beta diversity (or dissimilarity) matrix.
     """
-
     # Validate input
     tab = get_df(tab, "tab")
 
@@ -185,6 +173,10 @@ def naive_beta(
                 out.loc[s2, s1] = beta
 
     # Convert β to dissimilarity if requested
+    # Ensure beta diagonal is 1
+    for s in out.index:
+        out.loc[s, s] = 1.0
+
     if dis:
         return beta2dist(beta=out, q=q, N=2, div_type="naive", viewpoint=viewpoint)
     return out
@@ -203,55 +195,56 @@ def phyl_beta(
 ) -> pd.DataFrame:
     """
     Compute phylogenetic pairwise beta diversity of order *q*.
-
     Implements the two‑community phylogenetic Hill‑number beta framework
     described in Chao et al. (2014), where branch lengths are weighted by
     the relative abundances of all features descending from each branch.
 
-    For two samples A and B:
-
-        α_q = phylogenetic Hill number of the average of A and B
-        γ_q = phylogenetic Hill number of the pooled community
-        β_q = γ_q / α_q
-
-    Special case q = 1 uses the Shannon limit.
-
     Parameters
     ----------
     obj : MicrobiomeData-like | dict
-        Must provide:
-          - 'tab': feature × sample abundance DataFrame
-          - 'tree': branch × columns DataFrame with:
-                * 'leaves' : iterable/list of leaf IDs under each branch
-                * 'branchL': branch length (float)
+        Must include
+
+          - ``'tab'``, feature × sample abundance DataFrame
+          - ``'tree'``, branch information DataFrame
+          - ``'leaf_order'``, list of leaf names corresponding to the tree
+
     q : float, default=1
-        Diversity order.
+        Diversity order. Determines emphasis on relative abundances.
     dis : bool, default=True
-        If True, convert β to a dissimilarity using `beta2dist`.
+        If True, converts beta diversity to a dissimilarity scaled from 0 to 1.
+        If False, returns raw beta values scaled from 1 to 2.
     viewpoint : {'local', 'regional'}, default='regional'
-        Viewpoint for converting β to dissimilarity.
+        Viewpoint for converting beta diversity to dissimilarity.
     use_values_in_tab : bool, default=False
         If False, convert abundances to relative abundances.
         If True, assume `tab` already contains relative abundances.
     use_numba : bool, optional
-        If True, uses Numba path; otherwise uses pure Python implementation.
+        If True, accelerates calculation using Numba (which requires that Numba is installed).
+        Very useful for large datasets.
 
     Returns
     -------
     pandas.DataFrame
-        Pairwise phylogenetic β-diversity (or dissimilarity) matrix.
-
-    Notes
-    -----
-    - Requires `beta2dist()` to be defined elsewhere.
-    - Only works for ≥ 2 samples.
+        Pairwise phylogenetic beta diversity (or dissimilarity) matrix.
     """
-
     tab = get_df(obj, "tab")
     tree = get_df(obj, "tree")
-
-    if "leaves" not in tree.columns or "branchL" not in tree.columns:
-        raise ValueError("`tree` must contain columns 'leaves' and 'branchL'.")
+    if tree is None:
+        raise ValueError('tree is missing.')
+    leaf_order = get_df(obj, "leaf_order")
+    if leaf_order is None:
+        tree, leaf_order = rebuild_leaf_order(tree)
+    
+    # Confirm input is ok
+    required_tree_cols = {"branchL", "leaf_start", "leaf_end"}
+    missing = required_tree_cols - set(tree.columns)
+    if missing:
+        raise ValueError(
+            f"`tree` must contain columns {sorted(required_tree_cols)}. "
+            f"Missing: {sorted(missing)}."
+        )
+    if leaf_order is None:
+        raise ValueError("`leaf_order` is required for trees.")
 
     # Ensure numeric
     try:
@@ -273,8 +266,7 @@ def phyl_beta(
         raise ValueError("`tab` must contain ≥ 2 samples (columns).")
 
     #Subset tree to features in tab
-    tree = subset_tree_df(tree, ra.index.tolist())
-    tree2 = ra_to_branches(ra, tree)
+    tree2 = ra_to_branches(ra, tree, leaf_order)
 
     # Align branch lengths to tree2 index
     branchL = tree["branchL"].reindex(tree2.index)
@@ -322,7 +314,8 @@ def phyl_beta(
     
                 # --- γ-diversity ---------------------------------------------------
                 g = sub[pooled]
-                if abs(q - 1.0) < 1e-6:
+
+                if q == 1.0:
                     mask = g > 0
                     term = g.where(mask, 0.0) * np.log(g.where(mask, 1.0))
                     term = (term * (branchL / Tgamma)).sum()
@@ -339,7 +332,6 @@ def phyl_beta(
                 a2 = sub[s2]
                 
                 if q == 1.0:
-                    # Shannon limit
                     term1 = np.zeros_like(a1)
                     mask = a1 > 0
                     term1[mask] = a1[mask] * np.log(a1[mask])
@@ -348,11 +340,7 @@ def phyl_beta(
                     mask = a2 > 0
                     term2[mask] = a2[mask] * np.log(a2[mask])
                     
-                    H = -(
-                        (branchL * (term1 + term2)).sum()
-                        / (2.0 * Tgamma)
-                    )
-                
+                    H = -((branchL * (term1 + term2)).sum() / (2.0 * Tgamma))
                     alpha_div = math.exp(H)
                 elif q == 0:
                     pos_counts = ((a1 > 0).astype(float) + (a2 > 0).astype(float))
@@ -371,6 +359,10 @@ def phyl_beta(
                 out.loc[s2, s1] = beta_val
 
     # --- Convert β to dissimilarity if requested ------------------------------
+    # Ensure beta diagonal is 1
+    for s in out.index:
+        out.loc[s, s] = 1.0
+
     if dis:
         return beta2dist(beta=out, q=q, N=2, div_type="phyl", viewpoint=viewpoint)
 
@@ -388,6 +380,7 @@ def func_beta(
     viewpoint: str = "regional",
     use_values_in_tab: bool = False,
     use_tqdm: bool = True,
+    use_numba: bool = False,
 ) -> pd.DataFrame:
     """
     Compute functional pairwise beta diversity of order *q*.
@@ -414,26 +407,26 @@ def func_beta(
         Functional distance matrix (ASVs × ASVs), symmetric and
         indexed by the same ASVs as `tab`.
     q : float, default=1
-        Diversity order.
+        Diversity order. Determines emphasis on relative abundances.
     dis : bool, default=True
-        If True, convert β to a dissimilarity using `beta2dist`.
+        If True, converts beta diversity to a dissimilarity scaled from 0 to 1.
+        If False, returns raw beta values scaled from 1 to 2.
     viewpoint : {'local', 'regional'}, default='regional'
-        Viewpoint for converting β to dissimilarity.
+        Viewpoint for converting beta diversity to dissimilarity.
     use_values_in_tab : bool, default=False
         If False, convert abundances to relative abundances.
         If True, assume `tab` already contains relative abundances.
     use_tqdm : bool, default=True
         Use `tqdm` for progress bars.
+    use_numba : bool, optional
+        If True, accelerates calculation using Numba (which requires that Numba is installed).
+        Very useful for large datasets.
 
     Returns
     -------
-    pandas.DataFrame
-        Pairwise functional dissimilarity matrix (if `dis=True`) or
-        squared functional beta (β²) matrix (if `dis=False`).
-
-    Notes
-    -----
-    - Only works for ≥ 2 samples.
+    DataFrame with pairwise functional dissimilarities ``dis=True``.
+        If ``dis=False``, returns the pairwise functional beta diversity
+        matrix, with diagonal values equal to 1.
     """
 
     # Get input
@@ -463,115 +456,147 @@ def func_beta(
         raise ValueError("`tab` must contain ≥ 2 samples (columns).")
 
     # Align distance matrix to features
-    asvs = ra.index.tolist()
-    distmat = distmat.loc[asvs, asvs]
-
+    missing = set(ra.index) - set(distmat.index)
+    if missing:
+        raise ValueError(
+            f"Features in tab are missing from distmat. Examples: {list(missing)[:5]}"
+        )
+    distmat = distmat.loc[ra.index, ra.index]
     smplist = list(ra.columns)
-    outD = pd.DataFrame(0.0, index=smplist, columns=smplist)
 
-    # Pairwise functional beta diversity
-    tqdm = _get_tqdm(use_tqdm)
+    # Check accelerator
+    if use_numba:
+        try:
+            from .accelerate_div import func_beta_numba
+        except ImportError:
+            print("Numba not available, falling back to Python.")
+            func_beta_numba = None
+    else:
+        func_beta_numba = None
 
-    for i in tqdm(range(len(smplist) - 1), desc="func_beta", unit="sample"):
-        for j in range(i + 1, len(smplist)):
-            s1 = smplist[i]
-            s2 = smplist[j]
+    if func_beta_numba is not None:
+        D = np.ascontiguousarray(distmat.to_numpy(dtype=np.float64, copy=True))
+        R = np.ascontiguousarray(ra.to_numpy(dtype=np.float64, copy=True))
+        out_arr = func_beta_numba(D, R, float(q))
+        outD = pd.DataFrame(out_arr, index=smplist, columns=smplist)
 
-            # Subset abundances for the two samples
-            ra12 = ra[[s1, s2]].copy()
-            ra12["mean"] = ra12.mean(axis=1)
+    else:
+        outD = pd.DataFrame(0.0, index=smplist, columns=smplist)
+    
+        # Pairwise functional beta diversity
+        tqdm = _get_tqdm(use_tqdm)
+    
+        for i in tqdm(range(len(smplist) - 1), desc="func_beta", unit="sample"):
+            for j in range(i + 1, len(smplist)):
+                s1 = smplist[i]
+                s2 = smplist[j]
+    
+                # Subset abundances for the two samples
+                ra12 = ra[[s1, s2]].copy()
+                ra12["mean"] = ra12.mean(axis=1)
+    
+                # Rao's Q for each column and for the mean
+                Qvals = rao(ra12, distmat)
+                Q_pooled = Qvals["mean"]
+                if Q_pooled <= 0 or not np.isfinite(Q_pooled):
+                    raise ValueError(
+                        f"Functional Rao's Q is zero or invalid for pair '{s1}' and '{s2}'."
+                    )
+                dqmat = distmat * (1.0 / Q_pooled)
+    
+                # -------------------------
+                # Gamma component (Dg)
+                # -------------------------
+                mask_g = ra12["mean"] > 0
+                p_mean = ra12.loc[mask_g, "mean"].to_numpy()
+                outer_mean = np.outer(p_mean, p_mean)
+    
+                if q == 1:
+                    # Shannon-type functional gamma
+                    log_outer = np.log(outer_mean)
+                    term = outer_mean * log_outer
+                    # dqmat restricted to nonzero rows/cols
+                    d_sub = dqmat.loc[mask_g, mask_g].to_numpy()
+                    Dg = math.exp(-0.5 * np.sum(term * d_sub))
+                else:
+                    outer_q = outer_mean ** q
+                    d_sub = dqmat.loc[mask_g, mask_g].to_numpy()
+                    val = np.sum(outer_q * d_sub)
+                    Dg = val ** (1.0 / (2.0 * (1.0 - q)))
+    
+                # -------------------------
+                # Alpha component (Da)
+                # -------------------------
+                # A: p1 × p1
+                mask1 = ra12[s1] > 0
+                p1 = ra12.loc[mask1, s1].to_numpy()
+                outer11 = np.outer(p1, p1) / 4.0
+                d11 = dqmat.loc[mask1, mask1].to_numpy()
+    
+                # B: p2 × p2
+                mask2 = ra12[s2] > 0
+                p2 = ra12.loc[mask2, s2].to_numpy()
+                outer22 = np.outer(p2, p2) / 4.0
+                d22 = dqmat.loc[mask2, mask2].to_numpy()
+    
+                # C: p1 × p2
+                # note: indices differ; use full submatrix
+                outer12 = np.outer(p1, p2) / 4.0
+                d12 = dqmat.loc[mask1, mask2].to_numpy()
+    
+                if q == 1:
+                    # Shannon-type functional alpha
+                    # A
+                    log11 = np.log(outer11)
+                    term11 = outer11 * log11 * d11
+                    asum1 = term11.sum()
+    
+                    # B
+                    log22 = np.log(outer22)
+                    term22 = outer22 * log22 * d22
+                    asum2 = term22.sum()
+    
+                    # C
+                    log12 = np.log(outer12)
+                    term12 = outer12 * log12 * d12
+                    asum12 = term12.sum()
+    
+                    Da = 0.5 * math.exp(-0.5 * (asum1 + asum2 + 2.0 * asum12))
+                else:
+                    # General q alpha
+                    a11_q = outer11 ** q
+                    asum1 = np.sum(a11_q * d11)
+    
+                    a22_q = outer22 ** q
+                    asum2 = np.sum(a22_q * d22)
+    
+                    a12_q = outer12 ** q
+                    asum12 = np.sum(a12_q * d12)
+    
+                    Da = 0.5 * (asum1 + asum2 + 2.0 * asum12) ** (1.0 / (2.0 * (1.0 - q)))
+    
+                # -------------------------
+                # Beta component
+                # -------------------------
+                beta_val = Dg / Da
+                outD.loc[s1, s2] = beta_val
+                outD.loc[s2, s1] = beta_val
 
-            # Rao's Q for each column and for the mean
-            Qvals = rao(ra12, distmat)
-            Q_pooled = Qvals["mean"]
-            dqmat = distmat * (1.0 / Q_pooled)
-
-            # -------------------------
-            # Gamma component (Dg)
-            # -------------------------
-            mask_g = ra12["mean"] > 0
-            p_mean = ra12.loc[mask_g, "mean"].to_numpy()
-            outer_mean = np.outer(p_mean, p_mean)
-
-            if q == 1:
-                # Shannon-type functional gamma
-                log_outer = np.log(outer_mean)
-                term = outer_mean * log_outer
-                # dqmat restricted to nonzero rows/cols
-                d_sub = dqmat.loc[mask_g, mask_g].to_numpy()
-                Dg = math.exp(-0.5 * np.sum(term * d_sub))
-            else:
-                outer_q = outer_mean ** q
-                d_sub = dqmat.loc[mask_g, mask_g].to_numpy()
-                val = np.sum(outer_q * d_sub)
-                Dg = val ** (1.0 / (2.0 * (1.0 - q)))
-
-            # -------------------------
-            # Alpha component (Da)
-            # -------------------------
-            # A: p1 × p1
-            mask1 = ra12[s1] > 0
-            p1 = ra12.loc[mask1, s1].to_numpy()
-            outer11 = np.outer(p1, p1) / 4.0
-            d11 = dqmat.loc[mask1, mask1].to_numpy()
-
-            # B: p2 × p2
-            mask2 = ra12[s2] > 0
-            p2 = ra12.loc[mask2, s2].to_numpy()
-            outer22 = np.outer(p2, p2) / 4.0
-            d22 = dqmat.loc[mask2, mask2].to_numpy()
-
-            # C: p1 × p2
-            # note: indices differ; use full submatrix
-            outer12 = np.outer(p1, p2) / 4.0
-            d12 = dqmat.loc[mask1, mask2].to_numpy()
-
-            if q == 1:
-                # Shannon-type functional alpha
-                # A
-                log11 = np.log(outer11)
-                term11 = outer11 * log11 * d11
-                asum1 = term11.sum()
-
-                # B
-                log22 = np.log(outer22)
-                term22 = outer22 * log22 * d22
-                asum2 = term22.sum()
-
-                # C
-                log12 = np.log(outer12)
-                term12 = outer12 * log12 * d12
-                asum12 = term12.sum()
-
-                Da = 0.5 * math.exp(-0.5 * (asum1 + asum2 + 2.0 * asum12))
-            else:
-                # General q alpha
-                a11_q = outer11 ** q
-                asum1 = np.sum(a11_q * d11)
-
-                a22_q = outer22 ** q
-                asum2 = np.sum(a22_q * d22)
-
-                a12_q = outer12 ** q
-                asum12 = np.sum(a12_q * d12)
-
-                Da = 0.5 * (asum1 + asum2 + 2.0 * asum12) ** (1.0 / (2.0 * (1.0 - q)))
-
-            # -------------------------
-            # Beta component
-            # -------------------------
-            beta_val = Dg / Da
-            outD.loc[s1, s2] = beta_val
-            outD.loc[s2, s1] = beta_val
-
-    # Square β to get FD-like measure
-    outFD = outD.pow(2)
-
-    # Convert β to dissimilarity if requested
+    # Ensure beta diagonal is 1
+    for s in outD.index:
+        outD.loc[s, s] = 1.0
+    
+    # Convert beta to dissimilarity if requested
     if dis:
-        return beta2dist(beta=outFD, q=q, N=2, div_type="func", viewpoint=viewpoint)
-
-    return outFD
+        return beta2dist(
+            beta=outD,
+            q=q,
+            N=2,
+            div_type="func",
+            viewpoint=viewpoint,
+        )
+    
+    return outD
 
 # -----------------------------------------------------------------------------
 # Bray-Curtis
@@ -583,12 +608,6 @@ def bray(
 ) -> pd.DataFrame:
     """
     Compute the Bray–Curtis dissimilarity matrix between all samples.
-
-    Bray–Curtis dissimilarity between two samples A and B is:
-
-        BC(A, B) = 1 − Σ_i min(p_iA, p_iB)
-
-    where p_iA and p_iB are relative abundances of feature i in samples A and B.
 
     Parameters
     ----------
@@ -602,11 +621,6 @@ def bray(
     -------
     pandas.DataFrame
         Symmetric Bray–Curtis dissimilarity matrix.
-
-    Notes
-    -----
-    - Requires at least two samples.
-    - Zero-sum samples are not allowed unless `use_values_in_tab=True`.
     """
 
     # --- Validate input ------------------------------------------------------
@@ -664,12 +678,6 @@ def jaccard(
     """
     Compute the Jaccard dissimilarity matrix between all samples.
 
-    Jaccard dissimilarity between two samples A and B is:
-
-        J(A, B) = 1 − ( |A ∩ B| / |A ∪ B| )
-
-    where presence/absence is determined by whether abundance > 0.
-
     Parameters
     ----------
     tab : DataFrame | MicrobiomeData-like | dict
@@ -681,11 +689,6 @@ def jaccard(
     -------
     pandas.DataFrame
         Symmetric Jaccard dissimilarity matrix.
-
-    Notes
-    -----
-    - Requires at least two samples.
-    - Abundances are converted to binary presence/absence.
     """
 
     # --- Validate input ------------------------------------------------------
@@ -735,40 +738,39 @@ def naive_multi_beta(
     *,
     by: Optional[str] = None,
     q: float = 1,
+    use_values_in_tab: bool = False,
 ) -> pd.DataFrame:
     """
     Compute naive (taxonomic) multi‑sample beta diversity for groups of samples.
 
-    This implements the multi‑sample Hill‑number beta framework:
-
-        β_q = γ_q / ( α_q / N )
-
-    where:
-        - γ_q is the Hill number of the pooled community
-        - α_q is the mean within‑sample Hill number
-        - N is the number of samples in the group
-
     Parameters
     ----------
     obj : MicrobiomeData-like | dict
-        Must contain:
-            - 'meta' : pandas.DataFrame with sample metadata
-            - 'tab'  : pandas.DataFrame with feature counts (features × samples)
+        Must contain
+        
+            - ``'meta'`` : pandas.DataFrame with sample metadata
+            - ``'tab'``  : pandas.DataFrame with feature counts (features × samples)
+    
     by : str or None, default=None
         Column in metadata defining sample groups.
         If None, all samples are treated as one group.
     q : float, default=1
-        Diversity order.
+        Diversity order. Determines emphasis on relative abundances.
+    use_values_in_tab : bool, default=False
+        If False, abundances are converted to relative abundances per sample.
+        If True, the abundance table is assumed to already contain relative
+        abundances.
 
     Returns
     -------
     pandas.DataFrame
-        Index = categories in `var` (or 'all' if var=None)
+        Index = categories in `by` (or 'all' if by=None).
         Columns:
-            - N             : number of samples in group
-            - beta          : multi‑sample beta diversity
-            - local_dis     : local‑viewpoint dissimilarity
-            - regional_dis  : regional‑viewpoint dissimilarity
+            
+            - N, number of samples in group
+            - beta, multi‑sample beta diversity
+            - local_dis, local‑viewpoint dissimilarity
+            - regional_dis, regional‑viewpoint dissimilarity
 
     Notes
     -----
@@ -779,22 +781,39 @@ def naive_multi_beta(
     meta = get_df(obj, "meta")
     tab = get_df(obj, "tab")
 
+    # Confirm tab input is ok
     if tab.shape[1] < 2:
         raise ValueError("At least two samples are required.")
+    # Ensure numeric
+    try:
+        tab = tab.astype(float)
+    except Exception as e:
+        raise TypeError(
+            "Abundance table contains non-numeric values. Ensure counts/abundances are numeric."
+        ) from e
+
+    # --- Relative abundances --------------------------------------------------
+    if use_values_in_tab:
+        ra = tab
+    else:
+        col_sums = tab.sum(axis=0)
+        if (col_sums == 0).any():
+            bad = col_sums.index[col_sums == 0].tolist()
+            raise ValueError(f"One or more samples have zero total abundance: {bad}")
+        ra = tab.div(col_sums, axis=1)
 
     # Build dictionary of subtables by category
     if by is None:
         categories = ["all"]
-        tabdict = {"all": tab.copy()}
+        tabdict = {"all": ra.copy()}
     else:
         if by not in meta.columns:
             raise ValueError(f"Column '{by}' not found in metadata.")
-
+        tabdict = {}
         categories = meta[by].unique().tolist()
-        tabdict = {
-            cat: get_df(subset_samples(obj, by=by, values=[cat]), "tab")
-            for cat in categories
-        }
+        for cat in categories:
+            smplist = meta[meta[by]==cat].index
+            tabdict[cat] = ra[smplist]
 
     # Output container
     out = pd.DataFrame(
@@ -814,18 +833,12 @@ def naive_multi_beta(
         N = subtab.shape[1]
         out.loc[cat, "N"] = N
 
-        # Convert to relative abundances if needed
-        col_sums = subtab.sum()
-        if (col_sums == 0).any():
-            raise ValueError(f"Group '{cat}' contains a zero‑sum sample.")
-        ra = subtab.div(col_sums)
-
         # Build alpha/gamma table for naive_alpha()
         # gamma row = pooled abundances
-        gamma_row = ra.sum(axis=1).to_numpy()
+        gamma_row = subtab.sum(axis=1).to_numpy()
 
         # alpha rows = each sample's abundances
-        alpha_rows = ra.to_numpy().T.reshape(-1)
+        alpha_rows = subtab.to_numpy().T.reshape(-1)
 
         df_temp = pd.DataFrame({
             "gamma": np.concatenate([gamma_row, np.zeros_like(alpha_rows)]),
@@ -859,80 +872,106 @@ def phyl_multi_beta(
     *,
     by: Optional[str] = None,
     q: float = 1,
+    use_values_in_tab: bool = False,
 ) -> pd.DataFrame:
     """
     Compute phylogenetic multi‑sample beta diversity for groups of samples.
-
     Implements the multi‑sample phylogenetic Hill‑number beta framework
     described in Chao et al. (2014), where branch lengths are weighted by
     the relative abundances of all ASVs descending from each branch.
 
-    For each group of samples:
-
-        β_q = γ_q / ( α_q / N )
-
-    where:
-        - γ_q is the phylogenetic Hill number of the pooled community
-        - α_q is the mean within‑sample phylogenetic Hill number
-        - N is the number of samples in the group
-
     Parameters
     ----------
     obj : MicrobiomeData-like | dict
-        Must contain:
-            - 'meta' : pandas.DataFrame with sample metadata
-            - 'tab'  : pandas.DataFrame with ASV counts (ASVs × samples)
-            - 'tree' : pandas.DataFrame with:
-                * 'leaves'   : list of features under each branch
-                * 'branchL'  : branch length
+        Must include
+
+          - ``'tab'``, feature × sample abundance DataFrame
+          - ``'tree'``, branch information DataFrame
+          - ``'leaf_order'``, list of leaf names corresponding to the tree
+
     by : str or None, default=None
-        Metadata column defining sample groups.
+        Column in metadata defining sample groups.
         If None, all samples are treated as one group.
     q : float, default=1
-        Diversity order.
+        Diversity order. Determines emphasis on relative abundances.
+    use_values_in_tab : bool, default=False
+        If False, abundances are converted to relative abundances per sample.
+        If True, the abundance table is assumed to already contain relative
+        abundances.
 
     Returns
     -------
     pandas.DataFrame
-        Index = categories in `by` (or 'all' if by=None)
+        Index = categories in `by` (or 'all' if by=None).
         Columns:
-            - N             : number of samples in group
-            - beta          : multi‑sample phylogenetic beta diversity
-            - local_dis     : local‑viewpoint dissimilarity
-            - regional_dis  : regional‑viewpoint dissimilarity
+            
+            - N, number of samples in group
+            - beta, multi‑sample beta diversity
+            - local_dis, local‑viewpoint dissimilarity
+            - regional_dis, regional‑viewpoint dissimilarity
 
     Notes
     -----
-    - Only works for ≥ 2 samples per group.
+    - Groups with <2 samples return NaN.
     """
 
     # Validate input
     tab = get_df(obj, "tab")
     meta = get_df(obj, "meta")
     tree = get_df(obj, "tree")
+    if tree is None:
+        raise ValueError('tree is missing.')
+    leaf_order = get_df(obj, "leaf_order")
+    if leaf_order is None:
+        tree, leaf_order = rebuild_leaf_order(tree)
 
+    # Confirm tree input is ok
+    required_tree_cols = {"branchL", "leaf_start", "leaf_end"}
+    missing = required_tree_cols - set(tree.columns)
+    if missing:
+        raise ValueError(
+            f"`tree` must contain columns {sorted(required_tree_cols)}. "
+            f"Missing: {sorted(missing)}."
+        )
+    if leaf_order is None:
+        raise ValueError("`leaf_order` is required for trees.")
+
+    # Confirm tab input is ok
     if tab.shape[1] < 2:
         raise ValueError("At least two samples are required.")
+    # Ensure numeric
+    try:
+        tab = tab.astype(float)
+    except Exception as e:
+        raise TypeError(
+            "Abundance table contains non-numeric values. Ensure counts/abundances are numeric."
+        ) from e
 
-    if "leaves" not in tree.columns or "branchL" not in tree.columns:
-        raise ValueError("`tree` must contain columns 'leaves' and 'branchL'.")
+    # --- Relative abundances --------------------------------------------------
+    if use_values_in_tab:
+        ra = tab
+    else:
+        col_sums = tab.sum(axis=0)
+        if (col_sums == 0).any():
+            bad = col_sums.index[col_sums == 0].tolist()
+            raise ValueError(f"One or more samples have zero total abundance: {bad}")
+        ra = tab.div(col_sums, axis=1)
 
-    #Subset tree to features in tab
-    tree = subset_tree_df(tree, tab.index.tolist())
+    # Build branch × sample abundance matrix
+    tree2 = ra_to_branches(ra, tree, leaf_order)
 
-    # Build dictionary of subtables by category
+    # Build dictionary of tree2 tables by category
     if by is None:
         categories = ["all"]
-        tabdict = {"all": tab.copy()}
+        tabdict = {"all": tree2.copy()}
     else:
         if by not in meta.columns:
             raise ValueError(f"Column '{by}' not found in metadata.")
-
+        tabdict = {}
         categories = meta[by].unique().tolist()
-        tabdict = {
-            cat: get_df(subset_samples(obj, by=by, values=[cat]), "tab")
-            for cat in categories
-        }
+        for cat in categories:
+            smplist = meta[meta[by]==cat].index
+            tabdict[cat] = tree2[smplist]
 
     # Output container
     out = pd.DataFrame(
@@ -943,32 +982,23 @@ def phyl_multi_beta(
 
     # Compute multi‑sample phylogenetic beta for each category
     for cat in categories:
-        subtab = tabdict[cat]
+        subtree2 = tabdict[cat]
 
         # Need at least 2 samples
-        if subtab.shape[1] < 2:
+        if subtree2.shape[1] < 2:
             continue
 
-        N = subtab.shape[1]
+        N = subtree2.shape[1]
         out.loc[cat, "N"] = N
-
-        # Relative abundances
-        col_sums = subtab.sum()
-        if (col_sums == 0).any():
-            raise ValueError(f"Group '{cat}' contains a zero‑sum sample.")
-        ra = subtab.div(col_sums)
-
-        # Build branch × sample abundance matrix
-        tree2 = ra_to_branches(ra, tree)
 
         # --- Compute Tavg = Σ_b L_b * mean(p_b) -------------------------------------
         # Align branch lengths to tree2 (branch × sample) and ensure numeric
-        branchL = pd.to_numeric(tree["branchL"], errors="raise").reindex(tree2.index)
+        branchL = pd.to_numeric(tree["branchL"], errors="raise")
         if branchL.isna().any():
             missing = branchL.index[branchL.isna()].tolist()
             raise ValueError(f"'branchL' missing for branches: {missing}")
         
-        mean_ra = tree2.mean(axis=1)                  # γ_b: mean of per-branch RA across N samples
+        mean_ra = subtree2.mean(axis=1)                  # γ_b: mean of per-branch RA across N samples
         Tavg = float(mean_ra.mul(branchL).sum())      # Σ L_b * γ_b
         
         # --- γ-diversity -------------------------------------------------------------
@@ -986,12 +1016,12 @@ def phyl_multi_beta(
             gamma_div = term ** (1.0 / (1.0 - q))
         
         # --- α-diversity -------------------------------------------------------------
-        K = tree2.shape[1]
+        K = subtree2.shape[1]
         
-        if abs(q - 1.0) < 1e-6:
-            mask = tree2 > 0
+        if q == 1.0:
+            mask = subtree2 > 0
             term = (
-                (tree2[mask] * np.log(tree2[mask]))
+                (subtree2[mask] * np.log(subtree2[mask]))
                 .mul(branchL, axis=0)
                 .sum().sum()
                 / (K * Tavg)
@@ -999,13 +1029,13 @@ def phyl_multi_beta(
             alpha_div = math.exp(-term)
         
         elif q == 0:
-            pos_counts = (tree2 > 0).sum(axis=1).astype(float)
+            pos_counts = (subtree2 > 0).sum(axis=1).astype(float)
             alpha_div = (branchL * pos_counts).sum() / (K * Tavg)
         
         else:
             term = (
                 branchL *
-                (tree2.clip(lower=0).pow(q).sum(axis=1) / K)
+                (subtree2.clip(lower=0).pow(q).sum(axis=1) / K)
             ).sum() / Tavg
             alpha_div = term ** (1.0 / (1.0 - q))
 
@@ -1031,6 +1061,7 @@ def func_multi_beta(
     *,
     by: Optional[str] = None,
     q: float = 1,
+    use_values_in_tab: bool = False,
 ) -> pd.DataFrame:
     """
     Compute functional multi‑sample beta diversity for groups of samples.
@@ -1039,77 +1070,92 @@ def func_multi_beta(
     described in Chiu et al. (2014), where functional diversity is derived
     from pairwise trait distances and species abundances.
 
-    For each group of samples:
-
-        β_q = D_gamma / D_alpha
-
-    where:
-        - D_gamma is the functional Hill number of the pooled community
-        - D_alpha is the mean functional Hill number across all sample pairs
-        - N is the number of samples in the group
-        - NxN = N² (number of ordered sample pairs)
-
     Parameters
     ----------
     obj : MicrobiomeData-like | dict
-        Must contain:
-            - 'meta' : pandas.DataFrame with sample metadata
-            - 'tab'  : pandas.DataFrame (features × samples)
+        Must contain
+        
+            - ``'meta'``, pandas.DataFrame with sample metadata
+            - ``'tab'``, pandas.DataFrame (features × samples)
+
     distmat : pandas.DataFrame
         Functional distance matrix (features × features).
     by : str or None, default=None
-        Metadata column defining sample groups.
+        Column in metadata defining sample groups.
         If None, all samples are treated as one group.
     q : float, default=1
-        Diversity order.
+        Diversity order. Determines emphasis on relative abundances.
+    use_values_in_tab : bool, default=False
+        If False, abundances are converted to relative abundances per sample.
+        If True, the abundance table is assumed to already contain relative
+        abundances.
 
     Returns
     -------
     pandas.DataFrame
         Index = categories in `by` (or 'all' if by=None)
         Columns:
-            - NxN          : N² (number of ordered sample pairs)
-            - beta         : functional multi‑sample beta diversity
-            - local_dis    : local‑viewpoint dissimilarity
-            - regional_dis : regional‑viewpoint dissimilarity
+            
+            - N, number of samples in group
+            - beta, multi‑sample beta diversity
+            - local_dis, local‑viewpoint dissimilarity
+            - regional_dis, regional‑viewpoint dissimilarity
 
     Notes
     -----
-    - Only works for ≥ 2 samples per group.
+    - Groups with <2 samples return NaN.
     """
 
     # Validate input
     tab = get_df(obj, "tab")
     meta = get_df(obj, "meta")
+
+    # Confirm tab input is ok
     if tab.shape[1] < 2:
         raise ValueError("At least two samples are required.")
+    # Ensure numeric
+    try:
+        tab = tab.astype(float)
+    except Exception as e:
+        raise TypeError(
+            "Abundance table contains non-numeric values. Ensure counts/abundances are numeric."
+        ) from e
+
+    # --- Relative abundances --------------------------------------------------
+    if use_values_in_tab:
+        ra = tab
+    else:
+        col_sums = tab.sum(axis=0)
+        if (col_sums == 0).any():
+            bad = col_sums.index[col_sums == 0].tolist()
+            raise ValueError(f"One or more samples have zero total abundance: {bad}")
+        ra = tab.div(col_sums, axis=1)
 
     # Make sure tab and distmat have the same index
-    in_common = list(set(distmat.index).intersection(tab.index))
-    if len(in_common) < len(tab):
+    in_common = ra.index.intersection(distmat.index)
+    if len(in_common) < len(ra.index):
         raise ValueError("Features in tab are missing in distmat.")
-    tab = tab.loc[in_common]
+    ra = ra.loc[in_common]
     distmat = distmat.loc[in_common, in_common].copy()
 
     # Build dictionary of subtables by category
     if by is None:
         categories = ["all"]
-        tabdict = {"all": tab.copy()}
+        tabdict = {"all": ra.copy()}
     else:
         if by not in meta.columns:
             raise ValueError(f"Column '{by}' not found in metadata.")
-
+        tabdict = {}
         categories = meta[by].unique().tolist()
-        tabdict = {
-            cat: get_df(subset_samples(obj, by=by, values=[cat], keep_absent=True), "tab")
-            for cat in categories
-        }
+        for cat in categories:
+            smplist = meta[meta[by]==cat].index
+            tabdict[cat] = ra[smplist]
 
     # Output container
     out = pd.DataFrame(
         np.nan,
         index=categories,
-        columns=["NxN", "beta", "local_dis", "regional_dis"]
+        columns=["N", "beta", "local_dis", "regional_dis"]
     )
 
     # Compute multi‑sample functional beta for each category
@@ -1121,21 +1167,20 @@ def func_multi_beta(
             continue
 
         N = subtab.shape[1]
-        out.loc[cat, "NxN"] = N * N
+        out.loc[cat, "N"] = N
 
-        # Relative abundances
-        col_sums = subtab.sum()
-        if (col_sums == 0).any():
-            raise ValueError(f"Group '{cat}' contains a zero‑sum sample.")
-        ra = subtab.div(col_sums)
-
-        smplist = ra.columns.tolist()
+        smplist = subtab.columns.tolist()
 
         # Compute pooled mean abundances
-        ra_mean = ra.mean(axis=1)
+        ra_mean = subtab.mean(axis=1)
 
         # Rao's Q for pooled community
         Q_pooled = rao(ra_mean, distmat)
+        if Q_pooled <= 0 or not np.isfinite(Q_pooled):
+            raise ValueError(
+                f"Functional Rao's Q is zero or invalid for group '{cat}'. "
+                "Functional beta diversity cannot be computed."
+            )
         dqmat = distmat * (1.0 / Q_pooled)
 
         # γ-diversity (pooled)
@@ -1158,13 +1203,13 @@ def func_multi_beta(
         asum = 0.0
 
         for s1 in smplist:
-            p1 = ra[s1].to_numpy()
+            p1 = subtab[s1].to_numpy()
             for s2 in smplist:
-                p2 = ra[s2].to_numpy()
+                p2 = subtab[s2].to_numpy()
 
                 outer12 = np.outer(p1, p2) / (N * N)
 
-                if q == 1:
+                if q == 1.0:
                     mask = outer12 > 0
                     log_outer = np.zeros_like(outer12)
                     log_outer[mask] = np.log(outer12[mask])
@@ -1211,12 +1256,14 @@ def evenness(
     Compute evenness measures from Chao & Ricotta (2019, Ecology 100:e02852),
     with optional support for Pielou’s classical evenness index.
     
-    Supports:
+    Supports
+    
         - naive (taxonomic) evenness
         - phylogenetic evenness
         - functional evenness
     
-    Supported evenness indices:
+    Supported evenness indices
+    
         - CR1  (regional evenness)
         - CR2  (local evenness)
         - CR3
@@ -1228,16 +1275,16 @@ def evenness(
     ----------
     obj : DataFrame | MicrobiomeData-like | dict
         Including abundance table (features × samples) and optionally
-        tree (pandas.DataFrame, required if divType='phyl')
+        tree (pandas.DataFrame, required if div_type='phyl')
     distmat : pandas.DataFrame, optional
-        Required if divType='func'. Functional distance matrix.
+        Required if div_type='func'. Functional distance matrix.
     q : float, default=1
-        Diversity order.
-    div_type : {'naive', 'phyl', 'func'}
+        Diversity order. Determines emphasis on relative abundances.
+    div_type : 'naive', 'phyl', or 'func', default='naive'
         Type of diversity measure used to compute D.
-    index : {'CR1','CR2','CR3','CR4','CR5','local','regional','pielou'}
+    index : 'CR1','CR2','CR3','CR4','CR5','local','regional', or 'pielou', default='pielou'
         Evenness index to compute.
-    perspective : {'samples','taxa'}
+    perspective : 'samples'or 'taxa', default='samples'
         Whether to compute evenness across samples (columns)
         or across taxa/branches (rows).
     use_values_in_tab : bool, default=False
@@ -1253,8 +1300,10 @@ def evenness(
     - CR1 = regional evenness
     - CR2 = local evenness
     - CR3–CR5 are alternative evenness formulations from Chao & Ricotta (2019)
-    - Pielou’s index is included for convenience and corresponds to:
+    - Pielou’s index is included for convenience and corresponds to
+    
           J = H' / ln(S) = ln(D₁) / ln(S)
+          
       where D₁ is the Hill number of order q = 1.
     """
 
@@ -1307,21 +1356,22 @@ def evenness(
             tree = get_df(obj, "tree")
             if not isinstance(tree, pd.DataFrame):
                 raise ValueError("tree must be provided for divType='phyl'.")
+            leaf_order = get_df(obj, "leaf_order")
+            if not isinstance(leaf_order, list):
+                raise ValueError("leaf_order must be provided for divType='phyl'.")
 
             # Relative abundances
             ra = tab.div(tab.sum()) if not use_values_in_tab else tab.astype(float)
 
-            #Subset tree to features in tab
-            tree = subset_tree_df(tree, ra.index.tolist())
-
             # Build branch × sample matrix
-            tree2 = ra_to_branches(ra, tree)
+            tree2 = ra_to_branches(ra, tree, leaf_order)
 
             # Normalize across samples
             tree2 = tree2.T
             tree2 = tree2.div(tree2.sum()).fillna(0.0)
 
-            S_series = tree2.count().astype(float)
+            #S_series = tree2.count().astype(float)
+            S_series = (tree2 > 0).sum().astype(float)
             D_series = naive_alpha(tree2, q=q, use_values_in_tab=True)
 
         else:
@@ -1331,15 +1381,21 @@ def evenness(
     if index in ("CR1", "CR2", "regional", "local"):
         if q == 1:
             df = pd.DataFrame({"D": D_series, "S": S_series}).astype(float)
-            mask = (df["S"] > 0) & (df["D"] > 0)
-            logD = np.log(df.loc[mask, "D"])
-            logS = np.log(df.loc[mask, "S"])
-            measure = logD / logS
+            measure = pd.Series(np.nan, index=df.index, dtype=float)
+            mask = (df["S"] > 1) & (df["D"] > 0)
+            measure.loc[mask] = (
+                np.log(df.loc[mask, "D"])
+                / np.log(df.loc[mask, "S"])
+            )
+            measure.loc[df["S"] <= 1] = np.nan
         else:
             Dp = D_series.astype(float).pow(power)
             Sp = S_series.astype(float).pow(power)
             measure = (1 - Dp) / (1 - Sp)
-    
+            measure = measure.replace([np.inf, -np.inf], np.nan)
+            mask = S_series <= 1
+            measure.loc[mask] = np.nan
+
     elif index == "CR3":
         measure = (D_series - 1) / (S_series - 1)
     
@@ -1357,6 +1413,7 @@ def evenness(
     else:
         raise ValueError("index must be one of: CR1, CR2, CR3, CR4, CR5, local, regional, pielou.")
 
+    measure = measure.fillna(1.0)
     return measure
 
 # -----------------------------------------------------------------------------
@@ -1369,55 +1426,71 @@ def dissimilarity_by_feature(
     q: float = 1,
     div_type: str = "naive",
     index: str = "regional",
-    use_values_in_tab: bool = False
+    use_values_in_tab: bool = False,
 ) -> pd.DataFrame:
     """
-    Compute the contribution of individual taxa (or phylogenetic nodes)
+    Compute the contribution of individual taxa or phylogenetic branches
     to the overall dissimilarity between multiple samples, following
-    Chao & Ricotta (2019, Ecology 100:e02852).
+    Chao and Ricotta (2019).
 
     Supports:
-        - naive (taxonomic) dissimilarity
+        
+        - naive taxonomic dissimilarity
         - phylogenetic dissimilarity
 
     Parameters
     ----------
     obj : DataFrame | MicrobiomeData-like | dict
-        Must contain:
-            - 'tab' : abundance table (features × samples)
-            - 'meta' : metadata table (optional if by=None)
-            - 'tree' : phylogenetic tree (required if divType='phyl')
-    by : str or None, default=None
+        Must contain
+        
+            - ``'tab'``, abundance table, features x samples
+            - ``'meta'``, metadata table, required if by is not None
+            - ``'tree'``, phylogenetic tree, required if div_type='phyl'
+            - ``'leaf_order'``, required if div_type='phyl'
+
+    by : str or None, default None
         Metadata column defining sample groups.
         If None, all samples are treated as one group.
     q : float, default=1
-        Diversity order.
-    div_type : {'naive','phyl'}, default='naive'
+        Diversity order. Determines emphasis on relative abundances.
+    div_type : {'naive', 'phyl'}, default 'naive'
         Type of dissimilarity measure.
-    index : {'local','regional','CR1','CR2'}, default='regional'
-        Evenness/dissimilarity index.
-    use_values_in_tab : bool, default=False
+    index : {'local', 'regional', 'CR1', 'CR2'}, default 'regional'
+        Dissimilarity index.
+        ``'regional'`` and ``'CR1'`` are equivalent.
+        ``'local'`` and ``'CR2'`` are equivalent.
+    use_values_in_tab : bool, default False
         If False, convert abundances to relative abundances.
+        If True, values in tab are assumed to already be relative abundances.
 
     Returns
     -------
-    pandas.DataFrame
-        Rows:
+    pandas.DataFrame.
+        Rows
+
             - 'dis' : total dissimilarity
             - 'N'   : number of samples in group
-            - one row per taxon (naive) or per node (phylogenetic)
-        Columns:
-            - one column per category in `by`
+            - one row per taxon for naive dissimilarity
+            - one row per branch or node for phylogenetic dissimilarity
+
+        Columns
+ 
+            - one column per category in ``'by'``
     """
 
+    # ---------------------------------------------------------------------
     # Validate input
+    # ---------------------------------------------------------------------
     tab = get_df(obj, "tab")
+
+    if tab is None:
+        raise ValueError("'tab' is missing.")
 
     if tab.shape[1] < 2:
         raise ValueError("At least two samples are required.")
 
     if div_type not in ("naive", "phyl"):
-        raise ValueError("divType must be 'naive' or 'phyl'.")
+        raise ValueError("div_type must be 'naive' or 'phyl'.")
 
     if index in ("CR1", "regional"):
         idx = "regional"
@@ -1426,34 +1499,87 @@ def dissimilarity_by_feature(
     else:
         raise ValueError("index must be 'local', 'regional', 'CR1', or 'CR2'.")
 
+    tab = tab.astype(float)
+
+    # ---------------------------------------------------------------------
+    # Helper: q-power that handles q = 0 correctly
+    # ---------------------------------------------------------------------
+    def positive_power(x, q):
+        """
+        Compute x^q for positive x, while keeping zeros as zero.
+
+        This avoids the pandas/numpy behavior where 0**0 becomes 1.
+        """
+        if isinstance(x, pd.DataFrame):
+            out = pd.DataFrame(0.0, index=x.index, columns=x.columns)
+            mask = x > 0
+            if q == 0:
+                out[mask] = 1.0
+            else:
+                out[mask] = x[mask].pow(q)
+            return out
+
+        if isinstance(x, pd.Series):
+            out = pd.Series(0.0, index=x.index)
+            mask = x > 0
+            if q == 0:
+                out.loc[mask] = 1.0
+            else:
+                out.loc[mask] = x.loc[mask].pow(q)
+            return out
+
+        raise TypeError("positive_power expects a pandas Series or DataFrame.")
+
+    # ---------------------------------------------------------------------
     # Build dictionary of subtables by category
+    # ---------------------------------------------------------------------
     if by is None:
         categories = ["all"]
         tabdict = {"all": tab.copy()}
     else:
         meta = get_df(obj, "meta")
+
+        if meta is None:
+            raise ValueError("'meta' is required when 'by' is provided.")
+
         if by not in meta.columns:
             raise ValueError(f"Column '{by}' not found in metadata.")
 
         categories = meta[by].unique().tolist()
+
         tabdict = {
-            cat: get_df(subset_samples(obj, by=by, values=[cat]), "tab")
+            cat: get_df(
+                subset_samples(obj, by=by, values=[cat]),
+                "tab",
+            )
             for cat in categories
         }
 
-    # Prepare output table
-    if div_type == "naive":
-        feature_index = ["dis", "N"] + tab.index.tolist()
-    else:
+    # ---------------------------------------------------------------------
+    # Prepare tree if needed
+    # ---------------------------------------------------------------------
+    if div_type == "phyl":
         tree = get_df(obj, "tree")
-        tree = subset_tree_df(tree, tab.index.tolist())
-        feature_index = ["dis", "N"] + tree.index.tolist()
+        leaf_order = get_df(obj, "leaf_order")
+
+        if tree is None:
+            raise ValueError("'tree' is required when div_type='phyl'.")
+
+        if leaf_order is None:
+            tree, leaf_order = rebuild_leaf_order(tree)
+
+        feature_index = ["dis", "N"] + tree["nodes"].tolist()
+
+    else:
+        feature_index = ["dis", "N"] + tab.index.tolist()
 
     out = pd.DataFrame(np.nan, index=feature_index, columns=categories)
 
+    # ---------------------------------------------------------------------
     # Main loop over categories
+    # ---------------------------------------------------------------------
     for cat in categories:
-        subtab = tabdict[cat]
+        subtab = tabdict[cat].astype(float)
         N = subtab.shape[1]
         out.loc["N", cat] = N
 
@@ -1462,28 +1588,30 @@ def dissimilarity_by_feature(
 
         # Relative abundances
         if use_values_in_tab:
-            ra = subtab.astype(float)
+            ra = subtab
         else:
-            col_sums = subtab.sum()
+            col_sums = subtab.sum(axis=0)
             if (col_sums == 0).any():
                 raise ValueError(f"Group '{cat}' contains a zero-sum sample.")
-            ra = subtab.div(col_sums)
+            ra = subtab.div(col_sums, axis=1)
 
-        # NAIVE VERSION
+        # -----------------------------------------------------------------
+        # Naive version
+        # -----------------------------------------------------------------
         if div_type == "naive":
-            # Compute weights w_i
-            if idx == "regional":  # CR1
-                w = subtab.sum(axis=1).pow(q)
-                w = w / w.sum()
-            else:  # local = CR2
-                tab_q = subtab.copy()
-                mask = tab_q > 0
-                tab_q[mask] = tab_q[mask].pow(q)
-                w = tab_q.sum(axis=1) / tab_q.sum().sum()
+            # Use relative abundances for weights, not raw counts.
+            # This avoids group-level sequencing-depth effects.
+            if idx == "regional":
+                z = ra.sum(axis=1)
+                zq = positive_power(z, q)
+                w = zq / zq.sum()
 
-            # Evenness per taxon
+            else:
+                ra_q = positive_power(ra, q)
+                w = ra_q.sum(axis=1) / ra_q.sum().sum()
+
             ev = evenness(
-                subtab,
+                ra if use_values_in_tab else subtab,
                 q=q,
                 div_type="naive",
                 index=idx,
@@ -1491,50 +1619,73 @@ def dissimilarity_by_feature(
                 use_values_in_tab=use_values_in_tab,
             )
 
-            # Contribution
             contrib = w * (1 - ev)
+            contrib = contrib.clip(lower=0)
 
-            out.loc["dis", cat] = contrib.sum()
-            out.loc[contrib.index, cat] = 100 * contrib / contrib.sum()
+            total = contrib.sum()
+            out.loc["dis", cat] = total
+
+            if total > 0:
+                out.loc[contrib.index, cat] = 100 * contrib / total
+            else:
+                out.loc[contrib.index, cat] = 0.0
+
             out[cat] = out[cat].fillna(0)
 
-        # PHYLOGENETIC VERSION
+        # -----------------------------------------------------------------
+        # Phylogenetic version
+        # -----------------------------------------------------------------
         elif div_type == "phyl":
-        
-            # Build branch × sample matrix
-            tree2 = ra_to_branches(ra, tree)
-        
-            # Evenness per node (correct)
+
+            tree2 = ra_to_branches(
+                ra=ra,
+                tree_df=tree,
+                leaf_order=leaf_order,
+            )
+
             ev = evenness(
-                {"tab": subtab, "tree": tree},
+                {
+                    "tab": subtab,
+                    "tree": tree,
+                    "leaf_order": leaf_order,
+                },
                 q=q,
                 div_type="phyl",
                 index=idx,
                 perspective="taxa",
-                use_values_in_tab=use_values_in_tab,
+                use_values_in_tab=use_values_in_tab
             )
-        
-            # Compute branch weights
-            if idx == "regional":  # CR1
+
+            branchL = tree["branchL"]
+
+            if idx == "regional":
                 zi = tree2.sum(axis=1)
-                zi_q = zi.clip(lower=0).pow(q)
-                w = (tree["branchL"] * zi_q)
+                zi_q = positive_power(zi, q)
+                w = branchL * zi_q
                 w = w / w.sum()
-        
-            else:  # local = CR2
-                tree2_q = tree2.clip(lower=0).pow(q)
+
+            else:
+                tree2_q = positive_power(tree2, q)
                 zv = tree2_q.sum(axis=1)
-                w = (tree["branchL"] * zv)
+                w = branchL * zv
                 w = w / w.sum()
-        
-            # Contribution
-            contrib = tree["branchL"] * w * (1 - ev)
-        
-            out.loc["dis", cat] = contrib.sum()
-            out.loc[contrib.index, cat] = 100 * contrib / contrib.sum()
-            out.loc[tree.index, 'nodes'] = tree['nodes']
-    
+
+            contrib = w * (1 - ev)
+            contrib = contrib.fillna(0)
+            contrib = contrib.clip(lower=0)
+
+            total = contrib.sum()
+            out.loc["dis", cat] = total
+
+            contrib.index = tree.loc[contrib.index, "nodes"]
+
+            if total > 0:
+                out.loc[contrib.index, cat] = 100 * contrib / total
+            else:
+                out.loc[contrib.index, cat] = 0.0
+
     return out
+
 
 # -----------------------------------------------------------------------------
 # beta MPDq and MNTDq
@@ -1546,7 +1697,8 @@ def beta_mpdq(
     q: float = 1.0,
 ) -> pd.DataFrame:
     """
-    Computes beta-MPD_q for all sample pairs.
+    Beta mean phylogenetic distance (MPD) with q-weighting of relative abundances.
+    Calculated for sample pairs.
 
     Parameters
     ----------
@@ -1572,7 +1724,8 @@ def beta_mntdq(
     include_conspecifics: bool = False,
 ) -> pd.DataFrame:
     """
-    Computes beta-MNTD_q for all sample pairs.
+    Beta mean nearest taxon distance (MPD) with q-weighting of relative abundances.
+    Calculated for sample pairs.
 
     Parameters
     ----------
@@ -1588,7 +1741,7 @@ def beta_mntdq(
 
     Returns
     -------
-    pandas.DataFrame (S x S)
+    pandas.DataFrame (S x S):
     """
     from ..model import beta_ntiq
     return beta_ntiq(obj, distmat, q=q, iterations=0, include_conspecifics=include_conspecifics)

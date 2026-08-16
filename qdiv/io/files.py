@@ -1,6 +1,6 @@
 from __future__ import annotations
 from pathlib import Path
-from typing import Dict, Optional, Mapping, List, Union
+from typing import Dict, Optional, Mapping, List, Union, Any
 import re
 import os
 import gzip
@@ -327,7 +327,7 @@ def add_tree(
     *,
     path: str = "",
     midpoint_root: bool = False
-) -> Dict[str, pd.DataFrame]:
+) -> Dict[str, Any]:
     """
     Load tree from a newick file into a dictionary with a pandas DataFrame.
 
@@ -342,20 +342,16 @@ def add_tree(
 
     Returns
     -------
-    dict[str, pandas.DataFrame]
+    dict[str, Any]
         Keys:
         - 'tree': DataFrame with nodes and branch lengths
+        - 'leaf_order': List of leaves
 
     Raises
     ------
     ValueError
         - If `tree` is missing or file cannot be read
         - If no nodes are found
-
-    Examples
-    --------
-    >>> data = add_tree(tree="tree.nwk")
-    >>> data["tree"].head()
     """
     file_path = Path(path) / tree
     if not file_path.exists():
@@ -369,8 +365,8 @@ def add_tree(
     if midpoint_root:
         tree = reroot_midpoint(tree)
 
-    branch_df = tree_to_dataframe(tree)
-    return {'tree': branch_df}
+    branch_df, leaf_order = tree_to_dataframe(tree)
+    return {'tree': branch_df, 'leaf_order': leaf_order}
 
 # -----------------------------------------------------------------------------
 #  Add meta
@@ -464,7 +460,7 @@ def load(
     meta_sep: str = None,
     fasta_seq_name_splitter: Optional[str] = None,
     add_taxon_prefix: bool = True,
-) -> Dict[str, pd.DataFrame]:
+) -> Dict[str, Any]:
     """
     Load microbiome-related data files into a dictionary of DataFrames.
     Uses specialized loader functions for each file type.

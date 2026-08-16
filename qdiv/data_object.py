@@ -40,12 +40,15 @@ class MicrobiomeData:
         meta: Optional[pd.DataFrame] = None,
         seq: Optional[pd.DataFrame] = None,
         tree: Optional[pd.DataFrame] = None,
+        leaf_order: Optional[list] = None,
     ):
         self.tab = tab
         self.tax = tax
         self.meta = meta
         self.seq = seq
+        self.leaf_order = leaf_order
         self.tree = tree
+
         self._autocorrect()
         self._validate()
 
@@ -78,6 +81,7 @@ class MicrobiomeData:
             meta=data.get("meta"),
             seq=data.get("seq"),
             tree=data.get("tree"),
+            leaf_order=data.get("leaf_order"),
         )
 
     def add_tab(
@@ -112,6 +116,11 @@ class MicrobiomeData:
         -------
         MicrobiomeData
             The updated object (self).
+
+        Examples
+        --------
+        >>> obj = MicrobiomeData.load()
+        >>> obj.add_tab(tab="otu_table.csv")
 
         """
         try:
@@ -156,15 +165,15 @@ class MicrobiomeData:
         add_taxon_prefix : bool, default True
             If True, add letters and two underscores before taxon names to indicate taxonomic level.
 
-        Raises
-        ------
-        ValueError
-            If the file cannot be read or has invalid format.
-
         Returns
         -------
         MicrobiomeData
             The updated object (self).
+
+        Examples
+        --------
+        >>> obj = MicrobiomeData.load()
+        >>> obj.add_tax(tax="taxonomy_table.csv")
         """
         try:
             out = data_files.add_tax(
@@ -209,6 +218,11 @@ class MicrobiomeData:
         -------
         MicrobiomeData
             The updated object (self).
+
+        Examples
+        --------
+        >>> obj = MicrobiomeData.load()
+        >>> obj.add_seq_from_fasta(fasta="OTU_sequences.fasta")
         """
         try:
             out = data_files.add_seq_from_fasta(
@@ -241,15 +255,15 @@ class MicrobiomeData:
         path : str, default ""
             Directory path (absolute or relative) containing `tree`. Can be "" for CWD.
 
-        Raises
-        ------
-        ValueError
-            If `tree` is missing or file cannot be read, or if no nodes are found.
-
         Returns
         -------
         MicrobiomeData
             The updated object (self).
+
+        Examples
+        --------
+        >>> obj = MicrobiomeData.load()
+        >>> obj.add_tree(tree="Phylogenetic_tree.nwk")
         """
         try:
             out = data_files.add_tree(
@@ -261,6 +275,7 @@ class MicrobiomeData:
 
         # Assign results
         self.tree = out.get("tree")
+        self.leaf_order = out.get("leaf_order")
         self._autocorrect()
         self._validate()
         return self
@@ -284,15 +299,15 @@ class MicrobiomeData:
         sep : str or None, default ","
             Column separator. If None, pandas will attempt to auto-detect (engine='python').
     
-        Raises
-        ------
-        ValueError
-            If `meta` is missing or file cannot be read, or if no samples are found.
-
         Returns
         -------
         MicrobiomeData
             The updated object (self).
+
+        Examples
+        --------
+        >>> obj = MicrobiomeData.load()
+        >>> obj.add_meta(meta="metadata.csv")
         """
         try:
             out = data_files.add_meta(
@@ -512,7 +527,7 @@ class MicrobiomeData:
 
         Examples
         --------
-        >>> files = data.printout(path="results", savename="mydata")
+        >>> obj.save(savename="mydata")
         """
         return data_files.save(self.to_dict(), path=path, savename=savename, sep=sep)
 
@@ -540,6 +555,10 @@ class MicrobiomeData:
         ----------
         preview_rows : int, optional
             Number of rows to preview from metadata (default: 1).
+
+        Examples
+        --------
+        >>> obj.info()
         """
         print("MicrobiomeData object summary")
         print("-" * 40)
@@ -562,8 +581,8 @@ class MicrobiomeData:
         else:
             print("Sequence table: None")
         # Tree
-        if self.tree is not None:
-            print(f"Tree: {len(self.tree)} nodes")
+        if self.tree is not None and self.leaf_order is not None:
+            print(f"Tree: {len(self.tree)} nodes; {len(self.leaf_order)} leaves.")
         else:
             print("Tree: None")
         # Metadata
@@ -678,6 +697,10 @@ class MicrobiomeData:
         -------
         MicrobiomeData
             The filtered object (self if inplace=True, otherwise a new object).
+
+        Examples
+        --------
+        >>> obj_sub = obj.subset_samples(by='Metadata_column_header', values='Treatment_A')
         """
         return data_subset.subset_samples(
             self,
@@ -712,6 +735,11 @@ class MicrobiomeData:
         -------
         MicrobiomeData
             The filtered object (self if inplace=True, otherwise a new object).
+
+        Examples
+        --------
+        >>> obj_sub = obj.subset_samples(featurelist=['OTU1', 'OTU2', 'OTU3'])
+        >>> obj_sub = obj.subset_samples(featurelist=['OTU1', 'OTU2', 'OTU3'], exclude=True)
         """
         return data_subset.subset_features(
             self,
@@ -815,9 +843,8 @@ class MicrobiomeData:
         Examples
         --------
         >>> obj.merge_samples(by="Treatment", method="sum", inplace=True)
-        >>> merged = obj.merge_samples(by="Site", method="mean")
         """
-        return data_subset.merge_samples(
+        out = data_subset.merge_samples(
             self,
             by=by,
             values=values,
@@ -826,6 +853,7 @@ class MicrobiomeData:
             keep_absent=keep_absent,
             inplace=inplace
         )
+        return out
 
     def subset_taxa(
         self,
@@ -864,12 +892,7 @@ class MicrobiomeData:
         Returns
         -------
         MicrobiomeData
-            Filtered object with updated 'tab', 'tax', and 'seq'. 'meta' and 'tree' are passed through.
-    
-        Raises
-        ------
-        ValueError
-            If taxonomy table is missing, no patterns are provided, or no matches are found.
+            Filtered object with updated 'tab', 'tax', and 'seq'. 'meta', 'tree', and 'leaf_order' are passed through. 
     
         Examples
         --------
@@ -900,8 +923,7 @@ class MicrobiomeData:
         """
         Rarefy the abundance table to a fixed sequencing depth.
     
-        This method is a thin wrapper around :func:`io.subset.rarefy`. It performs
-        random subsampling (with or without replacement) to equalize sequencing depth
+        This method performs random subsampling (with or without replacement) to equalize sequencing depth
         across samples, then drops features and samples that become zero.
     
         Parameters
@@ -912,8 +934,7 @@ class MicrobiomeData:
         random_state : int | numpy.random.Generator, optional
             Random seed or Generator for reproducibility.
         replacement : bool, default False
-            If True, sample with replacement (multinomial); otherwise sample
-            without replacement.
+            If True, sample with replacement; otherwise samplewithout replacement.
         inplace : bool, default False
             If True, modify this object in place; if False, return a new object.
     
@@ -927,14 +948,10 @@ class MicrobiomeData:
         -----
         - Rarefaction reduces sequencing depth variance across samples to facilitate
           certain diversity and dissimilarity analyses.
-        - The exact algorithm and post‑processing (feature/sample pruning) are
-          implemented in :func:`io.subset.rarefy`.
-        - Index alignment and integrity are enforced via :meth:`_autocorrect` and
-          :meth:`_validate` in the underlying implementation.
     
         Examples
         --------
-        >>> obj.rarefy(depth=10000, seed=42, inplace=True)
+        >>> obj.rarefy(depth=10000, random_state=42, inplace=True)
         >>> rarefied_obj = obj.rarefy(depth='min', replacement=True)
         """
         if "seed" in kwargs:
@@ -992,14 +1009,20 @@ class MicrobiomeData:
         tree = phylo_func.collapse_single_child_nodes(tree)
         if reroot:
             tree = phylo_func.reroot_midpoint(tree)
-        tree = phylo_func.tree_to_dataframe(tree)
+        tree, leaf_order = phylo_func.tree_to_dataframe(tree)
 
         if inplace:
             self.tree = tree
+            self.leaf_order = leaf_order
+            self.subset_features(featurelist=leaf_order, inplace=True)
+            self._autocorrect()
+            self._validate()
             return self
         else:
             new_obj = copy.deepcopy(self)
             new_obj.tree = tree
+            new_obj.leaf_order = leaf_order
+            new_obj.subset_features(featurelist=leaf_order, inplace=True)
             return new_obj
 
     def rename_features(
@@ -1209,6 +1232,7 @@ class MicrobiomeData:
             "meta": self.meta,
             "seq": self.seq,
             "tree": self.tree,
+            "leaf_order": self.leaf_order,
         }
 
     @classmethod
@@ -1220,21 +1244,18 @@ class MicrobiomeData:
         ----------
         data : dict
             Dictionary with keys:
-            - 'tab' : pd.DataFrame (required)
+
+            - 'tab' : pd.DataFrame, optional
             - 'tax' : pd.DataFrame, optional
             - 'meta' : pd.DataFrame, optional
             - 'seq' : pd.DataFrame, optional
             - 'tree' : pd.DataFrame, optional
+            - 'leaf_order' : list, optional
     
         Returns
         -------
         MicrobiomeData
             A new MicrobiomeData object initialized from the dictionary.
-    
-        Raises
-        ------
-        ValueError
-            If 'tab' is missing or not a pandas DataFrame.
     
         Examples
         --------
@@ -1245,8 +1266,6 @@ class MicrobiomeData:
         ... }
         >>> obj = MicrobiomeData.from_dict(my_dict)
         """
-        if "tab" not in data or not isinstance(data["tab"], pd.DataFrame):
-            raise ValueError("Input dictionary must contain a 'tab' key with a pandas DataFrame.")
     
         return cls(
             tab=data.get("tab"),
@@ -1254,6 +1273,7 @@ class MicrobiomeData:
             meta=data.get("meta"),
             seq=data.get("seq"),
             tree=data.get("tree"),
+            leaf_order=data.get("leaf_order"),
         )
 
     def _autocorrect(self):
@@ -1321,12 +1341,18 @@ class MicrobiomeData:
                 self.meta = self.meta.loc[common_samples]
             self.tab = self.tab[self.meta.index]
 
+        if self.tree is not None and self.leaf_order is None:
+            tree, leaf_order = phylo_func.rebuild_leaf_order(self.tree)
+            self.tree = tree
+            self.leaf_order = leaf_order
+            warnings.warn("Auto-correct: leaf_order was missing, rebuilt it from tree dataframe.", UserWarning)
 
     def _validate(self):
         """
         Internal validation to ensure index alignment, uniqueness, and data integrity.
         Raises ValueError if inconsistencies or duplicates are found.
         """
+        # Checks with tab present
         if self.tab is not None:
             # Check for empty tab
             if len(self.tab) == 0:
@@ -1396,7 +1422,11 @@ class MicrobiomeData:
                         f"Examples: {bad_rows[['nodes','parent']].to_dict('records')}. "
                         "Reload the tree or run prune_tree() to rebuild a valid induced subtree."
                     )
+            if self.leaf_order is not None:
+                if not tab_features.issubset(set(self.leaf_order)):
+                    raise ValueError("Not all tab features are found in leaf_order list.")
 
+        # Other checks
         if self.tax is not None:
             if len(self.tax) == 0:
                 raise ValueError("Features missing in tax.")
@@ -1412,8 +1442,27 @@ class MicrobiomeData:
                 raise ValueError("Features missing in seq.")
 
         if self.tree is not None:
+            if self.leaf_order is None:
+                raise ValueError("leaf_order is missing for tree dataframe.")
             if len(self.tree) == 0:
                 raise ValueError("Features missing in tree.")
+
+            parents = set(self.tree["parent"].dropna())
+            tree_leaves = set(self.tree["nodes"]) - parents
+            if len(set(self.leaf_order)) != len(self.leaf_order):
+                raise ValueError("leaf_order contains duplicate names.")
+            if tree_leaves != set(self.leaf_order):
+                raise ValueError(
+                    "leaf_order does not match leaves present in tree."
+                )
+
+        if self.leaf_order is not None:
+            if self.tree is None:
+                raise ValueError("tree is missing although leaf_order is present.")
+            n_leaves = len(self.leaf_order)
+            if n_leaves == 0:
+                raise ValueError("leaf_order is empty.")
+
 
     def __repr__(self):
         n_features = self.tab.shape[0] if self.tab is not None else 0

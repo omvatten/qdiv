@@ -3,7 +3,6 @@ import numpy as np
 import pandas as pd
 from typing import Optional, Tuple
 from ..utils import get_df, ladderize_tree_df
-from ..utils.phylo_utils import _normalize_tree_df, _is_missing_id
 
 def phylo_tree(
     tree,
@@ -20,6 +19,7 @@ def phylo_tree(
     ladderize: bool = True,
     invert: bool = False,
     scale_bar: float | None = None,
+    scale_bar_y_offset: float = 0.0,
     savename: str | None = None,
 ) -> Tuple["plt.Figure", "plt.Axes", "pd.DataFrame"]:
 
@@ -67,6 +67,8 @@ def phylo_tree(
     scale_bar : float, optional
         Length of the scale bar to draw (in branch-length units). If None,
         a scale bar corresponding to 10% of the tree width is drawn.
+    scale_bar_y_offset : float, optional
+        Move the scale bar up or down along the y-axis.
     savename : str, optional
         If provided, save the figure to this file path using
         ``bbox_inches="tight"``.
@@ -97,14 +99,18 @@ def phylo_tree(
     
     # -- Normalize input to DataFrame -----------------------------------------
     T = get_df(tree, "tree")
+    leaf_order = get_df(tree, "leaf_order")
     if T is None:
-        raise ValueError("Tree DataFrame missing.")
-    T_plot = _normalize_tree_df(T)  # your normalizer (ensures parent None, leaves sets, floats)
+        raise ValueError("Tree DataFrame is missing.")
+    if leaf_order is None:
+        raise ValueError("leaf_order list is missing.")
+    T_plot = T.copy()
+    
     if ladderize:
-        T_plot = ladderize_tree_df(T_plot)
+        T_plot, leaf_order = ladderize_tree_df(T_plot)
 
     # Expect columns: nodes, parent, branchL, leaves, dist_to_root
-    required = {"nodes", "parent", "branchL", "leaves", "dist_to_root"}
+    required = {"nodes", "parent", "branchL", "dist_to_root", "leaf_start", "leaf_end"}
     missing = required - set(T_plot.columns)
     if missing:
         raise ValueError(f"Tree DataFrame missing columns: {sorted(missing)}")
@@ -112,45 +118,35 @@ def phylo_tree(
     # -- Build children map (preserve order as it appears in T) ----------------
     children_map: dict[str, list[str]] = {}
     for n, p in zip(T_plot["nodes"].values, T_plot["parent"].values):
-        if _is_missing_id(p):
+        if pd.isna(p):
             continue
         children_map.setdefault(p, []).append(n)
-
 
     # -- Find the (single) root ------------------------------------------------
     roots = T_plot.loc[T_plot['parent'].isna(), 'nodes'].tolist()
     if len(roots) != 1:
         raise ValueError(f"Tree must have exactly one root, found: {roots}")
-    root = roots[0]
 
     # -- Identify tips vs internals -------------------------------------------
-    node_names = T_plot['nodes']
-    is_tip_series = ~node_names.isin(children_map.keys())
+    parents = set(T_plot["parent"].dropna())
+    is_tip_series = ~T_plot["nodes"].isin(parents)
 
-    # -- Determine a good tip order (planar DFS from the root) -----------------
-    def _tips_in_planar_order(r: str) -> list[str]:
-        tips: list[str] = []
-        # Use explicit recursion to preserve children order; here iterative DFS:
-        def dfs(u: str):
-            kids = children_map.get(u, [])
-            if not kids:
-                tips.append(u)
-                return
-            for c in kids:
-                dfs(c)
-        dfs(r)
-        return tips
-
+    tip_nodes = leaf_order.copy()
     if tip_order == "alpha":
-        tip_nodes = sorted(node_names[is_tip_series].tolist())
-    else:
-        tip_nodes = _tips_in_planar_order(root)
-    print(tip_nodes)
+        tip_nodes = sorted(tip_nodes)
+
+    # -- Check T_plot and leaf_order match -------------------------------------------
+    parents = set(T_plot["parent"].dropna())
+    tree_leaves = set(T_plot["nodes"]) - parents
+    
+    if tree_leaves != set(leaf_order):
+        raise ValueError("leaf_order does not match leaves present in tree.")
+
     # -- Assign y positions ----------------------------------------------------
     y_pos: dict[str, float] = {n: float(i) for i, n in enumerate(tip_nodes)}
 
     # Internal node y = mean(child y), fill bottom-up until all resolved
-    remaining = set(node_names[~is_tip_series].tolist())
+    remaining = set(T_plot.loc[(T_plot["leaf_end"] - T_plot["leaf_start"]) > 1,"nodes",])
     progressed = True
     while remaining and progressed:
         progressed = False
@@ -179,7 +175,7 @@ def phylo_tree(
     # -- Draw branches ---------------------------------------------------------
     # 1) Horizontal segments: parent.x -> node.x at y=node.y
     for n, p in zip(T_plot['nodes'], T_plot['parent']):
-        if _is_missing_id(p):
+        if pd.isna(p):
             continue
         p = str(p)
         x0 = x_pos[p]; x1 = x_pos[n]; y = y_pos[n]
@@ -201,7 +197,7 @@ def phylo_tree(
                     color=color, fontsize=fontsize)
 
     if label_internals:
-        for n in node_names[~is_tip_series]:
+        for n in T_plot["nodes"][~is_tip_series]:
             ax.text(x_pos[n], y_pos[n], f"{n}", va='center', ha='right',
                     color=color, fontsize=fontsize)
 
@@ -227,7 +223,7 @@ def phylo_tree(
         x1 = x0 + bar_frac
         ax.plot(
             [x0, x1],
-            [-0.05, -0.05],
+            [-0.05+scale_bar_y_offset, -0.05+scale_bar_y_offset],
             transform=ax.transAxes,
             clip_on=False,
             color=color,
@@ -235,7 +231,7 @@ def phylo_tree(
         )
         ax.text(
             (x0 + x1) / 2,
-            -0.03,
+            -0.03+scale_bar_y_offset,
             f"{bar:.3g}",
             transform=ax.transAxes,
             clip_on=False,

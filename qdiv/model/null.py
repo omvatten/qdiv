@@ -137,6 +137,7 @@ def rcq(
             meta = None
     if div_type == "phyl":
         tree = get_df(obj, "tree")
+        leaf_order = obj.leaf_order.copy()
 
     if div_type == "func":
         if not isinstance(distmat, pd.DataFrame):
@@ -173,9 +174,9 @@ def rcq(
         if div_type == "naive":
             return naive_beta(t, q=q, use_numba=use_numba)
         if div_type == "phyl":
-            return phyl_beta({"tab": t, "tree": tree}, q=q, use_numba=use_numba)
+            return phyl_beta({"tab": t, "tree": tree, "leaf_order": leaf_order}, q=q, use_numba=use_numba)
         if div_type == "func":
-            return func_beta(t, distmat, q=q)
+            return func_beta(t, distmat, q=q, use_numba=use_numba, use_tqdm=False)
         raise ValueError("Unsupported div_type. Choose among {'Jaccard','Bray','naive','phyl','func'}.")
 
     # --- Observed beta-diversity
@@ -341,6 +342,33 @@ def rcq(
     }
     return out
 
+# -- Helper function for q-weighting
+def _q_weight(R: np.ndarray, q: float) -> np.ndarray:
+    """
+    Convert relative abundances to normalized q-weighted abundances.
+    """
+    if q == 1.0:
+        return R.copy()
+    if q == 0.0:
+        present = R > 0
+        richness = present.sum(axis=0, keepdims=True)
+        return np.divide(
+            present.astype(float),
+            richness,
+            out=np.zeros_like(R, dtype=float),
+            where=richness > 0,
+        )
+    Rq = np.zeros_like(R, dtype=float)
+    pos = R > 0
+    Rq[pos] = np.power(R[pos], q)
+    denom = Rq.sum(axis=0, keepdims=True)
+    return np.divide(
+        Rq,
+        denom,
+        out=np.zeros_like(Rq),
+        where=denom > 0,
+    )
+
 # ---------------------------------------------------------------------------
 # MPDq and NRIq
 # ---------------------------------------------------------------------------
@@ -353,6 +381,7 @@ def nriq(
     randomization: Literal["features", "abundances"] = "features",
     use_tqdm: bool = True,
     random_state: Optional[Union[int, np.random.Generator]] = None,
+    use_numba: bool = True,
     **kwargs,
 ) -> pd.DataFrame:
     """
@@ -376,6 +405,8 @@ def nriq(
         Use tqdm for progress bars.
     random_state : int or np.random.Generator, optional
         Random seed or generator for reproducibility.
+    use_numba : bool, optional
+        If True, uses Numba path; otherwise uses pure Python implementation.
 
     Returns
     -------
@@ -419,13 +450,21 @@ def nriq(
 
     smplist = tab.columns
     D = distmat.loc[tab.index, tab.index].to_numpy()
-    R = (tab / tab.sum(axis=0)).to_numpy()          
-    if q == 1.0:
-        Rq = R
+    R = (tab / tab.sum(axis=0)).fillna(0).to_numpy(float)
+    Rq = _q_weight(R, q)
+    N, S = Rq.shape
+
+    if use_numba:
+        try:
+            from .accelerate_model import mpdq_null_numba
+            backend = "numba"
+        except Exception:
+            print('Numba failed, falling back to Python.')
+            mpdq_null_numba = None
+            backend = "python"
     else:
-        mask = R > 0
-        Rq = R.copy()
-        Rq[mask] = np.power(Rq[mask], q)
+        mpdq_null_numba = None
+        backend = "python"
 
     def _alpha_mpdq(_D, _Rq):
         # sum_i w_i
@@ -446,17 +485,16 @@ def nriq(
         out[valid] = num_full[valid] / den[valid]
         return out
     
-
-    present_counts = (R > 0).sum(axis=0)  # shape (S,)
     obs = _alpha_mpdq(D, Rq)
+    present_counts = (R > 0).sum(axis=0)  # shape (S,)
     obs[present_counts < 2] = np.nan
 
     # streaming stats init
-    n = Rq.shape[1]
-    mu = np.zeros(n, dtype=np.float64)
-    M2 = np.zeros(n, dtype=np.float64)
-    count_lt = np.zeros(n, dtype=np.int64)
-    count_eq = np.zeros(n, dtype=np.int64)
+    mu = np.zeros(S, dtype=float)
+    M2 = np.zeros(S, dtype=float)
+    n_valid = np.zeros(S, dtype=int)
+    count_lt = np.zeros(S, dtype=int)
+    count_eq = np.zeros(S, dtype=int)
 
     rng = random_state if isinstance(random_state, np.random.Generator) else np.random.default_rng(random_state)
     tqdm = _get_tqdm(use_tqdm)
@@ -479,31 +517,56 @@ def nriq(
             miniters=1,
     ):
         if randomization == "features":
-            # permute features once and apply to all samples (permute rows of Rq)
-            perm = rng.permutation(Rq.shape[0])
+            perm = rng.permutation(N)
+            R_perm = R[perm, :]
             Rq_perm = Rq[perm, :]
-            x = _alpha_mpdq(D, Rq_perm)
         elif randomization == "abundances":
-            # shuffle abundances within each sample (permute rows per column)
-            # permute a view of Rq columnwise
+            R_perm = np.empty_like(R)
             Rq_perm = np.empty_like(Rq)
-            for j in range(n):
-                Rq_perm[:, j] = Rq[rng.permutation(Rq.shape[0]), j]
+            for j in range(S):
+                perm = rng.permutation(N)
+                R_perm[:, j] = R[perm, j]
+                Rq_perm[:, j] = Rq[perm, j]
+
+        if mpdq_null_numba is not None:
+            x = mpdq_null_numba(D, Rq_perm)
+        else:
             x = _alpha_mpdq(D, Rq_perm)
     
-        # Welford updates
-        delta = x - mu
-        mu += delta / t
-        M2 += delta * (x - mu)
+        # --- Welford updates (vectorized) ---
+        valid_x = np.isfinite(x) & np.isfinite(obs)
+        n_valid[valid_x] += 1
+        delta = x[valid_x] - mu[valid_x]
+        mu[valid_x] += delta / n_valid[valid_x]
+        M2[valid_x] += delta * (x[valid_x] - mu[valid_x])
+        count_lt[valid_x] += x[valid_x] < obs[valid_x]
+        count_eq[valid_x] += x[valid_x] == obs[valid_x]
+
+    # Finalize stats
+    null_mean = np.full(S, np.nan)
+    null_std = np.full(S, np.nan)
+    p = np.full(S, np.nan)
     
-        # p-index counts vs observed
-        count_lt += (x < obs)
-        count_eq += (x == obs)
+    has_mean = n_valid > 0
+    null_mean[has_mean] = mu[has_mean]
     
-    null_mean = mu
-    null_std = np.sqrt(np.maximum(M2 / max(1, (iterations - 1)), 0.0))
-    p = (count_lt + 0.5 * count_eq) / iterations
-    ses = np.where(null_std > 0, (null_mean - obs) / null_std, np.nan)
+    has_var = n_valid > 1
+    null_std[has_var] = np.sqrt(
+        M2[has_var] / (n_valid[has_var] - 1)
+    )
+    
+    p[has_mean] = (
+        count_lt[has_mean]
+        + 0.5 * count_eq[has_mean]
+    ) / n_valid[has_mean]
+
+    with np.errstate(invalid="ignore", divide="ignore"):
+        ses = np.where(
+            null_std > 0,
+            (null_mean - obs) / null_std,
+            np.nan
+        )
+    print('Iterations done with backend '+backend)
 
     output = pd.DataFrame(
         {
@@ -529,6 +592,7 @@ def ntiq(
     randomization: Literal["features", "abundances"] = "features",
     use_tqdm: bool = True,
     random_state: Optional[Union[int, np.random.Generator]] = None,
+    use_numba: bool = True,
     **kwargs,
 ) -> pd.DataFrame:
     """
@@ -554,6 +618,8 @@ def ntiq(
         Use tqdm for progress bars.
     random_state : int or np.random.Generator, optional
         Random seed or generator for reproducibility.
+    use_numba : bool, optional
+        If True, uses Numba path; otherwise uses pure Python implementation.
 
     Returns
     -------
@@ -567,7 +633,7 @@ def ntiq(
 
     Notes
     -----
-    - A p value close to zero means that the observed MPNTD is lower than the null expectation
+    - A p value close to zero means that the observed MNTD is lower than the null expectation
     - A p value close to one means that the observed MNTD is higher than the null expectation
     - A positive ses means that the observed MNTD is lower than the null expectation
     - A negative ses means that the observed MNTD is higher than the null expectation
@@ -591,18 +657,21 @@ def ntiq(
 
     smplist = tab.columns
     D = distmat.loc[tab.index, tab.index].to_numpy()  # (N x N)
-    # Relative abundances
-    R = (tab / tab.sum(axis=0)).to_numpy(dtype=float)  # (N x S)
-
-    # q-weighting (only for positive entries)
-    if q == 1.0:
-        Rq = R
-    else:
-        Rq = R.copy()
-        mask_pos = Rq > 0
-        Rq[mask_pos] = np.power(Rq[mask_pos], q)
-
+    R = (tab / tab.sum(axis=0)).fillna(0).to_numpy(float)
+    Rq = _q_weight(R, q)
     N, S = Rq.shape
+
+    if use_numba:
+        try:
+            from .accelerate_model import mntdq_null_numba
+            backend = "numba"
+        except Exception:
+            print('Numba failed, falling back to Python.')
+            mntdq_null_numba = None
+            backend = "python"
+    else:
+        mntdq_null_numba = None
+        backend = "python"
 
     # --- Helper: compute vector of MNTD_q for all samples in one go ---
     # For each sample s:
@@ -636,10 +705,11 @@ def ntiq(
     obs = _mntdq_all(D, R, Rq)
 
     # --- Streaming (Welford) statistics over null iterations ---
-    mu = np.zeros(S, dtype=np.float64)       # null_mean (per sample)
-    M2 = np.zeros(S, dtype=np.float64)       # for variance
-    count_lt = np.zeros(S, dtype=np.int64)   # for p-index
-    count_eq = np.zeros(S, dtype=np.int64)
+    mu = np.zeros(S, dtype=float)
+    M2 = np.zeros(S, dtype=float)
+    n_valid = np.zeros(S, dtype=int)
+    count_lt = np.zeros(S, dtype=int)
+    count_eq = np.zeros(S, dtype=int)
 
     rng = random_state if isinstance(random_state, np.random.Generator) else np.random.default_rng(random_state)
     tqdm = _get_tqdm(use_tqdm)
@@ -663,44 +733,56 @@ def ntiq(
     ):
 
         if randomization == "features":
-            # Permute feature identities once per iteration (relabels rows of Rq)
             perm = rng.permutation(N)
             R_perm = R[perm, :]
-            if q == 1.0:
-                Rq_perm = R_perm
-            else:
-                Rq_perm = R_perm.copy()
-                posp = Rq_perm > 0.0
-                Rq_perm[posp] = np.power(Rq_perm[posp], q)
-            x = _mntdq_all(D, R_perm, Rq_perm)
-        else:  # "abundances"
+            Rq_perm = Rq[perm, :]
+        elif randomization == "abundances":
             R_perm = np.empty_like(R)
-            for j in range(R.shape[1]):
-                R_perm[:, j] = R[rng.permutation(R.shape[0]), j]
-            if q == 1.0:
-                Rq_perm = R_perm
-            else:
-                Rq_perm = R_perm.copy()
-                posp = Rq_perm > 0.0
-                Rq_perm[posp] = np.power(Rq_perm[posp], q)
+            Rq_perm = np.empty_like(Rq)
+            for j in range(S):
+                perm = rng.permutation(N)
+                R_perm[:, j] = R[perm, j]
+                Rq_perm[:, j] = Rq[perm, j]
+
+        if mntdq_null_numba is not None:
+            x = mntdq_null_numba(D, R_perm, Rq_perm)
+        else:
             x = _mntdq_all(D, R_perm, Rq_perm)
 
         # --- Welford updates (vectorized) ---
-        delta = x - mu
-        mu += delta / t
-        M2 += delta * (x - mu)
-
-        # --- p-index bookkeeping against observed ---
-        # count how often null < obs, with 0.5 for ties
-        count_lt += (x < obs)
-        count_eq += (x == obs)
+        valid_x = np.isfinite(x) & np.isfinite(obs)
+        n_valid[valid_x] += 1
+        delta = x[valid_x] - mu[valid_x]
+        mu[valid_x] += delta / n_valid[valid_x]
+        M2[valid_x] += delta * (x[valid_x] - mu[valid_x])
+        count_lt[valid_x] += x[valid_x] < obs[valid_x]
+        count_eq[valid_x] += x[valid_x] == obs[valid_x]
 
     # Finalize stats
-    null_mean = mu
-    # population std estimate across iterations: sqrt(M2 / max(1, iterations-1))
-    null_std = np.sqrt(np.maximum(M2 / max(1, (iterations - 1)), 0.0))
-    p = (count_lt + 0.5 * count_eq) / iterations
-    ses = np.where(null_std > 0, (null_mean - obs) / null_std, np.nan)
+    null_mean = np.full(S, np.nan)
+    null_std = np.full(S, np.nan)
+    p = np.full(S, np.nan)
+    
+    has_mean = n_valid > 0
+    null_mean[has_mean] = mu[has_mean]
+    
+    has_var = n_valid > 1
+    null_std[has_var] = np.sqrt(
+        M2[has_var] / (n_valid[has_var] - 1)
+    )
+    
+    p[has_mean] = (
+        count_lt[has_mean]
+        + 0.5 * count_eq[has_mean]
+    ) / n_valid[has_mean]
+
+    with np.errstate(invalid="ignore", divide="ignore"):
+        ses = np.where(
+            null_std > 0,
+            (null_mean - obs) / null_std,
+            np.nan
+        )
+    print('Iterations done with backend '+backend)
 
     # Pack results
     output = pd.DataFrame(
@@ -756,10 +838,10 @@ def beta_nriq(
     -------
     dict of pandas.DataFrame (S x S):
         'beta_MPDq' : observed beta-MPD_q
-        'null_mean' : mean of null beta-MPD_q
-        'null_std'  : std  of null beta-MPD_q
-        'p'         : (count(null < obs) + 0.5 * ties) / iterations
-        'ses'       : (null_mean - obs) / null_std
+        'beta_null_mean' : mean of null beta-MPD_q
+        'beta_null_std'  : std  of null beta-MPD_q
+        'beta_p'         : (count(null < obs) + 0.5 * ties) / iterations
+        'beta_ses'       : (null_mean - obs) / null_std
 
     Notes
     -----
@@ -822,8 +904,9 @@ def beta_nriq(
     tqdm = _get_tqdm(use_tqdm)
 
     if iterations < 1:
-        df_obs = pd.DataFrame(obs, index=smplist, columns=smplist)
-        np.fill_diagonal(df_obs.to_numpy(), np.nan)
+        arr = np.asarray(obs, dtype=float).copy()
+        np.fill_diagonal(arr, np.nan)
+        df_obs = pd.DataFrame(arr, index=smplist, columns=smplist)
         return df_obs
     if randomization not in {"features", "abundances"}:
         raise ValueError("randomization must be 'features' or 'abundances'.")
@@ -840,11 +923,9 @@ def beta_nriq(
             miniters=1,
     ):
         if randomization == "features":
-            # Permute feature identities once; apply to all samples
             perm = rng.permutation(N)
             Rq_perm = Rq[perm, :]
         else:  # "abundances"
-            # Shuffle abundances independently within each sample (permute rows per column)
             Rq_perm = np.empty_like(Rq)
             for j in range(S):
                 Rq_perm[:, j] = Rq[rng.permutation(N), j]
@@ -852,11 +933,9 @@ def beta_nriq(
         # Null beta-MPD_q (vectorized)
         M_null = D @ Rq_perm
         num_null = Rq_perm.T @ M_null
-        z_null = Rq_perm.sum(axis=0)
-        den_null = z_null[:, None] * z_null[None, :]
 
         with np.errstate(invalid="ignore", divide="ignore"):
-            x = num_null / den_null  # (S x S)
+            x = num_null / den_obs  # (S x S)
 
         # Welford
         delta = x - mu
@@ -888,10 +967,10 @@ def beta_nriq(
 
     return {
         "beta_MPDq": df_obs,
-        "null_mean": df_mean,
-        "null_std": df_std,
-        "p": df_p,
-        "ses": df_ses,
+        "beta_null_mean": df_mean,
+        "beta_null_std": df_std,
+        "beta_p": df_p,
+        "beta_ses": df_ses,
     }
 
 # ---------------------------------------------------------------------------
@@ -907,6 +986,7 @@ def beta_ntiq(
     randomization: Literal["features", "abundances"] = "features",
     use_tqdm: bool = True,
     random_state: Optional[Union[int, np.random.Generator]] = None,
+    use_numba: bool = True,
     **kwargs,
 ) -> Dict[str, pd.DataFrame]:
     """
@@ -941,16 +1021,18 @@ def beta_ntiq(
         Use `tqdm` for progress bars (a lightweight stub is used if `tqdm` is unavailable).
     random_state : int | numpy.random.Generator, optional
         Random seed or Generator for reproducibility.
+    use_numba : bool, optional
+        If True, uses Numba path; otherwise uses pure Python implementation.
 
     Returns
     -------
     dict of pandas.DataFrame
         Full (samples × samples) matrices:
           - 'beta_MNTDq' : observed beta-MNTD_q
-          - 'null_mean'  : mean of null beta-MNTD_q
-          - 'null_std'   : std  of null beta-MNTD_q
-          - 'p'          : (count(null < observed) + 0.5 * ties) / iterations
-          - 'ses'        : (null_mean - observed) / null_std
+          - 'beta_null_mean'  : mean of null beta-MNTD_q
+          - 'beta_null_std'   : std  of null beta-MNTD_q
+          - 'beta_p'          : (count(null < observed) + 0.5 * ties) / iterations
+          - 'beta_ses'        : (null_mean - observed) / null_std
         Diagonal entries are set to NaN.
 
     Notes
@@ -987,30 +1069,25 @@ def beta_ntiq(
     D = distmat.loc[tab.index, tab.index].to_numpy(copy=True)  # (N x N), float
     # Relative abundances (N x S), allowing potential NaNs if a column sums to zero
     R = (tab / tab.sum(axis=0)).to_numpy(dtype=float)          # (N x S)
+    Rq = _q_weight(R, q)
     N, S = R.shape
 
-    # q-weighting on positives only (consistent with nriq)
-    if q == 1.0:
-        Rq = R.copy()
+    if use_numba:
+        try:
+            from .accelerate_model import beta_mntdq_numba
+            backend = "numba"
+        except Exception:
+            print('Numba failed, falling back to Python.')
+            beta_mntdq_numba = None
+            backend = "python"
     else:
-        Rq = R.copy()
-        pos = Rq > 0.0
-        Rq[pos] = np.power(Rq[pos], q)
+        beta_mntdq_numba = None
+        backend = "python"
 
     # Column totals of q-weighted abundances per sample
     z = Rq.sum(axis=0)  # (S,)
-    # Where z == 0, we will later produce NaN divisions
 
     # ---- Helper: compute full directed MNTD_q matrices in a vectorized way ----
-    # Given presence mask B (N x S, boolean) and q-weights Rq (N x S),
-    # we need two N×S "nearest-to-set" mats:
-    #   Delta_col[:, t] = min over j in sample t (D[:, j])
-    #   Delta_row[:, s] = min over i in sample s (D[i, :])
-    # Then
-    #   A = (Rq.T @ Delta_col) / z[:, None]            # s → t
-    #   B = ((Rq.T @ Delta_row).T) / z[None, :]        # t → s
-    # beta_MNTD_q = 0.5 * (A + B)
-
     def _delta_col_row(D: np.ndarray, B: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
         """Compute Delta_col (N × S) and Delta_row (N × S) with optional
         exclusion of conspecifics (i == j)."""
@@ -1049,9 +1126,9 @@ def beta_ntiq(
     
         return Delta_col, Delta_row
 
-    def _beta_mntdq_full(D: np.ndarray, R: np.ndarray, Rq: np.ndarray) -> np.ndarray:
+    def _beta_mntdq_full(D: np.ndarray, Rq: np.ndarray) -> np.ndarray:
         """Observed (or null) full-matrix beta-MNTD_q from D, R (presence), and Rq (q-weights)."""
-        B = R > 0.0  # presence/absence for each sample
+        B = Rq > 0.0  # presence/absence for each sample
         Delta_col, Delta_row = _delta_col_row(D, B)
 
         # Clean directed matrices
@@ -1070,7 +1147,7 @@ def beta_ntiq(
         return beta
 
     # ---- Observed beta-MNTD_q ----
-    obs = _beta_mntdq_full(D, R, Rq)  # (S x S)
+    obs = _beta_mntdq_full(D, Rq)  # (S x S)
 
     # ---- Streaming (Welford) over null iterations ----
     mu = np.zeros((S, S), dtype=np.float64)
@@ -1082,8 +1159,9 @@ def beta_ntiq(
     tqdm = _get_tqdm(use_tqdm)
 
     if iterations < 1:
-        df_obs = pd.DataFrame(obs, index=smplist, columns=smplist)
-        np.fill_diagonal(df_obs.to_numpy(), np.nan)
+        arr = np.asarray(obs, dtype=float).copy()
+        np.fill_diagonal(arr, np.nan)
+        df_obs = pd.DataFrame(arr, index=smplist, columns=smplist)
         return df_obs
     if randomization not in {"features", "abundances"}:
         raise ValueError("randomization must be 'features' or 'abundances'.")
@@ -1101,24 +1179,24 @@ def beta_ntiq(
     ):
 
         if randomization == "features":
-            # Permute feature identities identically across samples
             perm = rng.permutation(N)
-            R_perm = R[perm, :]
-        else:  # "abundances"
-            # Shuffle abundances within each sample (column-wise)
-            R_perm = np.empty_like(R)
-            for j in range(S):
-                R_perm[:, j] = R[rng.permutation(N), j]
-
-        # Recompute q-weights from the permuted R (keeps presence mask consistent with R)
-        if q == 1.0:
-            Rq_perm = R_perm
+            Rq_perm = np.ascontiguousarray(Rq[perm, :])
+        
         else:
-            Rq_perm = R_perm.copy()
-            posp = Rq_perm > 0.0
-            Rq_perm[posp] = np.power(Rq_perm[posp], q)
-
-        x = _beta_mntdq_full(D, R_perm, Rq_perm)  # (S x S) null draw
+            Rq_perm = np.empty_like(Rq)
+            for j in range(S):
+                perm = rng.permutation(N)
+                Rq_perm[:, j] = Rq[perm, j]
+            Rq_perm = np.ascontiguousarray(Rq_perm)
+        
+        if beta_mntdq_numba is not None:
+            x = beta_mntdq_numba(
+                D,
+                Rq_perm,
+                include_conspecifics,
+            )
+        else:
+            x = _beta_mntdq_full(D, Rq_perm)
 
         # Welford updates
         delta = x - mu
@@ -1148,11 +1226,13 @@ def beta_ntiq(
     # Set diagonals to NaN for all outputs (consistent with prior beta-* functions)
     for df in (df_obs, df_mean, df_std, df_p, df_ses):
         np.fill_diagonal(df.to_numpy(), np.nan)
+    print('Iterations done with backend '+backend)
 
     return {
         "beta_MNTDq": df_obs,
-        "null_mean": df_mean,
-        "null_std": df_std,
-        "p": df_p,
-        "ses": df_ses,
+        "beta_null_mean": df_mean,
+        "beta_null_std": df_std,
+        "beta_p": df_p,
+        "beta_ses": df_ses,
     }
+

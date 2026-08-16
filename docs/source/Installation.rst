@@ -7,8 +7,8 @@ qdiv can be installed with pip.
 
    pip install qdiv
 
-Some functions in the ``sequence_comparisons`` module support compilation via Numba. Installing qdiv with the optional ``accelerate`` extra 
-enables faster sequence distance computations. 
+Some functions support compilation via Numba. Installing qdiv with the optional ``accelerate`` extra 
+enables faster calculation of distance matrices, some diversity metrics, and null models. This is very useful for large dataset. 
 
 .. code-block:: console
 

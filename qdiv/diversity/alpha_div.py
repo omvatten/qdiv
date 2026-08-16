@@ -2,7 +2,8 @@ import pandas as pd
 import numpy as np
 import math
 from typing import Union, Any, Dict
-from ..utils import rao, get_df, subset_tree_df, compute_Tmean, ra_to_branches
+from ..utils import rao, get_df, compute_Tmean
+from ..utils import ra_to_branches, rebuild_leaf_order
 
 # -----------------------------------------------------------------------------
 # Naive alpha diversity
@@ -16,21 +17,12 @@ def naive_alpha(
     """
     Compute naive alpha diversity of order *q* for all samples.
 
-    Accepts:
-      - DataFrame: features x samples
-      - MicrobiomeData-like object: must expose a DataFrame in .tab / .table / .counts / .abundance
-      - dict-of-dicts: either {feature: {sample: count}} or {sample: {feature: count}}
-
     Parameters
     ----------
     tab : DataFrame | MicrobiomeData-like | dict
-        Abundance table (features x samples) or convertible structure.
+        Object containing abundance table (features x samples).
     q : float, default=1
-        Diversity order:
-        - q = 0 : species richness
-        - q = 1 : exponential of Shannon entropy
-        - q = 2 : inverse Simpson
-        - general q : Hill number of order q
+        Diversity order. Determines emphasis on relative abundance of features.
     use_values_in_tab : bool, default=False
         If False (default), values are converted to relative abundances.
         If True, values in `tab` are assumed to already be relative abundances.
@@ -39,14 +31,6 @@ def naive_alpha(
     -------
     pandas.Series or float
         Hill numbers for each sample. If input has one sample/column, returns a float.
-
-    Notes
-    -----
-    - For q = 1, the limit definition is used:
-          H₁ = exp( - Σ pᵢ ln pᵢ )
-    - For q ≠ 1:
-          H_q = ( Σ pᵢ^q )^( 1 / (1 - q) )
-    - Zero abundances are ignored safely.
     """
     # --- Get DataFrame (features x samples) -----------------------------
     tab = get_df(tab, "tab")
@@ -88,7 +72,7 @@ def phyl_alpha(
     *,
     q: float = 1,
     index: str = "D",
-    use_values_in_tab: bool = False
+    use_values_in_tab: bool = False,
 ) -> Union[pd.Series, float]:
     """
     Compute phylogenetic alpha diversity based on Hill numbers.
@@ -111,18 +95,13 @@ def phyl_alpha(
             - 'leaves'   : list of descendant leaves for each branch
             - 'branchL'  : branch length
     q : float, default=1
-        Diversity order:
-        - q = 0 : presence/absence weighting (Faith’s PD when index='PD')
-        - q = 1 : exponential phylogenetic Shannon diversity
-        - q = 2 : phylogenetic inverse Simpson diversity
-        - general q : phylogenetic Hill number
+        Diversity order. 
+        Determines emphasis on relative abundance of features descending from each branch of the tree.
     index : {'D', 'PD', 'H'}, default='D'
-        Quantity to return:
-        - 'D'  : mean phylogenetic diversity D̄_q(T) (dimensionless; Hill number)
-        - 'PD' : branch diversity PD_q(T) = T · D̄_q(T)
-        - 'H'  : entropy-like intermediate quantity:
-                 * q = 1  : phylogenetic entropy divided by T
-                 * q ≠ 1  : power-sum moment Σ_b (L_b/T) a_b^q
+        Quantity to return
+            - 'D'  : mean phylogenetic diversity D̄_q(T) (dimensionless; Hill number)
+            - 'PD' : branch diversity PD_q(T) = T · D̄_q(T)
+            - 'H'  : entropy-like intermediate quantity:
     use_values_in_tab : bool, default=False
         If False, abundances are converted to relative abundances per sample.
         If True, the abundance table is assumed to already contain relative
@@ -135,15 +114,6 @@ def phyl_alpha(
 
     Notes
     -----
-    For each sample j, the mean tree height is computed as:
-        T_j = Σ_b L_b · a_{b,j}
-
-    Mean phylogenetic diversity is defined as:
-        D̄_q(T) = ( Σ_b (L_b / T_j) · a_{b,j}^q )^(1 / (1 − q)),   q ≠ 1
-        D̄_1(T) = exp( − Σ_b (L_b / T_j) · a_{b,j} · log a_{b,j} )
-
-    where a_{b,j} is the total relative abundance descending from branch b.
-
     The branch diversity PD_q(T) = T_j · D̄_q(T) has units of branch length
     (or evolutionary time) and represents effective evolutionary work.
     Unlike D̄_q(T), PD_q(T) is not a Hill number for q ≠ 0, 1 and is not
@@ -153,8 +123,22 @@ def phyl_alpha(
     # Get input
     tab = get_df(obj, "tab")
     tree = get_df(obj, "tree")
-    if "leaves" not in tree.columns or "branchL" not in tree.columns:
-        raise ValueError("`tree` must contain columns 'leaves' and 'branchL'.")
+    if tree is None:
+        raise ValueError('tree is missing.')
+    leaf_order = get_df(obj, "leaf_order")
+    if leaf_order is None:
+        tree, leaf_order = rebuild_leaf_order(tree)
+    
+    # Confirm input is ok
+    required_tree_cols = {"branchL", "leaf_start", "leaf_end"}
+    missing = required_tree_cols - set(tree.columns)
+    if missing:
+        raise ValueError(
+            f"`tree` must contain columns {sorted(required_tree_cols)}. "
+            f"Missing: {sorted(missing)}."
+        )
+    if leaf_order is None:
+        raise ValueError("`leaf_order` is required for trees.")
 
     # Ensure numeric
     try:
@@ -174,11 +158,8 @@ def phyl_alpha(
             raise ValueError(f"One or more samples have zero total abundance: {bad}")
         ra = tab.div(col_sums, axis=1)
 
-    #Subset tree to features in tab
-    tree = subset_tree_df(tree, ra.index.tolist()) #Function from utils
-
     # Build branch × sample abundance matrix
-    tree2 = ra_to_branches(ra, tree) #Function from utils
+    tree2 = ra_to_branches(ra, tree, leaf_order)
 
     # Get Tmean
     Tmean = compute_Tmean(tree, tree2) #Function from utils
@@ -223,55 +204,45 @@ def func_alpha(
     distmat: pd.DataFrame,
     *,
     q: float = 1,
-    index: str = "FD",
+    index: str = "D",
     use_values_in_tab: bool = False
 ) -> Union[pd.Series, float]:
     """
-    Compute functional alpha diversity (Hill numbers) of order *q*.
-
-    Implements the framework of Chiu et al. (2014, PLoS ONE), where functional
-    diversity is derived from pairwise trait distances and species abundances.
-
-    For each sample, functional diversity is computed from:
-
-        Q = Σᵢ Σⱼ pᵢ pⱼ dᵢⱼ        (Rao's quadratic entropy)
-
-    and the functional Hill number of order q:
-
-        q = 1:
-            FD₁ = exp( -½ Σᵢ Σⱼ (pᵢ pⱼ ln(pᵢ pⱼ)) dᵢⱼ / Q )
-
-        q ≠ 1:
-            FD_q = ( Σᵢ Σⱼ (pᵢ pⱼ)ᵠ dᵢⱼ / Q )^( 1 / (2(1−q)) )
-
+    Compute functional alpha diversity of order *q* following
+    Chiu et al. (2014). It is calculated from pairwise trait distances
+    between features and their relative abundances. 
+    
     Parameters
     ----------
     tab : DataFrame | MicrobiomeData-like | dict
-        Abundance table (features x samples) or convertible structure.
+        Abundance table (features × samples) or convertible structure.
     distmat : pandas.DataFrame
         Functional distance matrix (features × features).
     q : float, default=1
-        Diversity order.
-    index : {'FD', 'D', 'MD'}, default='FD'
-        Output type:
-        - 'D'  : functional Hill number
-        - 'MD' : mean functional diversity (D × Q)
-        - 'FD' : functional diversity (D × MD)
+        Diversity order. Determines emphasis on relative abundances.
+    index : {'D', 'MD', 'FD'}, default='D'
+        Quantity to return.
+            - 'D'  : functional Hill number (effective number of
+                     functionally distinct features)
+            - 'MD' : mean functional diversity (D × Q)
+            - 'FD' : total functional diversity (D² × Q)
     use_values_in_tab : bool, default=False
-        If False, convert abundances to relative abundances.
-        If True, assume `tab` already contains relative abundances.
-
+        If False, abundances are converted to relative abundances.
+        If True, values in `tab` are assumed to already be relative
+        abundances.
+    
     Returns
     -------
     pandas.Series
         Functional diversity values for each sample.
-
+    
     Notes
     -----
-    - Uses Rao's Q as implemented in your `rao()` function.
-    - Zero abundances are handled safely.
+    - The implementation follows Chiu et al. (2014, PLoS ONE).
+    - The default output ('D') corresponds to the functional Hill number
+      and is directly comparable to taxonomic and phylogenetic Hill
+      numbers.
     """
-
     # Get input
     tab = get_df(tab, "tab")
     if not isinstance(distmat, pd.DataFrame):
@@ -351,7 +322,6 @@ def mpdq(
 ) -> pd.DataFrame:
     """
     Mean phylogenetic distance (MPD) with q-weighting of relative abundances.
-    Accepts either a MicrobiomeData object or a dict with at least a 'tab' DataFrame.
 
     Parameters
     ----------
@@ -361,12 +331,15 @@ def mpdq(
         Square distance matrix indexed/columned by feature ids.
     q : float, default=1.0
         Order of diversity weighting applied to relative abundances.
+
     Returns
     -------
     pandas.DataFrame
 
-    References
+    Notes
     ----------
+    The index is a relative abundance-weighted development of the 
+    mean phylogenetic distance index described by 
     Webb et al. (2002) *American Naturalist*.
     """
     from ..model import nriq
@@ -389,9 +362,16 @@ def mntdq(
         Square distance matrix indexed/columned by feature ids.
     q : float, default=1.0
         Order of diversity weighting applied to relative abundances.
+
     Returns
     -------
     pandas.DataFrame
+
+    Notes
+    ----------
+    The index is a relative abundance-weighted development of 
+    mean nearest taxon index described by 
+    Webb et al. (2002) *American Naturalist*.
     """
     from ..model import ntiq
     return ntiq(obj, distmat, q=q, iterations=0)

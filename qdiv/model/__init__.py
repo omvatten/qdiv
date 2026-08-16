@@ -1,7 +1,6 @@
 """
 model
 =====
-
 Provides functions for null models and simulations.
 """
 
