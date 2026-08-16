@@ -681,9 +681,11 @@ def align(
             _set_df(obj, "tax", tax_out)
 
         tree = get_df(obj, "tree")
-        if tree is not None:
-            tree_out = rename_leaves(tree, oname2nname_list[i])
+        leaf_order = get_df(obj, "leaf_order")
+        if tree is not None and leaf_order is not None:
+            tree_out, leaf_order_out = rename_leaves(tree, leaf_order, oname2nname_list[i])
             _set_df(obj, "tree", tree_out)
+            _set_df(obj, "leaf_order", leaf_order_out)
 
     print("\nDone with align")
     return objs
@@ -892,8 +894,9 @@ def consensus(
     if tree is not None:
         recursive_tree = dataframe_to_tree(tree)
         sub_tree = subset_tree(recursive_tree, incommonSVs)
-        cons_tree = tree_to_dataframe(sub_tree)
+        cons_tree, cons_leaf_order = tree_to_dataframe(sub_tree)
         cons_obj["tree"] = cons_tree
+        cons_obj["leaf_order"] = cons_leaf_order
 
     # Reorder by average abundance and rename to name_type + rank
     sort_df = cons_obj["tab"].copy()
@@ -904,7 +907,9 @@ def consensus(
         if key in cons_obj:
             cons_obj[key] = cons_obj[key].loc[correct_order_svlist].rename(index=newindex_dict)
     if tree is not None:
-        cons_obj["tree"] = rename_leaves(cons_obj["tree"], newindex_dict)
+        renamed_tree, renamed_leaf_order = rename_leaves(cons_obj["tree"], cons_obj["leaf_order"], newindex_dict)
+        cons_obj["tree"] = renamed_tree
+        cons_obj["leaf_order"] = renamed_leaf_order
 
     print("Done with consensus.")
 
@@ -923,7 +928,8 @@ def consensus(
             tax=cons_obj.get("tax"),
             meta=cons_obj.get("meta"),
             seq=cons_obj.get("seq"),
-            tree=cons_obj.get("tree")
+            tree=cons_obj.get("tree"),
+            leaf_order=cons_obj.get("leaf_order")
         )
         return mb, info_str
 
