@@ -9,7 +9,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../.
 # -- Project information ------------------------------------------------------
 project = 'qdiv'
 author = 'Oskar Modin'
-release = '4.1.0'  # Match package version
+release = '4.1.1'  # Match package version
 
 # -- General configuration ----------------------------------------------------
 
