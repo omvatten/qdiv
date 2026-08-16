@@ -17,21 +17,12 @@ def naive_alpha(
     """
     Compute naive alpha diversity of order *q* for all samples.
 
-    Accepts:
-      - DataFrame: features x samples
-      - MicrobiomeData-like object: must expose a DataFrame in .tab / .table / .counts / .abundance
-      - dict-of-dicts: either {feature: {sample: count}} or {sample: {feature: count}}
-
     Parameters
     ----------
     tab : DataFrame | MicrobiomeData-like | dict
-        Abundance table (features x samples) or convertible structure.
+        Object containing abundance table (features x samples).
     q : float, default=1
-        Diversity order:
-        - q = 0 : species richness
-        - q = 1 : exponential of Shannon entropy
-        - q = 2 : inverse Simpson
-        - general q : Hill number of order q
+        Diversity order. Determines emphasis on relative abundance of features.
     use_values_in_tab : bool, default=False
         If False (default), values are converted to relative abundances.
         If True, values in `tab` are assumed to already be relative abundances.
@@ -40,14 +31,6 @@ def naive_alpha(
     -------
     pandas.Series or float
         Hill numbers for each sample. If input has one sample/column, returns a float.
-
-    Notes
-    -----
-    - For q = 1, the limit definition is used:
-          H₁ = exp( - Σ pᵢ ln pᵢ )
-    - For q ≠ 1:
-          H_q = ( Σ pᵢ^q )^( 1 / (1 - q) )
-    - Zero abundances are ignored safely.
     """
     # --- Get DataFrame (features x samples) -----------------------------
     tab = get_df(tab, "tab")
@@ -112,18 +95,13 @@ def phyl_alpha(
             - 'leaves'   : list of descendant leaves for each branch
             - 'branchL'  : branch length
     q : float, default=1
-        Diversity order:
-        - q = 0 : presence/absence weighting (Faith’s PD when index='PD')
-        - q = 1 : exponential phylogenetic Shannon diversity
-        - q = 2 : phylogenetic inverse Simpson diversity
-        - general q : phylogenetic Hill number
+        Diversity order. 
+        Determines emphasis on relative abundance of features descending from each branch of the tree.
     index : {'D', 'PD', 'H'}, default='D'
-        Quantity to return:
-        - 'D'  : mean phylogenetic diversity D̄_q(T) (dimensionless; Hill number)
-        - 'PD' : branch diversity PD_q(T) = T · D̄_q(T)
-        - 'H'  : entropy-like intermediate quantity:
-                 * q = 1  : phylogenetic entropy divided by T
-                 * q ≠ 1  : power-sum moment Σ_b (L_b/T) a_b^q
+        Quantity to return
+            - 'D'  : mean phylogenetic diversity D̄_q(T) (dimensionless; Hill number)
+            - 'PD' : branch diversity PD_q(T) = T · D̄_q(T)
+            - 'H'  : entropy-like intermediate quantity:
     use_values_in_tab : bool, default=False
         If False, abundances are converted to relative abundances per sample.
         If True, the abundance table is assumed to already contain relative
@@ -136,15 +114,6 @@ def phyl_alpha(
 
     Notes
     -----
-    For each sample j, the mean tree height is computed as:
-        T_j = Σ_b L_b · a_{b,j}
-
-    Mean phylogenetic diversity is defined as:
-        D̄_q(T) = ( Σ_b (L_b / T_j) · a_{b,j}^q )^(1 / (1 − q)),   q ≠ 1
-        D̄_1(T) = exp( − Σ_b (L_b / T_j) · a_{b,j} · log a_{b,j} )
-
-    where a_{b,j} is the total relative abundance descending from branch b.
-
     The branch diversity PD_q(T) = T_j · D̄_q(T) has units of branch length
     (or evolutionary time) and represents effective evolutionary work.
     Unlike D̄_q(T), PD_q(T) is not a Hill number for q ≠ 0, 1 and is not
@@ -240,71 +209,23 @@ def func_alpha(
 ) -> Union[pd.Series, float]:
     """
     Compute functional alpha diversity of order *q* following
-    Chiu et al. (2014).
-    
-    Functional diversity is calculated from pairwise trait distances
-    between features and their relative abundances. The method extends
-    Hill numbers to the functional domain using Rao's quadratic entropy
-    (*Q*) as the measure of functional dispersion.
-    
-    For each sample:
-    
-        Q = Σᵢ Σⱼ pᵢ pⱼ dᵢⱼ
-    
-    where:
-    
-        pᵢ = relative abundance of feature i
-        dᵢⱼ = functional distance between features i and j
-    
-    The functional Hill number (*D*) is then computed as:
-    
-        q = 1:
-    
-            D = exp(
-                -½ · Σᵢ Σⱼ
-                (pᵢ pⱼ ln(pᵢ pⱼ)) dᵢⱼ / Q
-            )
-    
-        q ≠ 1:
-    
-            D = (
-                Σᵢ Σⱼ
-                (pᵢ pⱼ)^q dᵢⱼ / Q
-            ) ^ (1 / (2(1-q)))
-    
-    Additional functional diversity measures are derived from D and Q:
-    
-        MD = D × Q
-    
-            Mean functional diversity.
-            Represents the average functional dispersion among the
-            effective functional groups.
-    
-        FD = D × MD = D² × Q
-    
-            Total functional diversity.
-            Incorporates both the effective number of functional groups
-            and their functional dispersion.
+    Chiu et al. (2014). It is calculated from pairwise trait distances
+    between features and their relative abundances. 
     
     Parameters
     ----------
     tab : DataFrame | MicrobiomeData-like | dict
         Abundance table (features × samples) or convertible structure.
-    
     distmat : pandas.DataFrame
         Functional distance matrix (features × features).
-    
     q : float, default=1
-        Diversity order.
-    
+        Diversity order. Determines emphasis on relative abundances.
     index : {'D', 'MD', 'FD'}, default='D'
         Quantity to return.
-    
-        - 'D'  : functional Hill number (effective number of
-                 functionally distinct features)
-        - 'MD' : mean functional diversity (D × Q)
-        - 'FD' : total functional diversity (D² × Q)
-    
+            - 'D'  : functional Hill number (effective number of
+                     functionally distinct features)
+            - 'MD' : mean functional diversity (D × Q)
+            - 'FD' : total functional diversity (D² × Q)
     use_values_in_tab : bool, default=False
         If False, abundances are converted to relative abundances.
         If True, values in `tab` are assumed to already be relative
@@ -318,14 +239,10 @@ def func_alpha(
     Notes
     -----
     - The implementation follows Chiu et al. (2014, PLoS ONE).
-    - Rao's quadratic entropy is calculated using `rao()`.
     - The default output ('D') corresponds to the functional Hill number
       and is directly comparable to taxonomic and phylogenetic Hill
       numbers.
-    - Zero abundances are handled safely.
     """
-
-
     # Get input
     tab = get_df(tab, "tab")
     if not isinstance(distmat, pd.DataFrame):
@@ -405,7 +322,6 @@ def mpdq(
 ) -> pd.DataFrame:
     """
     Mean phylogenetic distance (MPD) with q-weighting of relative abundances.
-    Accepts either a MicrobiomeData object or a dict with at least a 'tab' DataFrame.
 
     Parameters
     ----------
@@ -415,12 +331,15 @@ def mpdq(
         Square distance matrix indexed/columned by feature ids.
     q : float, default=1.0
         Order of diversity weighting applied to relative abundances.
+
     Returns
     -------
     pandas.DataFrame
 
-    References
+    Notes
     ----------
+    The index is a relative abundance-weighted development of the 
+    mean phylogenetic distance index described by 
     Webb et al. (2002) *American Naturalist*.
     """
     from ..model import nriq
@@ -443,9 +362,16 @@ def mntdq(
         Square distance matrix indexed/columned by feature ids.
     q : float, default=1.0
         Order of diversity weighting applied to relative abundances.
+
     Returns
     -------
     pandas.DataFrame
+
+    Notes
+    ----------
+    The index is a relative abundance-weighted development of 
+    mean nearest taxon index described by 
+    Webb et al. (2002) *American Naturalist*.
     """
     from ..model import ntiq
     return ntiq(obj, distmat, q=q, iterations=0)
@@ -487,16 +413,23 @@ def impdq(
         Controls the “locality” of the phylogenetic kernel on a standardized scale
         from MPD-like to nearest-neighbour-like behavior; Locality=0 means uniform kernel
         (fully MPD-like behaviour); locality=1 means intermediate behaviours; and
-        locality=2 means nearest-taxon focus. 
+        increasing locality means more nearest-taxon focus. 
+    dist_scale : "auto" or float, default="auto"
+        Distance scale used to convert locality into kernel sharpness. If
+        ``"auto"``, the median positive distance in ``distmat`` is used.
+        Supplying a numeric value gives reproducible kernel sharpness across
+        runs or datasets.
 
     Returns
     -------
-    pandas.DataFrame
-        Indexed by sample name, with the following columns:
-            • iMPDq           – interpolated mean phylogenetic distance
-            • NTF               – 0–1 nearest taxon focus measure:
-                                   0 = MPD-like (uniform kernel),
-                                   1 = MNTD-like (nearest-neighbor kernel)
+    Dataframe with the following columns
+    
+        - 'iMPDq': interpolated mean phylogenetic distance
+        - 'ENN': effective number of neighbours contributing to the calculation
+        - 'NTF': nearest taxon focus, a normalized index on the scale 0 to 1
+        - 'ENN_min': the minimum ENN value possible for the give q-weighting
+        - 'ENN_max': the maximum ENN value possible for the give q-weighting
+        - 'dist_scale: the value used to scale the locality parameter
     """
     from ..model import inriq
     return inriq(obj, distmat, q=q, locality=locality, dist_scale=dist_scale, iterations=0)

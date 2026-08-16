@@ -1,10 +1,10 @@
 import pandas as pd
 import numpy as np
 import math
-from typing import Optional, Dict, Any, Union, Tuple
+from typing import Optional, Dict, Any, Union
 from ..io import subset_samples
 from ..utils import rao, beta2dist, get_df
-from ..utils import subset_tree, ra_to_branches, compute_Tmean, rebuild_leaf_order, dataframe_to_tree, tree_to_dataframe
+from ..utils import ra_to_branches, compute_Tmean, rebuild_leaf_order
 from .alpha_div import naive_alpha, phyl_alpha, func_alpha
 
 def _get_tqdm(use_tqdm: bool):
@@ -48,50 +48,33 @@ def naive_beta(
 ) -> pd.DataFrame:
     """
     Compute naive (taxonomic) pairwise beta diversity of order *q*.
-
     Implements the two‑community Hill‑number beta diversity framework
     described in Chao et al. (2014), using only species abundances
     (no phylogenetic or functional information).
 
-    For two samples A and B:
-
-        α_q = Hill number of the average of A and B
-        γ_q = Hill number of the pooled community
-        β_q = γ_q / α_q
-
-    Special case q = 1 uses the Shannon limit:
-
-        α₁ = exp( -½ Σ pᵢ ln pᵢ  - ½ Σ qᵢ ln qᵢ )
-        γ₁ = exp( -Σ mᵢ ln mᵢ )
-
     Parameters
     ----------
     tab : DataFrame | MicrobiomeData-like | dict
-        Abundance table (features x samples) or convertible structure.
+        Must contain abundance table (features x samples).
     q : float, default=1
-        Diversity order.
+        Diversity order. Determines emphasis on relative abundances.
     dis : bool, default=True
-        If True, convert β to a dissimilarity using `beta2dist`.
-        If False, return raw β values.
+        If True, converts beta diversity to a dissimilarity scaled from 0 to 1.
+        If False, returns raw beta values scaled from 1 to 2.
     viewpoint : {'local', 'regional'}, default='regional'
-        Viewpoint for converting β to dissimilarity.
+        Viewpoint for converting beta diversity to dissimilarity. 
     use_values_in_tab : bool, default=False
         If False, convert abundances to relative abundances.
         If True, assume `tab` already contains relative abundances.
-    use_numba : bool, optional
-        If True, uses Numba path; otherwise uses pure Python implementation.
+    use_numba : bool, default=False
+        If True, accelerates calculation using Numba (which requires that Numba is installed).
+        Very useful for large datasets.
 
     Returns
     -------
     pandas.DataFrame
-        Pairwise β-diversity (or dissimilarity) matrix.
-
-    Notes
-    -----
-    - Requires `beta2dist()` to be defined elsewhere.
-    - Only works for ≥ 2 samples.
+        Pairwise beta diversity (or dissimilarity) matrix.
     """
-
     # Validate input
     tab = get_df(tab, "tab")
 
@@ -207,50 +190,38 @@ def phyl_beta(
 ) -> pd.DataFrame:
     """
     Compute phylogenetic pairwise beta diversity of order *q*.
-
     Implements the two‑community phylogenetic Hill‑number beta framework
     described in Chao et al. (2014), where branch lengths are weighted by
     the relative abundances of all features descending from each branch.
 
-    For two samples A and B:
-
-        α_q = phylogenetic Hill number of the average of A and B
-        γ_q = phylogenetic Hill number of the pooled community
-        β_q = γ_q / α_q
-
-    Special case q = 1 uses the Shannon limit.
-
     Parameters
     ----------
     obj : MicrobiomeData-like | dict
-        Must provide:
-          - 'tab': feature × sample abundance DataFrame
-          - 'tree': branch × columns DataFrame with:
-                * 'leaves' : iterable/list of leaf IDs under each branch
-                * 'branchL': branch length (float)
+        Must include
+
+          - ``'tab'``, feature × sample abundance DataFrame
+          - ``'tree'``, branch information DataFrame
+          - ``'leaf_order'``, list of leaf names corresponding to the tree
+
     q : float, default=1
-        Diversity order.
+        Diversity order. Determines emphasis on relative abundances.
     dis : bool, default=True
-        If True, convert β to a dissimilarity using `beta2dist`.
+        If True, converts beta diversity to a dissimilarity scaled from 0 to 1.
+        If False, returns raw beta values scaled from 1 to 2.
     viewpoint : {'local', 'regional'}, default='regional'
-        Viewpoint for converting β to dissimilarity.
+        Viewpoint for converting beta diversity to dissimilarity.
     use_values_in_tab : bool, default=False
         If False, convert abundances to relative abundances.
         If True, assume `tab` already contains relative abundances.
     use_numba : bool, optional
-        If True, uses Numba path; otherwise uses pure Python implementation.
+        If True, accelerates calculation using Numba (which requires that Numba is installed).
+        Very useful for large datasets.
 
     Returns
     -------
     pandas.DataFrame
-        Pairwise phylogenetic β-diversity (or dissimilarity) matrix.
-
-    Notes
-    -----
-    - Requires `beta2dist()` to be defined elsewhere.
-    - Only works for ≥ 2 samples.
+        Pairwise phylogenetic beta diversity (or dissimilarity) matrix.
     """
-
     tab = get_df(obj, "tab")
     tree = get_df(obj, "tree")
     if tree is None:
@@ -430,29 +401,26 @@ def func_beta(
         Functional distance matrix (ASVs × ASVs), symmetric and
         indexed by the same ASVs as `tab`.
     q : float, default=1
-        Diversity order.
+        Diversity order. Determines emphasis on relative abundances.
     dis : bool, default=True
-        If True, convert β to a dissimilarity using `beta2dist`.
+        If True, converts beta diversity to a dissimilarity scaled from 0 to 1.
+        If False, returns raw beta values scaled from 1 to 2.
     viewpoint : {'local', 'regional'}, default='regional'
-        Viewpoint for converting β to dissimilarity.
+        Viewpoint for converting beta diversity to dissimilarity.
     use_values_in_tab : bool, default=False
         If False, convert abundances to relative abundances.
         If True, assume `tab` already contains relative abundances.
     use_tqdm : bool, default=True
         Use `tqdm` for progress bars.
     use_numba : bool, optional
-        If True, uses Numba path; otherwise uses pure Python implementation.
+        If True, accelerates calculation using Numba (which requires that Numba is installed).
+        Very useful for large datasets.
 
     Returns
     -------
-    pandas.DataFrame
-        Pairwise functional dissimilarity matrix if ``dis=True``.
+    DataFrame with pairwise functional dissimilarities ``dis=True``.
         If ``dis=False``, returns the pairwise functional beta diversity
         matrix, with diagonal values equal to 1.
-
-    Notes
-    -----
-    - Only works for ≥ 2 samples.
     """
 
     # Get input
@@ -635,12 +603,6 @@ def bray(
     """
     Compute the Bray–Curtis dissimilarity matrix between all samples.
 
-    Bray–Curtis dissimilarity between two samples A and B is:
-
-        BC(A, B) = 1 − Σ_i min(p_iA, p_iB)
-
-    where p_iA and p_iB are relative abundances of feature i in samples A and B.
-
     Parameters
     ----------
     tab : DataFrame | MicrobiomeData-like | dict
@@ -653,11 +615,6 @@ def bray(
     -------
     pandas.DataFrame
         Symmetric Bray–Curtis dissimilarity matrix.
-
-    Notes
-    -----
-    - Requires at least two samples.
-    - Zero-sum samples are not allowed unless `use_values_in_tab=True`.
     """
 
     # --- Validate input ------------------------------------------------------
@@ -715,12 +672,6 @@ def jaccard(
     """
     Compute the Jaccard dissimilarity matrix between all samples.
 
-    Jaccard dissimilarity between two samples A and B is:
-
-        J(A, B) = 1 − ( |A ∩ B| / |A ∪ B| )
-
-    where presence/absence is determined by whether abundance > 0.
-
     Parameters
     ----------
     tab : DataFrame | MicrobiomeData-like | dict
@@ -732,11 +683,6 @@ def jaccard(
     -------
     pandas.DataFrame
         Symmetric Jaccard dissimilarity matrix.
-
-    Notes
-    -----
-    - Requires at least two samples.
-    - Abundances are converted to binary presence/absence.
     """
 
     # --- Validate input ------------------------------------------------------
@@ -791,26 +737,19 @@ def naive_multi_beta(
     """
     Compute naive (taxonomic) multi‑sample beta diversity for groups of samples.
 
-    This implements the multi‑sample Hill‑number beta framework:
-
-        β_q = γ_q / ( α_q / N )
-
-    where:
-        - γ_q is the Hill number of the pooled community
-        - α_q is the mean within‑sample Hill number
-        - N is the number of samples in the group
-
     Parameters
     ----------
     obj : MicrobiomeData-like | dict
-        Must contain:
-            - 'meta' : pandas.DataFrame with sample metadata
-            - 'tab'  : pandas.DataFrame with feature counts (features × samples)
+        Must contain
+        
+            - ``'meta'`` : pandas.DataFrame with sample metadata
+            - ``'tab'``  : pandas.DataFrame with feature counts (features × samples)
+    
     by : str or None, default=None
         Column in metadata defining sample groups.
         If None, all samples are treated as one group.
     q : float, default=1
-        Diversity order.
+        Diversity order. Determines emphasis on relative abundances.
     use_values_in_tab : bool, default=False
         If False, abundances are converted to relative abundances per sample.
         If True, the abundance table is assumed to already contain relative
@@ -819,12 +758,13 @@ def naive_multi_beta(
     Returns
     -------
     pandas.DataFrame
-        Index = categories in `var` (or 'all' if var=None)
+        Index = categories in `by` (or 'all' if by=None).
         Columns:
-            - N             : number of samples in group
-            - beta          : multi‑sample beta diversity
-            - local_dis     : local‑viewpoint dissimilarity
-            - regional_dis  : regional‑viewpoint dissimilarity
+            
+            - N, number of samples in group
+            - beta, multi‑sample beta diversity
+            - local_dis, local‑viewpoint dissimilarity
+            - regional_dis, regional‑viewpoint dissimilarity
 
     Notes
     -----
@@ -930,34 +870,24 @@ def phyl_multi_beta(
 ) -> pd.DataFrame:
     """
     Compute phylogenetic multi‑sample beta diversity for groups of samples.
-
     Implements the multi‑sample phylogenetic Hill‑number beta framework
     described in Chao et al. (2014), where branch lengths are weighted by
     the relative abundances of all ASVs descending from each branch.
 
-    For each group of samples:
-
-        β_q = γ_q / ( α_q / N )
-
-    where:
-        - γ_q is the phylogenetic Hill number of the pooled community
-        - α_q is the mean within‑sample phylogenetic Hill number
-        - N is the number of samples in the group
-
     Parameters
     ----------
     obj : MicrobiomeData-like | dict
-        Must contain:
-            - 'meta' : pandas.DataFrame with sample metadata
-            - 'tab'  : pandas.DataFrame with ASV counts (ASVs × samples)
-            - 'tree' : pandas.DataFrame with:
-                * 'leaves'   : list of features under each branch
-                * 'branchL'  : branch length
+        Must include
+
+          - ``'tab'``, feature × sample abundance DataFrame
+          - ``'tree'``, branch information DataFrame
+          - ``'leaf_order'``, list of leaf names corresponding to the tree
+
     by : str or None, default=None
-        Metadata column defining sample groups.
+        Column in metadata defining sample groups.
         If None, all samples are treated as one group.
     q : float, default=1
-        Diversity order.
+        Diversity order. Determines emphasis on relative abundances.
     use_values_in_tab : bool, default=False
         If False, abundances are converted to relative abundances per sample.
         If True, the abundance table is assumed to already contain relative
@@ -966,16 +896,17 @@ def phyl_multi_beta(
     Returns
     -------
     pandas.DataFrame
-        Index = categories in `by` (or 'all' if by=None)
+        Index = categories in `by` (or 'all' if by=None).
         Columns:
-            - N             : number of samples in group
-            - beta          : multi‑sample phylogenetic beta diversity
-            - local_dis     : local‑viewpoint dissimilarity
-            - regional_dis  : regional‑viewpoint dissimilarity
+            
+            - N, number of samples in group
+            - beta, multi‑sample beta diversity
+            - local_dis, local‑viewpoint dissimilarity
+            - regional_dis, regional‑viewpoint dissimilarity
 
     Notes
     -----
-    - Only works for ≥ 2 samples per group.
+    - Groups with <2 samples return NaN.
     """
 
     # Validate input
@@ -1133,29 +1064,21 @@ def func_multi_beta(
     described in Chiu et al. (2014), where functional diversity is derived
     from pairwise trait distances and species abundances.
 
-    For each group of samples:
-
-        β_q = D_gamma / D_alpha
-
-    where:
-        - D_gamma is the functional Hill number of the pooled community
-        - D_alpha is the mean functional Hill number across all sample pairs
-        - N is the number of samples in the group
-        - NxN = N² (number of ordered sample pairs)
-
     Parameters
     ----------
     obj : MicrobiomeData-like | dict
-        Must contain:
-            - 'meta' : pandas.DataFrame with sample metadata
-            - 'tab'  : pandas.DataFrame (features × samples)
+        Must contain
+        
+            - ``'meta'``, pandas.DataFrame with sample metadata
+            - ``'tab'``, pandas.DataFrame (features × samples)
+
     distmat : pandas.DataFrame
         Functional distance matrix (features × features).
     by : str or None, default=None
-        Metadata column defining sample groups.
+        Column in metadata defining sample groups.
         If None, all samples are treated as one group.
     q : float, default=1
-        Diversity order.
+        Diversity order. Determines emphasis on relative abundances.
     use_values_in_tab : bool, default=False
         If False, abundances are converted to relative abundances per sample.
         If True, the abundance table is assumed to already contain relative
@@ -1166,14 +1089,15 @@ def func_multi_beta(
     pandas.DataFrame
         Index = categories in `by` (or 'all' if by=None)
         Columns:
-            - NxN          : N² (number of ordered sample pairs)
-            - beta         : functional multi‑sample beta diversity
-            - local_dis    : local‑viewpoint dissimilarity
-            - regional_dis : regional‑viewpoint dissimilarity
+            
+            - N, number of samples in group
+            - beta, multi‑sample beta diversity
+            - local_dis, local‑viewpoint dissimilarity
+            - regional_dis, regional‑viewpoint dissimilarity
 
     Notes
     -----
-    - Only works for ≥ 2 samples per group.
+    - Groups with <2 samples return NaN.
     """
 
     # Validate input
@@ -1326,12 +1250,14 @@ def evenness(
     Compute evenness measures from Chao & Ricotta (2019, Ecology 100:e02852),
     with optional support for Pielou’s classical evenness index.
     
-    Supports:
+    Supports
+    
         - naive (taxonomic) evenness
         - phylogenetic evenness
         - functional evenness
     
-    Supported evenness indices:
+    Supported evenness indices
+    
         - CR1  (regional evenness)
         - CR2  (local evenness)
         - CR3
@@ -1343,16 +1269,16 @@ def evenness(
     ----------
     obj : DataFrame | MicrobiomeData-like | dict
         Including abundance table (features × samples) and optionally
-        tree (pandas.DataFrame, required if divType='phyl')
+        tree (pandas.DataFrame, required if div_type='phyl')
     distmat : pandas.DataFrame, optional
-        Required if divType='func'. Functional distance matrix.
+        Required if div_type='func'. Functional distance matrix.
     q : float, default=1
-        Diversity order.
-    div_type : {'naive', 'phyl', 'func'}
+        Diversity order. Determines emphasis on relative abundances.
+    div_type : 'naive', 'phyl', or 'func', default='naive'
         Type of diversity measure used to compute D.
-    index : {'CR1','CR2','CR3','CR4','CR5','local','regional','pielou'}
+    index : 'CR1','CR2','CR3','CR4','CR5','local','regional', or 'pielou', default='pielou'
         Evenness index to compute.
-    perspective : {'samples','taxa'}
+    perspective : 'samples'or 'taxa', default='samples'
         Whether to compute evenness across samples (columns)
         or across taxa/branches (rows).
     use_values_in_tab : bool, default=False
@@ -1368,8 +1294,10 @@ def evenness(
     - CR1 = regional evenness
     - CR2 = local evenness
     - CR3–CR5 are alternative evenness formulations from Chao & Ricotta (2019)
-    - Pielou’s index is included for convenience and corresponds to:
+    - Pielou’s index is included for convenience and corresponds to
+    
           J = H' / ln(S) = ln(D₁) / ln(S)
+          
       where D₁ is the Hill number of order q = 1.
     """
 
@@ -1500,49 +1428,48 @@ def dissimilarity_by_feature(
     Chao and Ricotta (2019).
 
     Supports:
+        
         - naive taxonomic dissimilarity
         - phylogenetic dissimilarity
 
     Parameters
     ----------
     obj : DataFrame | MicrobiomeData-like | dict
-        Must contain:
-            - 'tab' : abundance table, features x samples
-            - 'meta' : metadata table, required if by is not None
-            - 'tree' : phylogenetic tree, required if div_type='phyl'
-            - 'leaf_order' : required if div_type='phyl'
+        Must contain
+        
+            - ``'tab'``, abundance table, features x samples
+            - ``'meta'``, metadata table, required if by is not None
+            - ``'tree'``, phylogenetic tree, required if div_type='phyl'
+            - ``'leaf_order'``, required if div_type='phyl'
 
     by : str or None, default None
         Metadata column defining sample groups.
         If None, all samples are treated as one group.
-
-    q : float, default 1
-        Diversity order.
-
+    q : float, default=1
+        Diversity order. Determines emphasis on relative abundances.
     div_type : {'naive', 'phyl'}, default 'naive'
         Type of dissimilarity measure.
-
     index : {'local', 'regional', 'CR1', 'CR2'}, default 'regional'
         Dissimilarity index.
-        'regional' and 'CR1' are equivalent.
-        'local' and 'CR2' are equivalent.
-
+        ``'regional'`` and ``'CR1'`` are equivalent.
+        ``'local'`` and ``'CR2'`` are equivalent.
     use_values_in_tab : bool, default False
         If False, convert abundances to relative abundances.
         If True, values in tab are assumed to already be relative abundances.
 
     Returns
     -------
-    pandas.DataFrame
-        Rows:
+    pandas.DataFrame.
+        Rows
+
             - 'dis' : total dissimilarity
             - 'N'   : number of samples in group
-            - one row per taxon, for naive dissimilarity
-            - one row per branch or node, for phylogenetic dissimilarity
+            - one row per taxon for naive dissimilarity
+            - one row per branch or node for phylogenetic dissimilarity
 
-        Columns:
-            - one column per category in by
-            - for phylogenetic dissimilarity, an additional 'nodes' column
+        Columns
+ 
+            - one column per category in ``'by'``
     """
 
     # ---------------------------------------------------------------------
@@ -1666,7 +1593,6 @@ def dissimilarity_by_feature(
         # Naive version
         # -----------------------------------------------------------------
         if div_type == "naive":
-
             # Use relative abundances for weights, not raw counts.
             # This avoids group-level sequencing-depth effects.
             if idx == "regional":
@@ -1765,7 +1691,8 @@ def beta_mpdq(
     q: float = 1.0,
 ) -> pd.DataFrame:
     """
-    Computes beta-MPD_q for all sample pairs.
+    Beta mean phylogenetic distance (MPD) with q-weighting of relative abundances.
+    Calculated for sample pairs.
 
     Parameters
     ----------
@@ -1791,7 +1718,8 @@ def beta_mntdq(
     include_conspecifics: bool = False,
 ) -> pd.DataFrame:
     """
-    Computes beta-MNTD_q for all sample pairs.
+    Beta mean nearest taxon distance (MPD) with q-weighting of relative abundances.
+    Calculated for sample pairs.
 
     Parameters
     ----------
@@ -1807,7 +1735,7 @@ def beta_mntdq(
 
     Returns
     -------
-    pandas.DataFrame (S x S)
+    pandas.DataFrame (S x S):
     """
     from ..model import beta_ntiq
     return beta_ntiq(obj, distmat, q=q, iterations=0, include_conspecifics=include_conspecifics)
@@ -1818,10 +1746,12 @@ def beta_impdq(
     *,
     q: float = 1.0,
     locality: float = 1.0,
+    dist_scale: str | float = "auto",
     include_conspecifics: bool = True,
-) -> Tuple[pd.DataFrame, pd.DataFrame]:
+) -> Dict[str, Any]:
     """
-    Computes interpolated beta-MPD_q for all sample pairs.
+    Beta interpolated mean phylogenetic distance (iMPD) with q-weighting of relative abundances.
+    Calculated for sample pairs.
 
     Parameters
     ----------
@@ -1831,16 +1761,29 @@ def beta_impdq(
         Square distance matrix indexed/columned by feature ids.
     q : float, default=1.0
         Order of diversity weighting applied to relative abundances.
+    locality : float, default=1
+        Non-negative kernel locality parameter. Larger values give stronger
+        nearest-neighbour focus.
+    dist_scale : "auto" or float, default="auto"
+        Distance scale used to convert locality into kernel sharpness. If
+        ``"auto"``, the median positive distance in ``distmat`` is used.
+        Supplying a numeric value gives reproducible kernel sharpness across
+        runs or datasets.
     include_conspecifics : bool, default=True
         Determines whether conspecifics (identical features shared between samples) are allowed 
         to contribute zero-distance matches in the nearest-taxon calculation.
 
     Returns
     -------
-    pandas.DataFrame (S x S), pandas.DataFrame (S x S)
-        - Dataframe with iMPDq values
-        - Dataframe with nearest taxon focus (NTF) index values
+    Dictionary with pandas dataframes (S x S).
+    
+        - 'beta_iMPDq': the q-weighted beta-iMPD metric
+        - 'beta_ENN': the effective number of neighbours contributing to the metric
+        - 'beta_NTF': the nearest taxon focus
+        - 'beta_ENN_min': the minimum ENN value possible for the give q-weighting
+        - 'beta_ENN_max': the maximum ENN value possible for the give q-weighting
+        - 'dist_scale': the dist_scale used in the calculations
     """
     from ..model import beta_inriq
-    out = beta_inriq(obj, distmat, q=q, locality=locality, iterations=0, include_conspecifics=include_conspecifics)
+    out = beta_inriq(obj, distmat, q=q, locality=locality, dist_scale=dist_scale, iterations=0, include_conspecifics=include_conspecifics)
     return out

@@ -1,7 +1,6 @@
 """
 diversity
 =========
-
 Provides functions for alpha and beta diversity calculations.
 """
 

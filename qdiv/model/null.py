@@ -1790,6 +1790,11 @@ def beta_inriq(
         from MPD-like to nearest-neighbour-like behavior; Locality=0 means uniform kernel
         (fully MPD-like behaviour); locality=1 means intermediate behaviours; and
         locality=>2 means nearest-taxon focus. 
+    dist_scale : "auto" or float, default="auto"
+        Distance scale used to convert locality into kernel sharpness. If
+        ``"auto"``, the median positive distance in ``distmat`` is used.
+        Supplying a numeric value gives reproducible kernel sharpness across
+        runs or datasets.        
     iterations : int, default 999
         Null iterations (Welford streaming). If < 1, returns only the observed β matrix (DataFrame).
     include_conspecifics : bool, default=True
@@ -2196,6 +2201,7 @@ def beta_inriq(
             "beta_NTF": df_ntf,
             "beta_ENN_min": df_ennmin,
             "beta_ENN_max": df_ennmax,
+            "dist_scale": dist_scale_used,
         }
 
     # ---- Null model (Welford streaming) ----
@@ -2285,4 +2291,5 @@ def beta_inriq(
         "beta_null_std": df_std,
         "beta_p": df_p,
         "beta_ses": df_ses,
+        "dist_scale": dist_scale_used,
     }

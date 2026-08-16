@@ -424,7 +424,7 @@ def load_compressed_matrix(
 ) -> pd.DataFrame:
     """
     Loads a distance matrix dataframe saved in numpy compressed format (npz).
-    Assumes the filename ends with npz.
+    Assumes the filename ends with .npz.
 
     Parameters
     ----------
