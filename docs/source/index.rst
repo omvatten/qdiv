@@ -30,4 +30,4 @@ Welcome to qdiv's documentation!
    :maxdepth: 2
    :caption: Core Functions
 
-   modules
+   qdiv

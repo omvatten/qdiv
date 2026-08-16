@@ -11,7 +11,7 @@ and sequence handling, unified by the `MicrobiomeData` container class.
 Core subpackages
 ----------------
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1
 
    qdiv.diversity
    qdiv.stats
@@ -21,7 +21,8 @@ Core subpackages
 
 Main data container
 -------------------
-.. autoclass:: qdiv.MicrobiomeData
-   :members:
-   :undoc-members:
-   :show-inheritance:
+.. toctree::
+   :maxdepth: 2
+
+   MicrobiomeData
+
