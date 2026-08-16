@@ -4,9 +4,9 @@ diversity
 Provides functions for alpha and beta diversity calculations.
 """
 
-from .alpha_div import naive_alpha, phyl_alpha, func_alpha, mpdq, mntdq
+from .alpha_div import naive_alpha, phyl_alpha, func_alpha, mpdq, mntdq, impdq
 from .beta_div import naive_beta, phyl_beta, func_beta, bray, jaccard, naive_multi_beta, phyl_multi_beta, func_multi_beta, evenness, dissimilarity_by_feature
-from .beta_div import beta_mpdq, beta_mntdq
+from .beta_div import beta_mpdq, beta_mntdq, beta_impdq
 
 __all__ = [
     "naive_alpha",
@@ -14,6 +14,7 @@ __all__ = [
     "func_alpha",
     "mpdq",
     "mntdq",
+    "impdq",
     "naive_beta",
     "phyl_beta",
     "func_beta",
@@ -26,4 +27,5 @@ __all__ = [
     "dissimilarity_by_feature",
     "beta_mpdq",
     "beta_mntdq",
+    "beta_impdq",
 ]
