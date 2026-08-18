@@ -1488,7 +1488,7 @@ def beta_ntiq(
     *,
     q: float = 1.0,
     iterations: int = 999,
-    include_conspecifics: bool = False,
+    include_conspecifics: bool = True,
     randomization: Literal["features", "abundances"] = "features",
     use_tqdm: bool = True,
     random_state: Optional[Union[int, np.random.Generator]] = None,
@@ -1516,7 +1516,7 @@ def beta_ntiq(
         Diversity order used to weight relative abundances (applied only to strictly positive entries).
     iterations : int, default=999
         Number of randomization iterations used to build the null distribution.
-    include_conspecifics : bool, default=False
+    include_conspecifics : bool, default=True
         Determines whether conspecifics (identical features shared between samples) are allowed 
         to contribute zero-distance matches in the nearest-taxon calculation.
     randomization : {"features", "abundances"}, default="features"
@@ -1572,11 +1572,15 @@ def beta_ntiq(
         )
 
     smplist = tab.columns
-    D = distmat.loc[tab.index, tab.index].to_numpy(copy=True)  # (N x N), float
+    D = np.ascontiguousarray(distmat.loc[tab.index, tab.index].to_numpy(dtype=np.float64))  # (N x N), float
     # Relative abundances (N x S), allowing potential NaNs if a column sums to zero
-    R = (tab / tab.sum(axis=0)).to_numpy(dtype=float)          # (N x S)
-    Rq = _q_weight(R, q)
+    R = np.ascontiguousarray((tab / tab.sum(axis=0)).to_numpy(dtype=np.float64))          # (N x S)
+    Rq = np.ascontiguousarray(_q_weight(R, q), dtype=np.float64)
     N, S = R.shape
+
+    if not np.isfinite(D).all():
+        D = D.copy()
+        D[~np.isfinite(D)] = np.inf
 
     if use_numba:
         try:
@@ -1686,7 +1690,7 @@ def beta_ntiq(
 
         if randomization == "features":
             perm = rng.permutation(N)
-            Rq_perm = np.ascontiguousarray(Rq[perm, :])
+            Rq_perm = Rq[perm, :].copy()
         
         else:
             Rq_perm = np.empty_like(Rq)
@@ -1856,9 +1860,11 @@ def beta_inriq(
         )
 
     # Fix D and R
-    D = distmat.loc[tab.index, tab.index].to_numpy(dtype=float, copy=True) # (N x N)
-    R = (tab / tab.sum(axis=0)).fillna(0).to_numpy(float)       # (N x S)
-    N, S = R.shape
+    D = np.ascontiguousarray(distmat.loc[tab.index, tab.index].to_numpy(dtype=np.float64))
+    bad = ~np.isfinite(D)
+    if np.any(bad):
+        D = D.copy()
+        D[bad] = np.inf
 
     if D.shape[0] != D.shape[1]:
         raise ValueError("distmat must be square.")
@@ -1867,8 +1873,9 @@ def beta_inriq(
     if np.any(D[np.isfinite(D)] < 0):
         raise ValueError("distmat must not contain negative distances.")
 
-    # q-weighting
-    Rq = _q_weight(R, q)
+    R = np.ascontiguousarray((tab / tab.sum(axis=0)).fillna(0).to_numpy(dtype=np.float64))
+    Rq = np.ascontiguousarray(_q_weight(R, q), dtype=np.float64)
+    N, S = R.shape
 
     #Calculate distance sensitivity parameter, r
     if locality < 0:
@@ -1940,7 +1947,6 @@ def beta_inriq(
         return out
 
     def _directed_metrics(
-        R_used: np.ndarray,
         Rq_used: np.ndarray,
         diagnostics: bool = True,
     ):
@@ -1957,8 +1963,8 @@ def beta_inriq(
             target taxa are weighted by Rq_used[:, t]
         """
     
-        S_local = R_used.shape[1]
-        N_local = R_used.shape[0]
+        S_local = Rq_used.shape[1]
+        N_local = Rq_used.shape[0]
     
         A_dir = np.full((S_local, S_local), np.nan, dtype=float)
     
@@ -1976,16 +1982,13 @@ def beta_inriq(
         for t in range(S_local):
 
             # Target taxa present in sample t
-            mt = R_used[:, t] > 0.0
+            mt = Rq_used[:, t] > 0.0
     
             if not np.any(mt):
                 continue
     
             idx_t = np.where(mt)[0]
             w_target = Rq_used[mt, t].astype(float, copy=False)
-    
-            if np.sum(w_target > 0.0) == 0.0:
-                continue
     
             # Distances from all source taxa to target taxa
             Dt = D[:, mt].astype(float, copy=True)
@@ -1994,8 +1997,7 @@ def beta_inriq(
                 # Exclude exact taxon matches i == j for target-present taxa
                 Dt[idx_t, np.arange(idx_t.size)] = np.inf
     
-            finite = np.isfinite(Dt)
-            target = finite & (w_target[None, :] > 0.0)
+            target = np.isfinite(Dt)
     
             # --------------------------------------------------
             # Kernel matrix
@@ -2023,7 +2025,7 @@ def beta_inriq(
             # --------------------------------------------------
             # Directed beta-iMPDq row values
             # --------------------------------------------------
-            Dt_safe = np.where(finite, Dt, 0.0)
+            Dt_safe = np.where(target, Dt, 0.0)
             numer = (A * Dt_safe) @ w_target
             
             row_vals = np.full(N_local, np.nan, dtype=float)
@@ -2145,10 +2147,6 @@ def beta_inriq(
             # --------------------------------------------------
             # Aggregate ENN, ENNmin, ENNmax, and NTF over source samples
             # --------------------------------------------------
-            A_dir[:, t] = _weighted_row_average_to_samples(
-                row_vals,
-                Rq_used,
-            )
             ENN_dir[:, t] = _weighted_row_average_to_samples(
                 enn_rows,
                 Rq_used,
@@ -2173,7 +2171,7 @@ def beta_inriq(
 
     # ---- Observed Beta ----
     A_obs, ENN_dir_obs, NTF_dir_obs, ENNmin_dir_obs, ENNmax_dir_obs = (
-        _directed_metrics(R, Rq, diagnostics=True)
+        _directed_metrics(Rq, diagnostics=True)
     )
     
     beta_obs = 0.5 * (A_obs + A_obs.T)
@@ -2230,19 +2228,15 @@ def beta_inriq(
         # randomization
         if randomization == "features":
             perm = rng.permutation(N)
-            R_perm = R[perm, :]
-            Rq_perm = Rq[perm, :]
+            Rq_perm = np.ascontiguousarray(Rq[perm, :])
         else:
-            R_perm = np.empty_like(R)
-            R_perm = np.empty_like(Rq)
+            Rq_perm = np.empty_like(Rq)
             for j in range(S):
                 perm = rng.permutation(N)
-                R_perm[:, j] = R[perm, j]
                 Rq_perm[:, j] = Rq[perm, j]
 
         if directed_beta_only_numba is not None:
             A_null = directed_beta_only_numba(
-                R_perm,
                 Rq_perm,
                 D,
                 float(r),
@@ -2250,7 +2244,6 @@ def beta_inriq(
             )
         else:
             A_null = _directed_metrics(
-                R_perm,
                 Rq_perm,
                 diagnostics=False,
             )

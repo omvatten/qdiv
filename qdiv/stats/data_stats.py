@@ -441,6 +441,7 @@ def bootstrap_sample_matrix(
     random_state: Union[int, np.random.Generator, None] = None,
     return_boot: bool = False,
     warn_small: bool = True,
+    use_numba: bool = True,
     **kwargs,
 ) -> Dict[str, Dict[str, Dict[str, Union[float, Tuple[float, float], np.ndarray, int]]]]:
     """
@@ -494,6 +495,9 @@ def bootstrap_sample_matrix(
     warn_small : bool, default True
         If True, issue warnings when cells or categories contain very few
         samples, which may lead to unstable bootstrap estimates.
+    use_numba : bool, default=True
+        If True, accelerates calculation using Numba (which requires that Numba is installed).
+        Very useful when n_boot is large.
     
     Returns
     -------
@@ -691,6 +695,18 @@ def bootstrap_sample_matrix(
                     )
 
     # ---- Bootstrap loop ----
+    if use_numba:
+        try:
+            from .accelerate_stats import weighted_mean_distance_numba
+            backend = "numba"
+        except Exception:
+            print('Numba failed, falling back to Python.')
+            weighted_mean_distance_numba = None
+            backend = "python"
+    else:
+        weighted_mean_distance_numba = None
+        backend = "python"
+
     cells_list = list(present_cells)
     boot_within_den   = {var: np.empty(n_boot, dtype=int) for var in by}
     boot_between_den  = {var: np.empty(n_boot, dtype=int) for var in by}
@@ -699,10 +715,10 @@ def bootstrap_sample_matrix(
 
     for b in range(n_boot):
         # 1) Nested resampling within each fully crossed cell
-        boot_pos_by_cell = {
-            lev: rng.choice(pos_by_cell[lev], size=n_by_cell[lev], replace=True)
-            for lev in cells_list
-        }
+        boot_pos_by_cell = {}
+        for lev in cells_list:
+            src = pos_by_cell[lev]
+            boot_pos_by_cell[lev] = src[rng.integers(0, src.size, size=src.size)]
 
         # 2) Per-variable pooled sets and weighted means
         for var_i, var in enumerate(by):
@@ -721,22 +737,39 @@ def bootstrap_sample_matrix(
             # WITHIN(var): weighted mean of within-category upper-triangle dissimilarities
             # (deduplicating resampled indices to avoid duplicate->zero inflation)
             blocks = [(pooled_by_cat[c], pooled_by_cat[c]) for c in cats]
-            boot_within[var][b], within_den = _weighted_mean_distance(D, blocks, within=True)
-            boot_within_den[var][b]  = within_den
+            if weighted_mean_distance_numba is not None:
+                boot_within[var][b], within_den = weighted_mean_distance_numba(D, blocks, within=True)
+                boot_within_den[var][b]  = within_den
+            else:
+                boot_within[var][b], within_den = _weighted_mean_distance(D, blocks, within=True)
+                boot_within_den[var][b]  = within_den
 
             # BETWEEN(var): weighted mean of between-category distances (deduplicated)
             blocks = [(pooled_by_cat[c1], pooled_by_cat[c2]) for (c1, c2) in combinations(cats, 2)]
-            boot_between[var][b], between_den = _weighted_mean_distance(D, blocks, within=False)
-            boot_between_den[var][b] = between_den
+            if weighted_mean_distance_numba is not None:
+                boot_between[var][b], between_den = weighted_mean_distance_numba(D, blocks, within=False)
+                boot_between_den[var][b] = between_den
+            else:
+                boot_between[var][b], between_den = _weighted_mean_distance(D, blocks, within=False)
+                boot_between_den[var][b] = between_den
 
         # 3) Crossed aggregation (pooled across all cells): WITHIN
-        blocks = [(boot_pos_by_cell[lev], boot_pos_by_cell[lev]) for lev in cells_list]
-        boot_cross_within[b], cross_within_den = _weighted_mean_distance(D, blocks, within=True)
-        boot_cross_within_den[b]  = cross_within_den
-        
-        blocks = [(boot_pos_by_cell[c1], boot_pos_by_cell[c2]) for (c1, c2) in combinations(cells_list, 2)]
-        boot_cross_between[b], cross_between_den = _weighted_mean_distance(D, blocks, within=False)
-        boot_cross_between_den[b] = cross_between_den
+        if len(by) > 1:
+            blocks = [(boot_pos_by_cell[lev], boot_pos_by_cell[lev]) for lev in cells_list]
+            if weighted_mean_distance_numba is not None:
+                boot_cross_within[b], cross_within_den = weighted_mean_distance_numba(D, blocks, within=True)
+                boot_cross_within_den[b]  = cross_within_den
+            else:
+                boot_cross_within[b], cross_within_den = _weighted_mean_distance(D, blocks, within=True)
+                boot_cross_within_den[b]  = cross_within_den
+            
+            blocks = [(boot_pos_by_cell[c1], boot_pos_by_cell[c2]) for (c1, c2) in combinations(cells_list, 2)]
+            if weighted_mean_distance_numba is not None:
+                boot_cross_between[b], cross_between_den = weighted_mean_distance_numba(D, blocks, within=False)
+                boot_cross_between_den[b]  = cross_between_den
+            else:
+                boot_cross_between[b], cross_between_den = _weighted_mean_distance(D, blocks, within=False)
+                boot_cross_between_den[b] = cross_between_den
 
     # ---- Summaries & output ----
     out: Dict[str, Dict[str, Dict[str, Union[float, Tuple[float, float], np.ndarray, int]]]] = {}
@@ -779,5 +812,5 @@ def bootstrap_sample_matrix(
                 "boot": boot_cross_between if return_boot else None,
             },
         }
-
+    print('Bootstrapping sample matrix completed with backend ', backend)
     return out

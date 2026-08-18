@@ -239,6 +239,7 @@ def beta_mntdq_numba(D, Rq, include_conspecifics):
     # --------------------------------------------------
     # Present taxa per sample
     # --------------------------------------------------
+    present_bool = Rq > 0.0
     present = np.empty((S, N), dtype=np.int64)
     counts = np.zeros(S, dtype=np.int64)
     z = np.zeros(S, dtype=np.float64)
@@ -278,40 +279,63 @@ def beta_mntdq_numba(D, Rq, include_conspecifics):
             continue
 
         numer = 0.0
-        for ii in range(ks):
-            tax_i = present[s, ii]
-            wi = Rq[tax_i, s]
-            dmin = np.inf
-            found = False
-            for jj in range(kt):
-                tax_j = present[t, jj]
-                if not include_conspecifics and tax_i == tax_j:
+        if include_conspecifics:
+            for ii in range(ks):
+                tax_i = present[s, ii]
+                wi = Rq[tax_i, s]
+        
+                # shared taxon => nearest distance is zero
+                if present_bool[tax_i, t]:
                     continue
-                dij = D[tax_i, tax_j]
-                if np.isfinite(dij):
+        
+                dmin = np.inf
+                for jj in range(kt):
+                    tax_j = present[t, jj]
+        
+                    dij = D[tax_i, tax_j]
+        
                     if dij < dmin:
                         dmin = dij
-                    found = True
-
-            # Converts +inf to 0.0 using
-            # nan_to_num(posinf=0.0). Therefore, if no valid neighbor is
-            # found, this source taxon contributes zero to the numerator
-            # but its weight remains in the denominator z[s].
-            if found:
-                numer += wi * dmin
+        
+                if dmin < np.inf:
+                    numer += wi * dmin
+        
+        else: #Not include conspecifics
+            for ii in range(ks):
+                tax_i = present[s, ii]
+                wi = Rq[tax_i, s]
+        
+                dmin = np.inf
+                for jj in range(kt):
+                    tax_j = present[t, jj]
+        
+                    if tax_i == tax_j:
+                        continue
+        
+                    dij = D[tax_i, tax_j]
+        
+                    if dij < dmin:
+                        dmin = dij
+        
+                if dmin < np.inf:
+                    numer += wi * dmin
 
         A_dir[s, t] = numer / z[s]
 
     # --------------------------------------------------
     # Symmetrize
     # --------------------------------------------------
-    beta = np.empty((S, S), dtype=np.float64)
-    for p in prange(S * S):
-        s = p // S
-        t = p - s * S
-        a = A_dir[s, t]
-        b = A_dir[t, s]
-        beta[s, t] = 0.5 * (a + b)
+    beta = np.full((S, S), np.nan, dtype=np.float64)
+    for s in prange(S):
+        for t in range(s + 1, S):
+    
+            a = A_dir[s, t]
+            b = A_dir[t, s]
+    
+            val = 0.5 * (a + b)
+    
+            beta[s,t] = val
+            beta[t,s] = val
 
     return beta
 
@@ -319,7 +343,6 @@ def beta_mntdq_numba(D, Rq, include_conspecifics):
 # Accelerator for beta_inriq
 @njit(cache=True, parallel=True)
 def directed_beta_only_numba(
-    R_used,
     Rq_used,
     D,
     r,
@@ -335,7 +358,7 @@ def directed_beta_only_numba(
         source taxa are weighted by Rq_used[:, s]
         target taxa are weighted by Rq_used[:, t]
     """
-    N, S = R_used.shape
+    N, S = Rq_used.shape
     A_dir = np.empty((S, S), dtype=np.float64)
     for s in range(S):
         for t in range(S):
@@ -349,7 +372,7 @@ def directed_beta_only_numba(
     for t in range(S):
         c = 0
         for j in range(N):
-            if R_used[j, t] > 0.0 and Rq_used[j, t] > 0.0:
+            if Rq_used[j, t] > 0.0:
                 target_idx[t, c] = j
                 c += 1
         target_count[t] = c
@@ -378,11 +401,10 @@ def directed_beta_only_numba(
                     if not include_conspecifics and i == j:
                         continue
                     dij = D[i, j]
-                    if np.isfinite(dij):
+                    if dij < np.inf:
                         wj = Rq_used[j, t]
-                        if wj > 0.0:
-                            numer += wj * dij
-                            denom += wj
+                        numer += wj * dij
+                        denom += wj
 
                 if denom > 0.0:
                     row_value = numer / denom
@@ -400,13 +422,12 @@ def directed_beta_only_numba(
 
                     dij = D[i, j]
 
-                    if np.isfinite(dij):
+                    if dij < np.inf:
                         wj = Rq_used[j, t]
-                        if wj > 0.0:
-                            x = -r * dij
-                            if x > row_max:
-                                row_max = x
-                            has_valid = True
+                        x = -r * dij
+                        if x > row_max:
+                            row_max = x
+                        has_valid = True
 
                 if has_valid:
                     numer = 0.0
@@ -420,20 +441,18 @@ def directed_beta_only_numba(
 
                         dij = D[i, j]
 
-                        if np.isfinite(dij):
+                        if dij < np.inf:
                             wj = Rq_used[j, t]
-
-                            if wj > 0.0:
-                                a = np.exp((-r * dij) - row_max)
-                                aw = a * wj
-                                numer += aw * dij
-                                denom += aw
+                            a = np.exp((-r * dij) - row_max)
+                            aw = a * wj
+                            numer += aw * dij
+                            denom += aw
 
                     if denom > 0.0:
                         row_value = numer / denom
 
             # Aggregate this source-taxon row value into all source samples.
-            if np.isfinite(row_value):
+            if row_value == row_value and row_value < np.inf:
                 for s in range(S):
                     wi = Rq_used[i, s]
                     if wi > 0.0:
