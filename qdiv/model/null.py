@@ -1461,15 +1461,15 @@ def beta_nriq(
         ses = np.where(null_std > 0, (null_mean - obs) / null_std, np.nan)
 
     # Build DataFrames
+    for df in (obs, null_mean, null_std, p, ses):
+        np.fill_diagonal(df, np.nan)
+
     idxcols = list(smplist)
     df_obs = pd.DataFrame(obs, index=idxcols, columns=idxcols)
     df_mean = pd.DataFrame(null_mean, index=idxcols, columns=idxcols)
     df_std = pd.DataFrame(null_std, index=idxcols, columns=idxcols)
     df_p = pd.DataFrame(p, index=idxcols, columns=idxcols)
     df_ses = pd.DataFrame(ses, index=idxcols, columns=idxcols)
-
-    for df in (df_obs, df_mean, df_std, df_p, df_ses):
-        np.fill_diagonal(df.values, np.nan)
 
     return {
         "beta_MPDq": df_obs,
@@ -1722,6 +1722,9 @@ def beta_ntiq(
         ses = np.where(null_std > 0, (null_mean - obs) / null_std, np.nan)
 
     # Build DataFrames
+    for df in (obs, null_mean, null_std, p, ses):
+        np.fill_diagonal(df, np.nan)
+
     idxcols = list(smplist)
     df_obs = pd.DataFrame(obs, index=idxcols, columns=idxcols)
     df_mean = pd.DataFrame(null_mean, index=idxcols, columns=idxcols)
@@ -1729,9 +1732,6 @@ def beta_ntiq(
     df_p = pd.DataFrame(p, index=idxcols, columns=idxcols)
     df_ses = pd.DataFrame(ses, index=idxcols, columns=idxcols)
 
-    # Set diagonals to NaN for all outputs (consistent with prior beta-* functions)
-    for df in (df_obs, df_mean, df_std, df_p, df_ses):
-        np.fill_diagonal(df.to_numpy(), np.nan)
     print('Iterations done with backend '+backend)
 
     return {
@@ -2271,14 +2271,12 @@ def beta_inriq(
     with np.errstate(invalid="ignore", divide="ignore"):
         ses = np.where(null_std > 0, (null_mean - beta_obs) / null_std, np.nan)
 
-    df_mean = pd.DataFrame(null_mean, index=smplist, columns=smplist)
-    df_std = pd.DataFrame(null_std, index=smplist, columns=smplist)
-    df_p = pd.DataFrame(p, index=smplist, columns=smplist)
-    df_ses = pd.DataFrame(ses, index=smplist, columns=smplist)
+    # Make dataframes
+    df_mean = _to_df(null_mean)
+    df_std = _to_df(null_std)
+    df_p = _to_df(p)
+    df_ses = _to_df(ses)
 
-    # Diagonals to NaN (consistent with your other β functions)
-    for df in (df_mean, df_std, df_p, df_ses):
-        np.fill_diagonal(df.values, np.nan)
     print('Iterations done with backend '+backend)
 
     return {
