@@ -57,7 +57,7 @@ def mpdq_null_numba(D, Rq_used):
 
                 dij = D[tax_i, tax_j]
 
-                if np.isfinite(dij):
+                if dij < np.inf:
                     wij = wi * wj
                     numer += wij * dij
                     denom += wij
@@ -123,7 +123,7 @@ def mntdq_null_numba(D, R_used, Rq_used):
                 if dij < dmin:
                     dmin = dij
 
-            if np.isfinite(dmin):
+            if dmin < np.inf:
                 wi = Rq_used[tax_i, s]
                 if wi > 0.0:
                     numer += wi * dmin
@@ -149,7 +149,6 @@ def impdq_null_numba(D, rows, w_loc, r):
         i = active[ii]
         wi = w_loc[i]
         row_max = -np.inf
-        found = False
         tax_i = rows[i]
 
         # ---------------------
@@ -165,8 +164,7 @@ def impdq_null_numba(D, rows, w_loc, r):
             x = -r * dij
             if x > row_max:
                 row_max = x
-            found = True
-        if not found:
+        if row_max == -np.inf:
             continue
 
         # ---------------------
@@ -188,9 +186,8 @@ def impdq_null_numba(D, rows, w_loc, r):
 
         if denom > 0.0:
             dval = numer / denom
-            if np.isfinite(dval):
-                weighted_sum_i[i] = wi * dval
-                weight_total_i[i] = wi
+            weighted_sum_i[i] = wi * dval
+            weight_total_i[i] = wi
 
     weighted_sum = weighted_sum_i.sum()
     weight_total = weight_total_i.sum()

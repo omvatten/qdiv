@@ -449,10 +449,22 @@ def nriq(
         )
 
     smplist = tab.columns
-    D = distmat.loc[tab.index, tab.index].to_numpy()
-    R = (tab / tab.sum(axis=0)).fillna(0).to_numpy(float)
-    Rq = _q_weight(R, q)
-    N, S = Rq.shape
+    D = np.ascontiguousarray(distmat.loc[tab.index, tab.index].to_numpy(dtype=np.float64))
+    bad = ~np.isfinite(D)
+    if np.any(bad):
+        D = D.copy()
+        D[bad] = np.inf
+
+    if D.shape[0] != D.shape[1]:
+        raise ValueError("distmat must be square.")
+    if np.any(~np.isfinite(np.diag(D))):
+        raise ValueError("distmat diagonal must be finite.")
+    if np.any(D[np.isfinite(D)] < 0):
+        raise ValueError("distmat must not contain negative distances.")
+
+    R = np.ascontiguousarray((tab / tab.sum(axis=0)).fillna(0).to_numpy(dtype=np.float64))
+    Rq = np.ascontiguousarray(_q_weight(R, q), dtype=np.float64)
+    N, S = R.shape
 
     if use_numba:
         try:
@@ -656,10 +668,22 @@ def ntiq(
         )
 
     smplist = tab.columns
-    D = distmat.loc[tab.index, tab.index].to_numpy()  # (N x N)
-    R = (tab / tab.sum(axis=0)).fillna(0).to_numpy(float)
-    Rq = _q_weight(R, q)
-    N, S = Rq.shape
+    D = np.ascontiguousarray(distmat.loc[tab.index, tab.index].to_numpy(dtype=np.float64))
+    bad = ~np.isfinite(D)
+    if np.any(bad):
+        D = D.copy()
+        D[bad] = np.inf
+
+    if D.shape[0] != D.shape[1]:
+        raise ValueError("distmat must be square.")
+    if np.any(~np.isfinite(np.diag(D))):
+        raise ValueError("distmat diagonal must be finite.")
+    if np.any(D[np.isfinite(D)] < 0):
+        raise ValueError("distmat must not contain negative distances.")
+
+    R = np.ascontiguousarray((tab / tab.sum(axis=0)).fillna(0).to_numpy(dtype=np.float64))
+    Rq = np.ascontiguousarray(_q_weight(R, q), dtype=np.float64)
+    N, S = R.shape
 
     if use_numba:
         try:
@@ -928,9 +952,11 @@ def inriq(
         )
 
     # Fix D and R
-    D = distmat.loc[tab.index, tab.index].to_numpy(dtype=float, copy=True) # (N x N)
-    R = (tab / tab.sum(axis=0)).fillna(0).to_numpy(float)       # (N x S)
-    N, S = R.shape
+    D = np.ascontiguousarray(distmat.loc[tab.index, tab.index].to_numpy(dtype=np.float64))
+    bad = ~np.isfinite(D)
+    if np.any(bad):
+        D = D.copy()
+        D[bad] = np.inf
 
     if D.shape[0] != D.shape[1]:
         raise ValueError("distmat must be square.")
@@ -939,8 +965,9 @@ def inriq(
     if np.any(D[np.isfinite(D)] < 0):
         raise ValueError("distmat must not contain negative distances.")
 
-    # q-weighting
-    Rq = _q_weight(R, q)
+    R = np.ascontiguousarray((tab / tab.sum(axis=0)).fillna(0).to_numpy(dtype=np.float64))
+    Rq = np.ascontiguousarray(_q_weight(R, q), dtype=np.float64)
+    N, S = R.shape
 
     #Calculate distance sensitivity parameter, r
     if locality < 0:
