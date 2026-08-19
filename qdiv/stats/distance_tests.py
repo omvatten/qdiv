@@ -884,3 +884,68 @@ def gower(
     np.fill_diagonal(result, 0.0 if not return_similarity else 1.0)
 
     return pd.DataFrame(result, index=X.index, columns=X.index)
+
+
+def pairwise_difference(
+    meta: Union[pd.DataFrame, Dict[str, Any], Any] = None,
+    by: str = None,
+    absolute: bool = True,
+) -> pd.DataFrame:
+    """
+    Compute pairwise differences for a single metadata variable.
+
+    Parameters
+    ----------
+    meta : pandas.DataFrame, dict, or MicrobiomeData object
+        Input data. Rows are samples and columns are metadata variables.
+    by : str
+        Name of the variable to use.
+    absolute : bool, default=True
+        If True, return absolute differences. If False, return signed
+        differences (`row_i - row_j`).
+
+    Returns
+    -------
+    pandas.DataFrame
+        Pairwise difference matrix between samples.
+
+    Notes
+    -----
+    * Numerical variables are compared using subtraction.
+    * Datetime variables are converted to days and compared using
+      differences in days.
+    * Missing values yield NaN for affected sample pairs.
+    * Categorical variables are not supported.
+    """
+    df = get_df(meta, "meta")
+
+    if df is None or df.empty:
+        raise ValueError("Input 'meta' is missing or empty.")
+
+    if by is None:
+        raise ValueError("'by' must specify a variable.")
+
+    if by not in df.columns:
+        raise ValueError(f"Variable '{by}' not found.")
+
+    s = df[by].copy()
+
+    NS_PER_DAY = 86_400_000_000_000
+    if is_datetime64_any_dtype(s):
+        vals = s.view("int64").astype(float)
+        vals[s.isna()] = np.nan
+        vals /= NS_PER_DAY
+    elif is_numeric_dtype(s):
+        vals = s.to_numpy(dtype=float)
+    else:
+        raise TypeError("pairwise_difference only supports numeric or datetime variables.")
+    diff = vals[:, None] - vals[None, :]
+
+    if absolute:
+        diff = np.abs(diff)
+
+    return pd.DataFrame(
+        diff,
+        index=df.index,
+        columns=df.index,
+    )
