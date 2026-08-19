@@ -58,8 +58,9 @@ def _rank_vector(a: np.ndarray) -> np.ndarray:
 def mantel(
     dis1: pd.DataFrame,
     dis2: pd.DataFrame,
-    method: Literal["spearman", "pearson", "absDist"] = "spearman",
-    getOnlyStat: bool = False,
+    method: Literal["spearman", "pearson", "difference"] = "spearman",
+    get_only_stat: bool = False,
+    test: Literal["greater", "less", "two-sided"] = "two-sided",
     permutations: int = 999,
     *,
     random_state: Union[int, np.random.Generator, None] = None,
@@ -67,17 +68,13 @@ def mantel(
 ) -> Union[float, List[float]]:
     """
     Perform a Mantel test to assess the association between two
-    dissimilarity matrices.
+    distance or dissimilarity matrices.
     
-    The Mantel test evaluates whether pairs of samples that are close (or
-    far apart) in one dissimilarity matrix tend to be close (or far apart)
-    in another. The test statistic is computed by comparing the
-    lower‑triangular entries of the two matrices, and statistical
-    significance is assessed using a permutation test.
-    
-    For correlation-based methods, the association is quantified as a
-    *dissimilarity* (1 − r), where r is the Pearson or Spearman correlation
-    between the vectorized distance matrices.
+    The Mantel test evaluates whether pairs of samples that are close
+    (or far apart) in one distance matrix tend to be close (or far apart)
+    in another. The test statistic is calculated from the lower-triangular
+    entries of the two matrices, and statistical significance is assessed
+    using a permutation test.
     
     Parameters
     ----------
@@ -87,43 +84,71 @@ def mantel(
     dis2 : pandas.DataFrame
         Second square distance or dissimilarity matrix (samples × samples)
         with identical row and column labels matching `dis1`.
-    method : {'spearman', 'pearson', 'absDist'}, default='spearman'
+    method : {'spearman', 'pearson', 'difference'}, default='spearman'
         Measure used to quantify association between distance matrices:
     
         * 'spearman' :
-            Spearman rank correlation between distances (reported as 1 − ρ).
+            Spearman rank correlation (ρ) between vectorized distances.
         * 'pearson' :
-            Pearson correlation between distances (reported as 1 − r).
-        * 'absDist' :
+            Pearson correlation (r) between vectorized distances.
+        * 'difference' :
             Mean absolute difference between corresponding distances.
-    getOnlyStat : bool, default=False
+
+    test : {'greater', 'less', 'two-sided'}, default='two-sided'
+        Alternative hypothesis used for the permutation test.
+    
+        * 'greater' :
+            Test whether the observed association is stronger and more
+            positive than expected under the null hypothesis. Small
+            p-values indicate a significantly positive Mantel correlation.
+        * 'less' :
+            Test whether the observed association is more negative than
+            expected under the null hypothesis. Small p-values indicate a
+            significantly negative Mantel correlation.
+        * 'two-sided' :
+            Test whether the observed association differs from zero in
+            either direction. Small p-values indicate a Mantel correlation
+            whose magnitude is greater than expected under the null
+            hypothesis, regardless of sign.
+
+    get_only_stat : bool, default=False
         If True, return only the observed test statistic without performing
         permutations.
     permutations : int, default=999
         Number of permutations used to approximate the null distribution.
-    random_state : int | numpy.random.Generator | None
+    random_state : int | numpy.random.Generator | None, default=None
         Random seed or NumPy random generator for reproducible permutations.
     
     Returns
     -------
     float or list [statistic, p_value]
-        * If `getOnlyStat=True`, returns the observed statistic only.
+        * If `get_only_stat=True`, returns the observed statistic only.
         * Otherwise, returns a list containing the observed statistic and
           its permutation-based p-value.
     
+        For correlation-based methods, the test statistic ranges from
+        -1 to 1, where positive values indicate that the two matrices
+        are positively associated and negative values indicate an inverse
+        association.
+    
     Notes
     -----
-    * The test uses only the lower triangular part of each distance matrix
-      (excluding the diagonal), avoiding double counting of pairwise
-      distances.
-    * Sample labels are permuted in `dis1` while `dis2` is held fixed to
-      generate the null distribution.
-    * For correlation-based methods ('pearson', 'spearman'), the reported
-      statistic is a *dissimilarity* (1 − r or 1 − ρ), so **smaller values
-      indicate stronger association** between the two matrices.
-    * p-values are computed using a standard permutation test with a +1
-      correction: (count + 1) / (permutations + 1).
+    * For 'pearson' and 'spearman', the reported statistic is the
+      correlation coefficient between the vectorized distance matrices.
+    * For 'difference', the reported statistic is the mean absolute
+      difference between corresponding distances.
+    * P-values are computed from the permutation distribution using a
+      +1 correction:
+    
+      ``(count + 1) / (permutations + 1)``
+    
+      where `count` is defined according to `test`:
+    
+      * 'greater': permuted statistics ≥ observed statistic.
+      * 'less': permuted statistics ≤ observed statistic.
+      * 'two-sided': |permuted statistics| ≥ |observed statistic|.
     """
+
     # ---- alias handling ----
     if "seed" in kwargs:
         if random_state is not None:
@@ -138,8 +163,8 @@ def mantel(
         raise TypeError("dis1 and dis2 must be pandas DataFrames.")
     if dis1.shape != dis2.shape:
         raise ValueError("dis1 and dis2 must have the same shape.")
-    if method not in {"spearman", "pearson", "absDist"}:
-        raise ValueError("method must be 'spearman', 'pearson', or 'absDist'.")
+    if method not in {"spearman", "pearson", "difference"}:
+        raise ValueError("method must be 'spearman', 'pearson', or 'difference'.")
 
     # Require identical labels
     if not dis1.index.equals(dis1.columns):
@@ -160,16 +185,16 @@ def mantel(
     n = A.shape[0]
     if n < 2:
         # no pairs
-        return 0.0 if getOnlyStat else [0.0, 1.0]
+        return 0.0 if get_only_stat else [0.0, 1.0]
 
     tril_i, tril_j = np.tril_indices(n, k=-1)
     v1 = A[tril_i, tril_j].astype(float, copy=True)
     v2 = B[tril_i, tril_j].astype(float, copy=True)
 
     # --- observed statistic ---
-    if method == "absDist":
+    if method == "difference":
         obs = float(np.mean(np.abs(v1 - v2)))
-        if getOnlyStat:
+        if get_only_stat:
             return obs
     else:
         if method == "pearson":
@@ -188,16 +213,16 @@ def mantel(
             z2 = (r2 - r2_mean) / r2_std
             obs_r = float((z1 @ z2) / (z1.size - 1))
         # convert similarity -> dissimilarity like your code
-        obs = 1.0 - obs_r
-        if getOnlyStat:
+        obs = obs_r
+        if get_only_stat:
             return obs
 
     # --- permutations (NumPy RNG, no pandas in loop) ---
     rng = random_state if isinstance(random_state, np.random.Generator) else np.random.default_rng(random_state)
     null_stats = np.empty(permutations, dtype=float)
 
-    if method == "absDist":
-        # absDist doesn't need z-scores
+    if method == "difference":
+        # difference doesn't need z-scores
         for b in range(permutations):
             perm = rng.permutation(n)
             v1p = A[perm][:, perm][tril_i, tril_j]
@@ -209,7 +234,7 @@ def mantel(
             v1p = A[perm][:, perm][tril_i, tril_j]
             z1p = (v1p - v1_mean) / v1_std
             r = (z1p @ z2) / (z1p.size - 1)
-            null_stats[b] = 1.0 - r
+            null_stats[b] = r
     else:  # spearman
         # r2 fixed; need ranks of v1_perm each time (ties handled)
         for b in range(permutations):
@@ -220,10 +245,18 @@ def mantel(
             r1p_m, r1p_s = r1p.mean(), r1p.std(ddof=1)
             z1p = (r1p - r1p_m) / r1p_s
             r = (z1p @ z2) / (z1p.size - 1)
-            null_stats[b] = 1.0 - r
+            null_stats[b] = r
 
     # one-sided p-value (proportion of permuted stats <= observed), +1 correction
-    p = (np.sum(null_stats <= obs) + 1) / (permutations + 1)
+    if test == "greater":
+        p = (np.sum(null_stats >= obs) + 1) / (permutations + 1)
+    
+    elif test == "less":
+        p = (np.sum(null_stats <= obs) + 1) / (permutations + 1)
+    
+    else:  # two-sided
+        p = (np.sum(np.abs(null_stats) >= abs(obs)) + 1) / (permutations + 1)
+
     return [obs, p]
 
 # -----------------------------------------------------------------------------
