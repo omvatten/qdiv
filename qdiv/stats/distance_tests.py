@@ -885,12 +885,14 @@ def gower(
 
     return pd.DataFrame(result, index=X.index, columns=X.index)
 
-
+# -----------------------------------------------------------------------------
+# pairwise_difference - Make pairwise difference matrix from numeric metadata column
+# -----------------------------------------------------------------------------
 def pairwise_difference(
     meta: Union[pd.DataFrame, Dict[str, Any], Any] = None,
-    by: str = None,
+    by: str | list = None,
     absolute: bool = True,
-) -> pd.DataFrame:
+) -> Dict[str, pd.DataFrame]:
     """
     Compute pairwise differences for a single metadata variable.
 
@@ -906,8 +908,8 @@ def pairwise_difference(
 
     Returns
     -------
-    pandas.DataFrame
-        Pairwise difference matrix between samples.
+    dict
+        A dictionary with one pairwise difference matrix for each metadata column specified by 'by'.
 
     Notes
     -----
@@ -925,27 +927,133 @@ def pairwise_difference(
     if by is None:
         raise ValueError("'by' must specify a variable.")
 
-    if by not in df.columns:
-        raise ValueError(f"Variable '{by}' not found.")
+    if isinstance(by, str):
+        by = [by]
 
-    s = df[by].copy()
+    if not isinstance(by, list):
+        raise ValueError("'by' must be a str or a list.")
 
-    NS_PER_DAY = 86_400_000_000_000
-    if is_datetime64_any_dtype(s):
-        vals = s.view("int64").astype(float)
-        vals[s.isna()] = np.nan
-        vals /= NS_PER_DAY
-    elif is_numeric_dtype(s):
-        vals = s.to_numpy(dtype=float)
-    else:
-        raise TypeError("pairwise_difference only supports numeric or datetime variables.")
-    diff = vals[:, None] - vals[None, :]
+    for b in by:
+        if b not in df.columns:
+            raise ValueError(f"Variable '{b}' not found.")
 
-    if absolute:
-        diff = np.abs(diff)
+    out = {}
+    for b in by:
+        s = df[b].copy()
+    
+        if is_datetime64_any_dtype(s):
+            vals = s.to_numpy()
+            diff = (vals[:, None] - vals[None, :]) / np.timedelta64(1, "D")
+        elif is_numeric_dtype(s):
+            vals = s.to_numpy(dtype=float)
+            diff = vals[:, None] - vals[None, :]
+        else:
+            raise TypeError("pairwise_difference only supports numeric or datetime variables.")
+    
+        if absolute:
+            diff = np.abs(diff)
+        out[b] = pd.DataFrame(diff, index=df.index, columns=df.index)
 
-    return pd.DataFrame(
-        diff,
-        index=df.index,
-        columns=df.index,
-    )
+    return out
+
+# -----------------------------------------------------------------------------
+# MRM - Multiple regression on matrices
+# -----------------------------------------------------------------------------
+def _upper_tri(M):
+    """Return upper triangle as vector."""
+    iu = np.triu_indices_from(M, k=1)
+    return M[iu]
+
+def _r2_score(y, yhat):
+    ss_res = np.sum((y - yhat) ** 2)
+    ss_tot = np.sum((y - y.mean()) ** 2)
+    return 1.0 - ss_res / ss_tot
+
+def mrm(dis, predictors, permutations=999, seed=None):
+    """
+    Multiple regression on distance matrices.
+
+    Parameters
+    ----------
+    dis : ndarray
+        Response distance matrix (NxN).
+
+    predictors : dict
+        Predictor matrices:
+        {
+            "time": T,
+            "season": S,
+            ...
+        }
+
+    permutations : int
+        Number of permutations.
+
+    Returns
+    -------
+    dict
+    """
+    rng = np.random.default_rng(seed)
+
+    # response vector
+    y = _upper_tri(dis)
+
+    # design matrix
+    X = np.column_stack([
+        _upper_tri(mat) for mat in predictors.values()
+    ])
+
+    # add intercept
+    X = np.column_stack([np.ones(len(y)), X])
+
+    # observed fit
+    beta_obs, *_ = np.linalg.lstsq(X, y, rcond=None)
+
+    yhat = X @ beta_obs
+    r2_obs = _r2_score(y, yhat)
+
+    ncoef = len(beta_obs)
+
+    beta_perm = np.zeros((permutations, ncoef))
+    r2_perm = np.zeros(permutations)
+
+    N = dis.shape[0]
+
+    for p in range(permutations):
+
+        idx = rng.permutation(N)
+
+        # Mantel-style permutation
+        Dp = dis[idx][:, idx]
+
+        yp = _upper_tri(Dp)
+
+        b, *_ = np.linalg.lstsq(X, yp, rcond=None)
+
+        beta_perm[p] = b
+
+        r2_perm[p] = _r2_score(yp, X @ b)
+
+    p_beta = np.empty(ncoef)
+
+    for i in range(ncoef):
+        p_beta[i] = (
+            np.sum(np.abs(beta_perm[:, i]) >= abs(beta_obs[i])) + 1
+        ) / (permutations + 1)
+
+    p_r2 = (
+        np.sum(r2_perm >= r2_obs) + 1
+    ) / (permutations + 1)
+
+    return {
+        "coefficients": dict(
+            zip(["Intercept"] + list(predictors.keys()),
+                beta_obs)
+        ),
+        "coefficient_pvals": dict(
+            zip(["Intercept"] + list(predictors.keys()),
+                p_beta)
+        ),
+        "R2": r2_obs,
+        "R2_p": p_r2
+    }
