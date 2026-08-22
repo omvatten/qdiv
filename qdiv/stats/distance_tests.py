@@ -961,6 +961,7 @@ def pairwise_difference(
 # -----------------------------------------------------------------------------
 def _upper_tri(M):
     """Return upper triangle as vector."""
+    M = np.asarray(M)
     iu = np.triu_indices_from(M, k=1)
     return M[iu]
 
@@ -969,7 +970,7 @@ def _r2_score(y, yhat):
     ss_tot = np.sum((y - y.mean()) ** 2)
     return 1.0 - ss_res / ss_tot
 
-def mrm(dis, predictors, permutations=999, seed=None):
+def mrm(dis, predictors, permutations=999, random_state=None):
     """
     Multiple regression on distance matrices.
 
@@ -993,18 +994,56 @@ def mrm(dis, predictors, permutations=999, seed=None):
     -------
     dict
     """
-    rng = np.random.default_rng(seed)
 
+    rng = np.random.default_rng(random_state)
+
+    # Validate response matrix
+    if not dis.index.equals(dis.columns):
+        raise ValueError(
+            "dis must have identical row and column labels"
+        )
+
+    # Align predictors
+    predictors_aligned = {}
+    for name, mat in predictors.items():
+        if not mat.index.equals(mat.columns):
+            raise ValueError(
+                f"Predictor '{name}' must have identical "
+                "row and column labels"
+            )
+        if set(mat.index) != set(dis.index):
+            raise ValueError(
+                f"Predictor '{name}' does not contain "
+                "the same samples as dis"
+            )
+        predictors_aligned[name] = mat.loc[
+            dis.index,
+            dis.columns
+        ]
+    
+    predictors = predictors_aligned
+    
+    # Convert to NumPy
+    dis = dis.to_numpy()
+    predictors = {
+        name: mat.to_numpy()
+        for name, mat in predictors.items()
+    }
+    
     # response vector
     y = _upper_tri(dis)
-
+    
     # design matrix
     X = np.column_stack([
-        _upper_tri(mat) for mat in predictors.values()
+        _upper_tri(mat)
+        for mat in predictors.values()
     ])
-
+    
     # add intercept
-    X = np.column_stack([np.ones(len(y)), X])
+    X = np.column_stack([
+        np.ones(len(y)),
+        X
+    ])
 
     # observed fit
     beta_obs, *_ = np.linalg.lstsq(X, y, rcond=None)

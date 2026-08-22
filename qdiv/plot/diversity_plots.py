@@ -149,163 +149,6 @@ def dissimilarity_contributions(
 
     return fig, df
 
-
-# -----------------------------------------------------------------------------
-# Plot phylogram
-# -----------------------------------------------------------------------------
-def phyl_tree(
-    obj: Union[Dict[str, Any], Any],
-    *,
-    width: float = 12,
-    name_internal_nodes: bool = False,
-    abundance_info: Optional[str] = None,
-    xlog: bool = False,
-    savename: Optional[str] = None,
-) -> Tuple["plt.figure.Figure", "pd.DataFrame"]:
-    """
-    Plot a phylogram from a tree DataFrame with optional abundance bars.
-
-    Parameters
-    ----------
-    obj : dict or MicrobiomeData
-        Input object with required key:
-        - ``tree`` (pandas.DataFrame): tree structure with columns ['nodes', 'leaves', 'branchL'].
-        Optional keys:
-        - ``tab`` (pandas.DataFrame): abundance table (features x samples).
-        - ``meta`` (pandas.DataFrame): metadata table for sample grouping.
-    width : float, default=12
-        Width of the plot in centimeters. Height is set automatically based on number of ASVs.
-    name_internal_nodes : bool, default=False
-        If True, labels are added to internal nodes.
-    abundance_info : {'index'} or str, optional
-        If 'index', plot relative abundance bars for each ASV.
-        If a metadata column name, plot grouped abundance bars for each category.
-    xlog : bool, default=False
-        If True, abundance bars use a logarithmic x-axis.
-    savename : str, optional
-        If provided, save the figure to this path and also as PDF.
-
-    Returns
-    -------
-    fig : matplotlib.figure.Figure
-    df_endN : pandas.DataFrame
-        DataFrame of end nodes with positions and optional abundance info.
-
-    Notes
-    -----
-    - The tree DataFrame must contain columns: 'nodes', 'leaves', 'branchL'.
-    - If `abundance_info` is provided, relative abundances are computed per leaf or category.
-    - Bars are plotted to the right of the tree when `abundance_info` is not None.
-
-    Examples
-    --------
-    >>> phyl_tree(obj, width=15, name_internal_nodes=True, abundance_info='Treatment', xlog=True, savename='phylogram')
-    """
-    # Validate tree
-    tree = get_df(obj, "tree")
-    tab = get_df(obj, "tab")
-    meta = get_df(obj, "meta")
-    if tree is None:
-        raise ValueError("Error: 'tree' not found in obj.")
-    
-    df = tree.copy()
-
-    # Separate end nodes and internal nodes
-    df_endN = df[(~df["nodes"].str.startswith('in'))&(df["nodes"] != 'Root')].set_index("nodes")
-    df_intN = df[df["nodes"].str.startswith('in')].set_index("nodes")
-
-    # Assign initial positions
-    df_endN["ypos"] = range(len(df_endN.index))
-    df_endN["xpos"] = df_endN["dist_to_root"].astype(float)
-
-    # Sort internal nodes by size
-    df_intN['asv_count'] = 0
-    df_intN['asv_count'] = df_intN['leaves'].apply(lambda x: len(parse_leaves(x)))
-    df_intN = df_intN.sort_values("asv_count", ascending=True)
-
-    # Compute abundance info if requested
-    catlist = []
-    if abundance_info and tab is not None and meta is not None:
-        if abundance_info != "index":
-            catlist = meta[abundance_info].dropna().unique().tolist()
-        else:
-            catlist = meta.index.tolist()
-
-        for cat in catlist:
-            df_endN[f"ra:{cat}"] = 0.0
-            temp_obj = subset_samples(obj, by=abundance_info, values=[cat])
-            temp_tab = get_df(temp_obj, "tab")
-            ra = temp_tab / temp_tab.sum()
-            ra = ra.mean(axis=1)
-            df_endN.loc[ra.index, f"ra:{cat}"] = ra
-
-    # Plot tree
-    textspacing = df_endN["xpos"].max() / 50
-    plt.rcParams.update({"font.size": 10})
-    fig = plt.figure(figsize=(width / 2.54, 0.7 * len(df_endN.index) / 2.54), constrained_layout=True)
-    gs = fig.add_gridspec(1, 10)
-    gs.update(wspace=0, hspace=0)
-
-    ax = fig.add_subplot(gs[0, :9] if abundance_info else gs[0, :10], frame_on=True)
-
-    # Plot end nodes
-    for node in df_endN.index:
-        ypos = df_endN.loc[node, "ypos"]
-        xpos = df_endN.loc[node, "xpos"]
-        ax.text(xpos + textspacing, ypos, node, va="center", color="red")
-        node_BL = df_endN.loc[node, "branchL"]
-        ax.plot([xpos - node_BL, xpos], [ypos, ypos], lw=1, color="black")
-        df_endN.loc[node, "xpos"] = xpos - node_BL
-
-    # Plot internal nodes
-    for intN in df_intN.index:
-        asvlist = df_intN.loc[intN, "leaves"]
-        xpos = df_endN.loc[asvlist, "xpos"].mean()
-        ymax = df_endN.loc[asvlist, "ypos"].max()
-        ymin = df_endN.loc[asvlist, "ypos"].min()
-        ax.plot([xpos, xpos], [ymin, ymax], lw=1, color="black")
-        ymean = (ymax + ymin) / 2
-        xmin = xpos - df_intN.loc[intN, "branchL"]
-        ax.plot([xmin, xpos], [ymean, ymean], lw=1, color="black")
-        df_endN.loc[asvlist, ["ypos", "xpos"]] = [float(ymean), float(xmin)]
-        if name_internal_nodes:
-            ax.text(xpos, ymean, df_intN.loc[intN, "nodes"], va="center", color="red")
-
-    ax.plot([0, 0], [df_endN["ypos"].min(), df_endN["ypos"].max()], lw=1, color="black")
-    ax.set_ylim(-1, len(df_endN.index))
-    ax.axis("off")
-
-    # Plot abundance bars
-    if abundance_info:
-        ax2 = fig.add_subplot(gs[0, 9], frame_on=True)
-        bars_leg1, bars_leg2 = [], []
-        orig_ypos = range(len(df_endN.index))
-        for cat_nr, cat in enumerate(catlist):
-            bar_thickness = 0.8 / len(catlist)
-            bar_yoffset = bar_thickness * (cat_nr - (len(catlist) - 1) / 2)
-            ylist = np.array(orig_ypos) + bar_yoffset
-            xlist = df_endN[f"ra:{cat}"]
-            bl = ax2.barh(ylist, xlist, height=0.95 * bar_thickness, label=cat)
-            bars_leg1.append(bl)
-            bars_leg2.append(cat)
-
-        if xlog:
-            ax2.set_xscale("log")
-        ax2.set_ylim(-1, len(df_endN.index))
-        ax2.set_xticks([])
-        ax2.set_yticks([])
-        ax.legend(bars_leg1, bars_leg2, loc="lower right", bbox_to_anchor=(1, 1), ncol=4, frameon=False)
-
-    if savename:
-        plt.savefig(savename, dpi=240)
-        try:
-            plt.savefig(f"{savename}.pdf", format="pdf")
-        except Exception:
-            # Fallback silently if a PDF backend is not available in the environment
-            pass
-
-    return fig, df_endN
-
 # -----------------------------------------------------------------------------
 # Plot harvey balls from metadata
 # -----------------------------------------------------------------------------
@@ -484,6 +327,7 @@ def alpha_diversity_profile(
     color_by: Optional[str] = None,
     order: Optional[str] = None,
     ylog: bool = False,
+    ax: Optional[plt.Axes] = None,
     figsize: Tuple[float, float] = (18 / 2.54, 14 / 2.54),
     fontsize: int = 10,
     colorlist: Optional[List[str]] = None,
@@ -523,6 +367,8 @@ def alpha_diversity_profile(
         Metadata column name used to sort samples before plotting.
     ylog : bool, default=False
         If True, plot alpha diversity on a logarithmic y-scale.
+    ax : matplotlib.axes.Axes, optional
+        Existing axes to draw the plot on. If None, a new figure is created.
     figsize : tuple of float, default=(18/2.54, 14/2.54)
         Figure size in inches.
     fontsize : int, default=10
@@ -634,7 +480,11 @@ def alpha_diversity_profile(
 
     # --- Plotting --------------------------------------------------------------
     plt.rcParams.update({"font.size": fontsize})
-    fig, ax = plt.subplots(figsize=figsize)
+
+    if ax is None:
+        fig, ax = plt.subplots(figsize=figsize)
+    else:
+        fig = ax.figure
 
     # Determine colors
     if colorlist is None:
@@ -677,8 +527,10 @@ def alpha_diversity_profile(
     ax.set_xticks(xticks)
     ax.set_xlim(q_start, q_end)
 
-    plt.legend(bbox_to_anchor=(1, 1), loc="upper left", frameon=False)
-    plt.tight_layout()
+    ax.legend(bbox_to_anchor=(1, 1), loc="upper left", frameon=False)
+    
+    if fig is not None:
+        fig.tight_layout()
 
     # Saving
     if savename:
