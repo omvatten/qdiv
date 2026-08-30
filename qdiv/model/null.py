@@ -551,8 +551,9 @@ def nriq(
         delta = x[valid_x] - mu[valid_x]
         mu[valid_x] += delta / n_valid[valid_x]
         M2[valid_x] += delta * (x[valid_x] - mu[valid_x])
-        count_lt[valid_x] += x[valid_x] < obs[valid_x]
-        count_eq[valid_x] += x[valid_x] == obs[valid_x]
+        diff = x[valid_x] - obs[valid_x]
+        count_lt[valid_x] += diff < -1e-12
+        count_eq[valid_x] += np.abs(diff) <= 1e-12
 
     # Finalize stats
     null_mean = np.full(S, np.nan)
@@ -573,10 +574,15 @@ def nriq(
     ) / n_valid[has_mean]
 
     with np.errstate(invalid="ignore", divide="ignore"):
+        delta = null_mean - obs
         ses = np.where(
-            null_std > 0,
-            (null_mean - obs) / null_std,
-            np.nan
+            np.abs(delta) < 1e-12,
+            0,
+            np.where(
+                null_std > 1e-12, 
+                delta / null_std,
+                np.nan
+            )
         )
     print('Iterations done with backend '+backend)
 
@@ -779,8 +785,9 @@ def ntiq(
         delta = x[valid_x] - mu[valid_x]
         mu[valid_x] += delta / n_valid[valid_x]
         M2[valid_x] += delta * (x[valid_x] - mu[valid_x])
-        count_lt[valid_x] += x[valid_x] < obs[valid_x]
-        count_eq[valid_x] += x[valid_x] == obs[valid_x]
+        diff = x[valid_x] - obs[valid_x]
+        count_lt[valid_x] += diff < -1e-12
+        count_eq[valid_x] += np.abs(diff) <= 1e-12
 
     # Finalize stats
     null_mean = np.full(S, np.nan)
@@ -801,10 +808,15 @@ def ntiq(
     ) / n_valid[has_mean]
 
     with np.errstate(invalid="ignore", divide="ignore"):
+        delta = null_mean - obs
         ses = np.where(
-            null_std > 0,
-            (null_mean - obs) / null_std,
-            np.nan
+            np.abs(delta) < 1e-12,
+            0,
+            np.where(
+                null_std > 1e-12, 
+                delta / null_std,
+                np.nan
+            )
         )
     print('Iterations done with backend '+backend)
 
@@ -1298,8 +1310,10 @@ def inriq(
         delta = x[valid_x] - mu[valid_x]
         mu[valid_x] += delta / n_valid[valid_x]
         M2[valid_x] += delta * (x[valid_x] - mu[valid_x])
-        count_lt[valid_x] += x[valid_x] < obs[valid_x]
-        count_eq[valid_x] += x[valid_x] == obs[valid_x]
+        
+        diff = x[valid_x] - obs[valid_x]
+        count_lt[valid_x] += diff < -1e-12
+        count_eq[valid_x] += np.abs(diff) <= 1e-12
 
     null_mean = np.full(S, np.nan)
     null_std = np.full(S, np.nan)
@@ -1310,7 +1324,16 @@ def inriq(
     null_std[has_var] = np.sqrt(M2[has_var] / (n_valid[has_var] - 1))
     p[has_mean] = (count_lt[has_mean] + 0.5 * count_eq[has_mean]) / n_valid[has_mean]
     with np.errstate(invalid="ignore", divide="ignore"):
-        ses = np.where(null_std > 0, (null_mean - obs) / null_std, np.nan)
+        delta = null_mean - obs
+        ses = np.where(
+            np.abs(delta) < 1e-12,
+            0,
+            np.where(
+                null_std > 1e-12, 
+                delta / null_std,
+                np.nan
+            )
+        )
     print('Iterations done with backend '+backend)
 
     return pd.DataFrame(
@@ -1476,16 +1499,27 @@ def beta_nriq(
         M2 += delta * (x - mu)
 
         # p-index vs observed
-        count_lt += (x < obs)
-        count_eq += (x == obs)
+        diff = x - obs
+        count_lt += diff < -1e-12
+        count_eq += np.abs(diff) <= 1e-12
 
     # Finalize stats
     denom_var = max(1, iterations - 1)
     null_mean = mu
     null_std = np.sqrt(np.maximum(M2 / denom_var, 0.0))
     p = (count_lt + 0.5 * count_eq) / iterations
+
     with np.errstate(invalid="ignore", divide="ignore"):
-        ses = np.where(null_std > 0, (null_mean - obs) / null_std, np.nan)
+        delta = null_mean - obs
+        ses = np.where(
+            np.abs(delta) <= 1e-12,
+            0.0,
+            np.where(
+                null_std > 1e-12,
+                delta / null_std,
+                np.nan
+            )
+        )
 
     # Build DataFrames
     for df in (obs, null_mean, null_std, p, ses):
@@ -1741,16 +1775,27 @@ def beta_ntiq(
         M2 += delta * (x - mu)
 
         # p-index bookkeeping
-        count_lt += (x < obs)
-        count_eq += (x == obs)
+        diff = x - obs
+        count_lt += diff < -1e-12
+        count_eq += np.abs(diff) <= 1e-12
 
     # Finalize stats
     denom_var = max(1, iterations - 1)
     null_mean = mu
     null_std = np.sqrt(np.maximum(M2 / denom_var, 0.0))
     p = (count_lt + 0.5 * count_eq) / iterations
+
     with np.errstate(invalid="ignore", divide="ignore"):
-        ses = np.where(null_std > 0, (null_mean - obs) / null_std, np.nan)
+        delta = null_mean - obs
+        ses = np.where(
+            np.abs(delta) <= 1e-12,
+            0.0,
+            np.where(
+                null_std > 1e-12,
+                delta / null_std,
+                np.nan
+            )
+        )
 
     # Build DataFrames
     for df in (obs, null_mean, null_std, p, ses):
@@ -2281,15 +2326,27 @@ def beta_inriq(
         delta = x - mu
         mu += delta / t
         M2 += delta * (x - mu)
-        clt += (x < beta_obs)
-        ceq += (x == beta_obs)
+
+        diff = x - beta_obs
+        clt += diff < -1e-12
+        ceq += np.abs(diff) <= 1e-12
 
     denom_var = max(1, iterations - 1)
     null_mean = mu
     null_std = np.sqrt(np.maximum(M2 / denom_var, 0.0))
     p = (clt + 0.5 * ceq) / iterations
+
     with np.errstate(invalid="ignore", divide="ignore"):
-        ses = np.where(null_std > 0, (null_mean - beta_obs) / null_std, np.nan)
+        delta = null_mean - beta_obs
+        ses = np.where(
+            np.abs(delta) <= 1e-12,
+            0.0,
+            np.where(
+                null_std > 1e-12,
+                delta / null_std,
+                np.nan
+            )
+        )
 
     # Make dataframes
     df_mean = _to_df(null_mean)
