@@ -5,6 +5,8 @@ Public API:
     - mantel
     - permanova
     - gower
+    - pairwise_difference
+    - mrm
 """
 
 import pandas as pd
@@ -24,7 +26,9 @@ from pandas.api.types import (
 __all__ = [
     "mantel",
     "permanova",
-    "gower"
+    "gower",
+    "pairwise_difference",
+    "mrm",
 ]
 
 # -----------------------------------------------------------------------------
@@ -978,7 +982,6 @@ def mrm(dis, predictors, permutations=999, random_state=None):
     ----------
     dis : ndarray
         Response distance matrix (NxN).
-
     predictors : dict
         Predictor matrices:
         {
@@ -986,9 +989,10 @@ def mrm(dis, predictors, permutations=999, random_state=None):
             "season": S,
             ...
         }
-
     permutations : int
         Number of permutations.
+    random_state : int | numpy.random.Generator | None
+        Random seed or generator for reproducible permutations.
 
     Returns
     -------
