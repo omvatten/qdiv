@@ -1833,7 +1833,7 @@ def beta_inriq(
     randomization: Literal["features", "abundances"] = "features",
     use_tqdm: bool = True,
     random_state: Optional[Union[int, np.random.Generator]] = None,
-    use_numba: bool = False,
+    use_numba: bool = True,
     **kwargs,
 ) -> Dict[str, pd.DataFrame]:
     """

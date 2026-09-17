@@ -79,8 +79,8 @@ def phylo_tree(
         The created figure with the phylogenetic tree.
     ax : matplotlib.axes.Axes
         The matplotlib Axes object for the figure.
-    T_plot : pandas.DataFrame
-        The dataframe used to generate the plot.
+    coords : pandas.DataFrame
+        Coordinates of all plotted nodes.
 
     Raises
     ------
@@ -162,6 +162,16 @@ def phylo_tree(
 
     # -- x positions from dist_to_root ----------------------------------------
     x_pos = dict(zip(T_plot['nodes'], T_plot['dist_to_root'].astype(float)))
+
+    # -- Build node coordinate table ------------------------------------------
+    coords = pd.DataFrame({
+        "node": T_plot["nodes"],
+        "x": T_plot["nodes"].map(x_pos),
+        "y": T_plot["nodes"].map(y_pos),
+        "parent": T_plot["parent"],
+        "branchL": T_plot["branchL"],
+    })
+    coords["is_tip"] = coords["node"].isin(tip_nodes)
 
     # -- Prepare axes ----------------------------------------------------------
     if ax is None:
@@ -245,4 +255,4 @@ def phylo_tree(
         fig.savefig(savename, dpi=300, bbox_inches="tight")
         fig.savefig(savename + '.pdf', format="pdf")
 
-    return fig, ax, T_plot
+    return fig, ax, coords
